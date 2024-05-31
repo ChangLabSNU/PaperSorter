@@ -22,14 +22,10 @@
 #
 
 from ..feed_database import FeedDatabase
-from ..providers.theoldreader import Connection, ItemsSearch
-from datetime import datetime
 import requests
-import pickle
 import click
 import time
 import re
-import os
 
 def normalize_item_for_display(item, max_content_length):
     # XXX: Fix the source field for the aggregated items.
@@ -116,20 +112,6 @@ def send_slack_notification(config, item):
 
 def normalize_text(text):
     return re.sub(r'\s+', ' ', text).strip()
-
-def get_starred_or_liked(conn, num_items):
-    searcher = ItemsSearch(conn)
-
-    starred = next(searcher.get_starred_only(num_items))
-    liked = next(searcher.get_liked_only(num_items))
-
-    return starred + liked
-
-def broadcast_item(item, slack_endpoint, dry_run):
-    print("Broadcasting:", item.title)
-    message = f'{item.title}\n{item.href}'
-    if not dry_run:
-        send_slack_message(slack_endpoint, message)
 
 @click.option('--days', default=7, help='Number of days to look back.')
 @click.option('--score-threshold', default=0.7, help='Threshold for the score.')

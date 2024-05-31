@@ -28,7 +28,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score
-import pandas as pd
 import pickle
 
 @click.option('-o', '--output', default='model.pkl', help='Output file name.')

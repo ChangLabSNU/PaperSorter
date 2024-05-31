@@ -21,11 +21,9 @@
 # THE SOFTWARE.
 #
 
-from ..feed_database import FeedDatabase
 from ..providers.theoldreader import Connection, ItemsSearch
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
-from sklearn.preprocessing import StandardScaler
 from langchain_upstage import UpstageEmbeddings
 import xgboost as xgb
 from datetime import datetime
@@ -60,8 +58,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
                 #print(f'Skipping item {item.item_id} due to date cutoff {item.published}.')
                 continue
 
-            date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
-
+            #date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
             #print(f'[{date_formatted}] {item.title}')
             db.insert_item(item, starred=starred)
             newitems += 1
