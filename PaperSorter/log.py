@@ -32,8 +32,10 @@ log.addHandler(console)
 
 def initialize_logging(logfile=None, quiet=False):
     if logfile is not None:
-        logf_handler = logging.FileHandler(logfile, mode='w')
+        formatter = logging.Formatter('[%(asctime)s] %(message)s', '%Y-%m-%d %H:%M:%S')
+        logf_handler = logging.FileHandler(logfile, mode='a')
         logf_handler.setLevel(logging.DEBUG)
+        logf_handler.setFormatter(formatter)
         log.addHandler(logf_handler)
 
     if quiet:
