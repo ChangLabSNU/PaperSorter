@@ -100,15 +100,45 @@ class FeedDatabase:
     def update_score(self, item_id, score):
         self.cursor.execute('UPDATE feeds SET score = ? WHERE id = ?', (float(score), item_id))
 
+    def update_broadcasted(self, item_id, timemark):
+        self.cursor.execute('UPDATE feeds SET broadcasted = ? WHERE id = ?', (timemark, item_id))
+
     def get_unscored_items(self):
         self.cursor.execute('SELECT id FROM feeds WHERE score IS NULL')
         return [row[0] for row in self.cursor.fetchall()]
 
-    def get_new_interesting_items(self, threshold, since):
+    def get_new_interesting_items(self, threshold, since, remove_duplicated=None):
         self.cursor.execute('SELECT * FROM feeds WHERE score > ? AND '
                             'broadcasted IS NULL AND published >= ?',
                             (threshold, since))
-        return self.build_dataframe_from_results()
+
+        matches = self.build_dataframe_from_results()
+        if len(matches) == 0:
+            return matches
+
+        blacklisted = set()
+        if remove_duplicated is not None:
+            for item_id in matches.index:
+                if self.check_broadcasted(item_id, remove_duplicated):
+                    blacklisted.add(item_id)
+
+        if len(blacklisted) > 0:
+            matches = matches.drop(blacklisted)
+
+        return matches
+
+    def check_broadcasted(self, item_id, since):
+        self.cursor.execute('SELECT COUNT(b.broadcasted) FROM feeds a, feeds b '
+                            'WHERE a.id = ? AND b.published >= ? AND '
+                            'a.id != b.id AND a.title = b.title AND '
+                            'b.broadcasted > 0', (item_id, since))
+        dup_broadcasted = self.cursor.fetchone()[0]
+        if dup_broadcasted > 0:
+            # Mark duplicates as blacklisted
+            self.cursor.execute('UPDATE feeds SET broadcasted = 0 WHERE id = ?', (item_id,))
+            self.commit()
+
+        return dup_broadcasted > 0
 
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):

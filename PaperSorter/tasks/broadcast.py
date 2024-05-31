@@ -23,11 +23,99 @@
 
 from ..feed_database import FeedDatabase
 from ..providers.theoldreader import Connection, ItemsSearch
-import click
 from datetime import datetime
+import requests
 import pickle
+import click
 import time
+import re
 import os
+
+def normalize_item_for_display(item, max_content_length):
+    # XXX: Fix the source field for the aggregated items.
+    if item['origin'] == 'QBio Feed Aggregation' and '  ' in item['content']:
+        source, content = item['content'].split('  ', 1)
+        item['origin'] = source
+        item['content'] = normalize_text(content)
+
+    # Truncate the content if it's too long.
+    if len(item['content']) > max_content_length:
+        item['content'] = item['content'][:max_content_length] + '…'
+
+def send_slack_notification(config, item):
+    url = config['WEBHOOK_PAPERSORTER_NEWSTEST']
+    header = {'Content-type': 'application/json'}
+
+    # Add title block
+    title = normalize_text(item['title'])
+    blocks = [
+        {'type': 'divider'},
+        {'type': 'header',
+         'text': {'type': 'plain_text', 'text': title}},
+    ]
+
+    # Add predicted score block
+    blocks.append(
+        {'type': 'context',
+         'elements': [
+            {'type': 'mrkdwn',
+              'text': f':heart_decoration: QBio Score: *{int(item["score"]*100)}*'}
+         ]
+        }
+    )
+
+    # Add source block
+    origin = normalize_text(item['origin'])
+    if origin:
+        if item['link']:
+            origin = f'<{item["link"]}|{origin}>'
+
+        blocks.append(
+            {'type': 'context',
+             'elements': [{
+                'type': 'mrkdwn',
+                'text': f':inbox_tray: Source: *{origin}*'}
+             ]
+            }
+        )
+
+    # Add authors block
+    authors = normalize_text(item['author'])
+    if authors:
+        blocks.append(
+            {'type': 'context',
+             'elements': [{
+                'type': 'mrkdwn',
+                'text': f':black_nib: *{authors}*'}
+             ]
+            }
+        )
+
+    if item['content'].strip():
+        blocks.append(
+            {
+                'type': 'section',
+                'text': {'type': 'mrkdwn', 'text': item['content'].strip()},
+                'accessory': {
+                    'type': 'button',
+                    'text': {
+                        'type': 'plain_text',
+                        'text': 'Read',
+                        'emoji': True
+                    },
+                    'value': 'read_0',
+                    'url': item['link'],
+                    'action_id': 'button-action'
+                }
+            },
+        )
+
+    data = {'blocks': blocks}
+
+    return requests.post(url, headers=header, json=data)
+
+def normalize_text(text):
+    return re.sub(r'\s+', ' ', text).strip()
 
 def get_starred_or_liked(conn, num_items):
     searcher = ItemsSearch(conn)
@@ -43,44 +131,20 @@ def broadcast_item(item, slack_endpoint, dry_run):
     if not dry_run:
         send_slack_message(slack_endpoint, message)
 
-def send_slack_message(endpoint, message):
-    import requests
-    requests.post(endpoint, json={'text': message})
-
 @click.option('--days', default=7, help='Number of days to look back.')
 @click.option('--score-threshold', default=0.7, help='Threshold for the score.')
-@click.option('-d', '--dry-run', is_flag=True, help='Do not actually send messages.')
-def main(days, score_threshold, dry_run):
+@click.option('--max-content-length', default=400, help='Maximum length of the content.')
+def main(days, score_threshold, max_content_length):
     from dotenv import dotenv_values
     config = dotenv_values()
 
     since = time.time() - days * 86400
 
     feeddb = FeedDatabase('feeds.db')
-    newitems = feeddb.get_new_interesting_items(score_threshold, since)
-    print(newitems[['title', 'score']])
-    return
-
-
-
-
-    history_filename = history
-    history = (
-        pickle.load(open(history_filename, 'rb'))
-        if os.path.exists(history) else [])
-
-    #items = get_starred_or_liked(conn, num_items)
-    #pickle.dump(items, open('items.pkl', 'wb'))
-    recent_items = pickle.load(open('items.pkl', 'rb'))
-    new_items = set(recent_items) - set(history)
-    print("Recent items:", len(recent_items))
-    print("New items:", len(new_items))
-
-    for item in new_items:
-        broadcast_item(item, dry_run)
-        history.append((item, time.time()))
-
-    # Remove old items from history
-    cutoff = time.time() - ttl * 86400
-    history = [(i, t) for i, t in history if t < cutoff]
-    pickle.dump(history, open(history_filename, 'wb'))
+    newitems = feeddb.get_new_interesting_items(score_threshold, since,
+                                                remove_duplicated=since)
+    for item_id, info in newitems.iterrows():
+        normalize_item_for_display(info, max_content_length)
+        send_slack_notification(config, info)
+        feeddb.update_broadcasted(item_id, int(time.time()))
+        feeddb.commit()
