@@ -21,27 +21,21 @@
 # THE SOFTWARE.
 #
 
-from ..feed_database import FeedDatabase
-from ..log import log, initialize_logging
-import click
-import pandas as pd
+import logging
 
-@click.option('--feed-database', default='feeds.db', help='Feed database file.')
-@click.option('-i', '--input', help='Input file name.', required=True)
-@click.option('--log-file', default=None, help='Log file.')
-@click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(feed_database, input, log_file, quiet):
-    initialize_logging(logfile=log_file, quiet=quiet)
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
 
-    feeddb = FeedDatabase(feed_database)
+log = logging.getLogger('PaperSorter')
+log.setLevel(logging.DEBUG)
+log.addHandler(console)
 
-    feedback = pd.read_excel(input).set_index('id')
-    newlabels = feedback['label'].dropna().astype(int)
-    for item_id, label in newlabels.items():
-        feeddb.update_label(item_id, label)
-    feeddb.commit()
+def initialize_logging(logfile=None, quiet=False):
+    if logfile is not None:
+        logf_handler = logging.FileHandler(logfile, mode='w')
+        logf_handler.setLevel(logging.DEBUG)
+        log.addHandler(logf_handler)
 
-    positive = (newlabels == 1).sum()
-    negative = (newlabels == 0).sum()
-    log.info(f'Updated labels for {len(newlabels)} items: {positive} positive, '
-             f'{negative} negative.')
+    if quiet:
+        console.setLevel(logging.WARNING)
+

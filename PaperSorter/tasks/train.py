@@ -23,45 +23,53 @@
 
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
-import click
+from ..log import log, initialize_logging
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-import xgboost as xgb
 from sklearn.metrics import roc_auc_score
+import xgboost as xgb
+import click
 import pickle
 
+@click.option('--feed-database', default='feeds.db', help='Feed database file.')
+@click.option('--embedding-database', default='embeddings.db', help='Embedding database file.')
 @click.option('-o', '--output', default='model.pkl', help='Output file name.')
 @click.option('-r', '--rounds', default=100, help='Number of boosting rounds.')
 @click.option('-f', '--output-feedback', default='feedback.xlsx',
               help='Output file name for feedback.')
-def main(output, rounds, output_feedback):
-    feeddb = FeedDatabase('feeds.db')
-    embeddingdb = EmbeddingDatabase('embeddings.db')
+@click.option('--log-file', default=None, help='Log file.')
+@click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
+def main(feed_database, embedding_database, output, rounds, output_feedback,
+         log_file, quiet):
+    initialize_logging(logfile=log_file, quiet=quiet)
 
-    feedinfo = feeddb.get_metadata().set_index('id')
+    feeddb = FeedDatabase(feed_database)
+    embeddingdb = EmbeddingDatabase(embedding_database)
+
+    feedinfo = feeddb.get_metadata()
     feed_ids = sorted(set(feedinfo.index.to_list()) & embeddingdb.keys())
     feedinfo = feedinfo.reindex(feed_ids).copy()
 
-    print('Loading embeddings...')
+    log.info('Loading embeddings...')
     embs = embeddingdb[feed_ids]
 
-    print('Scaling embeddings...')
+    log.info('Scaling embeddings...')
     scaler = StandardScaler()
     embs_scaled = scaler.fit_transform(embs)
 
-    print('Loading labels...')
+    log.info('Loading labels...')
     dataY = feedinfo['starred'].copy()
     dataY.update(feedinfo['label'].dropna())
     dataY = dataY.values[:, None]
 
-    print('Splitting data...')
+    log.info('Splitting data...')
     X_train, X_test, y_train, y_test, fids_train, fids_test = \
         train_test_split(embs_scaled, dataY, feed_ids)
 
     dtrain_reg = xgb.DMatrix(X_train, y_train)
     dtest_reg = xgb.DMatrix(X_test, y_test)
 
-    print('Training regression model...')
+    log.info('Training regression model...')
     evals = [(dtrain_reg, 'train'), (dtest_reg, 'validation')]
     params = {'objective': 'binary:logistic', 'device': 'cuda'}
     model = xgb.train(
@@ -73,18 +81,18 @@ def main(output, rounds, output_feedback):
         early_stopping_rounds=10,
     )
 
-    print('Saving model...')
+    log.info('Saving model...')
     pickle.dump({
         'model': model,
         'scaler': scaler,
     }, open(output, 'wb'))
 
-    print('Evaluating regression model...')
+    log.info('Evaluating regression model...')
     y_testpred = model.predict(dtest_reg)
     rocauc = roc_auc_score(y_test, y_testpred)
-    print(f"-> ROCAUC of the base model: {rocauc:.3f}")
+    log.info(f'-> ROCAUC of the base model: {rocauc:.3f}')
 
-    print('Saving spreadsheet for feedback...')
+    log.info('Saving spreadsheet for feedback...')
     feeds_test = feedinfo.loc[fids_test].copy()
     feeds_test['score'] = y_testpred
     feeds_test = feeds_test[

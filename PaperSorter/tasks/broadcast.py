@@ -22,10 +22,14 @@
 #
 
 from ..feed_database import FeedDatabase
+from ..log import log, initialize_logging
 import requests
 import click
 import time
 import re
+import os
+
+SLACK_ENDPOINT_KEY = 'WEBHOOK_PAPERSORTER_NEWS'
 
 def normalize_item_for_display(item, max_content_length):
     # XXX: Fix the source field for the aggregated items.
@@ -38,8 +42,7 @@ def normalize_item_for_display(item, max_content_length):
     if len(item['content']) > max_content_length:
         item['content'] = item['content'][:max_content_length] + '…'
 
-def send_slack_notification(config, item):
-    url = config['WEBHOOK_PAPERSORTER_NEWSTEST']
+def send_slack_notification(endpoint_url, item):
     header = {'Content-type': 'application/json'}
 
     # Add title block
@@ -108,25 +111,34 @@ def send_slack_notification(config, item):
 
     data = {'blocks': blocks}
 
-    return requests.post(url, headers=header, json=data)
+    return requests.post(endpoint_url, headers=header, json=data)
 
 def normalize_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
+@click.option('--feed-database', default='feeds.db', help='Feed database file.')
 @click.option('--days', default=7, help='Number of days to look back.')
 @click.option('--score-threshold', default=0.7, help='Threshold for the score.')
 @click.option('--max-content-length', default=400, help='Maximum length of the content.')
-def main(days, score_threshold, max_content_length):
-    from dotenv import dotenv_values
-    config = dotenv_values()
+@click.option('--log-file', default=None, help='Log file.')
+@click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
+def main(feed_database, days, score_threshold, max_content_length, log_file, quiet):
+    initialize_logging(logfile=log_file, quiet=quiet)
+
+    from dotenv import load_dotenv
+    load_dotenv()
 
     since = time.time() - days * 86400
 
-    feeddb = FeedDatabase('feeds.db')
+    endpoint = os.environ[SLACK_ENDPOINT_KEY]
+    feeddb = FeedDatabase(feed_database)
     newitems = feeddb.get_new_interesting_items(score_threshold, since,
                                                 remove_duplicated=since)
+    log.info(f'Found {len(newitems)} new items to broadcast.')
+
     for item_id, info in newitems.iterrows():
+        log.info(f'Sending notification to Slack for {info["title"]}')
         normalize_item_for_display(info, max_content_length)
-        send_slack_notification(config, info)
+        send_slack_notification(endpoint, info)
         feeddb.update_broadcasted(item_id, int(time.time()))
         feeddb.commit()
