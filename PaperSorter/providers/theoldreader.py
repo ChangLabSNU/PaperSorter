@@ -30,8 +30,13 @@ from theoldreader import Item as BaseItem
 
 class Item(BaseItem):
 
+    CATEGORY_STARRED = 'user/-/state/com.google/starred'
+    CATEGORY_LIKE = 'user/-/state/com.google/like'
+
     def __init__(self, connection, item_id):
         self.connection = connection
+
+        self.starred = self.like = None # True / False / None (unknown)
 
         if isinstance(item_id, dict):
             self.item_id = item_id['id']
@@ -45,6 +50,8 @@ class Item(BaseItem):
             else:
                 self.mediaUrl = None
             self.published = item_id['published']
+
+            self.detect_user_interactions(item_id)
         else:
             self.item_id = item_id
             self.title = None
@@ -54,6 +61,14 @@ class Item(BaseItem):
             self.origin = None
             self.mediaUrl = None
             self.published = None
+
+    def detect_user_interactions(self, tor_item):
+        if 'categories' not in tor_item:
+            return
+
+        self.starred = self.CATEGORY_STARRED in tor_item['categories']
+        self.like = self.CATEGORY_LIKE in tor_item['categories']
+
 
 class ItemsSearch(BaseItemsSearch):
 

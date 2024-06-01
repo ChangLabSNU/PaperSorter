@@ -140,6 +140,14 @@ class FeedDatabase:
 
         return dup_broadcasted > 0
 
+    def get_star_status(self, since, till):
+        self.cursor.execute('SELECT id, starred FROM feeds WHERE published >= ? '
+                            'AND published <= ?', (since, till))
+        return {item_id: bool(starred) for item_id, starred in self.cursor.fetchall()}
+
+    def update_star_status(self, item_id, starred):
+        self.cursor.execute('UPDATE feeds SET starred = ? WHERE id = ?',
+                            (int(starred), item_id))
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):
     return pattern.sub(' ', text)
