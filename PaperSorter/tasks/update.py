@@ -46,9 +46,36 @@ def batched(iterable, n):
     if items:
         yield items
 
+def update_star_status(db, items):
+    time_begin = min(it.published for it in items) - 1
+    time_end = max(it.published for it in items) + 1
+
+    current_status = db.get_star_status(time_begin, time_end)
+    changes = 0
+
+    for item in items:
+        if item.starred is None or item.item_id not in current_status:
+            continue
+
+        if item.starred != current_status[item.item_id]:
+            if item.starred:
+                log.info(f'New star to {item.item_id}')
+            else:
+                log.info(f'Dropping a star from {item.item_id}')
+
+            db.update_star_status(item.item_id, item.starred)
+            changes += 1
+
+    if changes > 0:
+        db.commit()
+
 def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_items=False):
     for page, items in enumerate(iterator):
         log.info(f"Processing page {page+1}")
+        if page == 0 and len(items) > 0:
+            # Update starred status for the latest items only
+            update_star_status(db, items)
+
         newitems = 0
 
         for item in items:
