@@ -24,6 +24,7 @@
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
 import requests
+import pandas as pd
 import click
 import time
 import re
@@ -132,8 +133,13 @@ def main(feed_database, days, score_threshold, max_content_length, log_file, qui
 
     endpoint = os.environ[SLACK_ENDPOINT_KEY]
     feeddb = FeedDatabase(feed_database)
+
     newitems = feeddb.get_new_interesting_items(score_threshold, since,
                                                 remove_duplicated=since)
+    newstars = feeddb.get_newly_starred_items(since=0, remove_duplicated=since)
+    if len(newstars) > 0:
+        newitems = (
+            pd.concat([newitems, newstars]) if len(newitems) > 0 else newstars)
     log.info(f'Found {len(newitems)} new items to broadcast.')
 
     for item_id, info in newitems.iterrows():
