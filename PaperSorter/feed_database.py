@@ -113,6 +113,9 @@ class FeedDatabase:
                             (threshold, since))
 
         matches = self.build_dataframe_from_results()
+        return self.filter_duplicates(matches, remove_duplicated)
+
+    def filter_duplicates(self, matches, remove_duplicated):
         if len(matches) == 0:
             return matches
 
@@ -126,6 +129,12 @@ class FeedDatabase:
             matches = matches.drop(blacklisted)
 
         return matches
+
+    def get_newly_starred_items(self, since, remove_duplicated=None):
+        self.cursor.execute('SELECT * FROM feeds WHERE starred > 0 AND '
+                            'published >= ? AND broadcasted IS NULL', (since,))
+        matches = self.build_dataframe_from_results()
+        return self.filter_duplicates(matches, remove_duplicated)
 
     def check_broadcasted(self, item_id, since):
         self.cursor.execute('SELECT COUNT(b.broadcasted) FROM feeds a, feeds b '
