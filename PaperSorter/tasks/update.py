@@ -25,7 +25,7 @@ from ..providers.theoldreader import Connection, ItemsSearch
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..log import log, initialize_logging
-from langchain_upstage import UpstageEmbeddings
+from openai import OpenAI
 import xgboost as xgb
 from datetime import datetime
 import pickle
@@ -35,6 +35,9 @@ import os
 FEED_UPDATE_LIMIT_REGULAR = 200
 FEED_UPDATE_LIMIT_FULL = 1000
 FEED_EPOCH = 2020, 1, 1
+
+OPENAI_API_URL = 'https://api.upstage.ai/v1/solar'
+OPENAI_EMBEDDING_MODEL = 'solar-embedding-1-large-passage'
 
 def batched(iterable, n):
     items = []
@@ -118,25 +121,28 @@ def update_feeds(get_full_list, feeddb, date_cutoff, config):
 
     log.info('Done.\n')
 
-def update_embeddings(embeddingdb, batch_size, api_key, feeddb):
-    keystoupdate = feeddb.keys() - embeddingdb.keys()
+def update_embeddings(embeddingdb, batch_size, api_key, feeddb, force_reembed=False):
+    keystoupdate = feeddb.keys().copy()
+    if not force_reembed:
+        keystoupdate -= embeddingdb.keys()
+
     log.info(f'Items in database: {len(feeddb)}')
     log.info(f'Items in embedding database: {len(embeddingdb)}')
     log.info(f'Items to update: {len(keystoupdate)}')
     if len(keystoupdate) == 0:
         return
 
-    embeddings_model = UpstageEmbeddings(
-        upstage_api_key=api_key, model='solar-embedding-1-large')
+    client = OpenAI(api_key=api_key, base_url=OPENAI_API_URL)
+    model_name = OPENAI_EMBEDDING_MODEL
 
     for bid, batch in enumerate(batched(keystoupdate, batch_size)):
         log.info(f'Updating embedding: batch {bid+1} ...')
 
         items = [feeddb.get_formatted_item(item_id) for item_id in batch]
-        embeddings = embeddings_model.embed_documents(items)
+        embresults = client.embeddings.create(model=model_name, input=items)
 
-        for item_id, embedding in zip(batch, embeddings):
-            embeddingdb[item_id] = embedding
+        for item_id, result in zip(batch, embresults.data):
+            embeddingdb[item_id] = result.embedding
         
         embeddingdb.sync()
 
@@ -174,11 +180,12 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
 @click.option('--batch-size', default=100, help='Batch size for processing.')
 @click.option('--get-full-list', is_flag=True, help='Retrieve all items from feeds.')
 @click.option('--prediction-model', default='model.pkl', help='Predictor model for scoring.')
+@click.option('--force-reembed', is_flag=True, help='Force recalculation of embeddings for all items.')
 @click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
 def main(feed_database, embedding_database, batch_size, get_full_list,
-         prediction_model, force_rescore, log_file, quiet):
+         prediction_model, force_reembed, force_rescore, log_file, quiet):
     initialize_logging(logfile=log_file, quiet=quiet)
 
     from dotenv import load_dotenv
@@ -197,7 +204,7 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
 
     log.info('== Updating embeddings ==')
     upstage_api_key = os.environ['UPSTAGE_API_KEY']
-    update_embeddings(embeddingdb, batch_size, upstage_api_key, feeddb)
+    update_embeddings(embeddingdb, batch_size, upstage_api_key, feeddb, force_reembed)
 
     if prediction_model != '':
         log.info('== Scoring new feeds ==')

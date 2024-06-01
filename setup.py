@@ -60,7 +60,7 @@ setup(
     install_requires=[
         'bsddb3',
         'click >= 8.0',
-        'langchain-upstage >= 0.1.5',
+        'openai >= 1.30',
         'numpy >= 1.20',
         'openpyxl >= 3.0',
         'pandas >= 2.0',
