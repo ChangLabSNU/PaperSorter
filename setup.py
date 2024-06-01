@@ -51,7 +51,8 @@ setup(
         'Topic :: Text Processing :: Linguistic',
         'Topic :: Scientific/Engineering',
     ],
-    packages=['PaperSorter', 'PaperSorter.providers', 'PaperSorter.tasks'],
+    packages=['PaperSorter', 'PaperSorter.providers', 'PaperSorter.tasks',
+              'PaperSorter.contrib'],
     entry_points={
         'console_scripts': [
             'papersorter = PaperSorter.__main__:main',
@@ -65,10 +66,9 @@ setup(
         'pandas >= 2.0',
         'plyvel >= 1.5',
         'python-dotenv >= 1.0',
-        'requests >= 2.0',
+        'requests >= 2.7.0',
         'scikit-learn >= 1.4',
         'scipy >= 1.10',
-        'theoldreader == 0.1.0',
         'xgboost > 2.0',
     ],
 )
