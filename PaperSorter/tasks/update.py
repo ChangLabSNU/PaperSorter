@@ -135,16 +135,15 @@ def update_embeddings(embeddingdb, batch_size, api_key, feeddb, force_reembed=Fa
     client = OpenAI(api_key=api_key, base_url=OPENAI_API_URL)
     model_name = OPENAI_EMBEDDING_MODEL
 
-    for bid, batch in enumerate(batched(keystoupdate, batch_size)):
-        log.info(f'Updating embedding: batch {bid+1} ...')
+    with embeddingdb.write_batch() as writer:
+        for bid, batch in enumerate(batched(keystoupdate, batch_size)):
+            log.info(f'Updating embedding: batch {bid+1} ...')
 
-        items = [feeddb.get_formatted_item(item_id) for item_id in batch]
-        embresults = client.embeddings.create(model=model_name, input=items)
+            items = [feeddb.get_formatted_item(item_id) for item_id in batch]
+            embresults = client.embeddings.create(model=model_name, input=items)
 
-        for item_id, result in zip(batch, embresults.data):
-            embeddingdb[item_id] = result.embedding
-        
-        embeddingdb.sync()
+            for item_id, result in zip(batch, embresults.data):
+                writer[item_id] = result.embedding
 
     log.info('Done.\n')
 
