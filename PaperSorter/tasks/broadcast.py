@@ -30,7 +30,7 @@ import time
 import re
 import os
 
-SLACK_ENDPOINT_KEY = 'WEBHOOK_PAPERSORTER_NEWS'
+SLACK_ENDPOINT_KEY = 'PAPERSORTER_WEBHOOK_URL'
 
 def normalize_item_for_display(item, max_content_length):
     # XXX: Fix the source field for the aggregated items.
