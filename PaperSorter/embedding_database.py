@@ -21,7 +21,7 @@
 # THE SOFTWARE.
 #
 
-import bsddb3
+import plyvel
 import numpy as np
 
 class EmbeddingDatabase:
@@ -29,26 +29,28 @@ class EmbeddingDatabase:
     dtype = np.float64
 
     def __init__(self, filename):
-        self.db = bsddb3.hashopen(filename, 'c')
+        self.db = plyvel.DB(filename, create_if_missing=True)
 
     def __del__(self):
-        self.db.close()
+        if hasattr(self, 'db'):
+            self.db.close()
 
     def __len__(self):
-        return len(self.db)
+        return sum(1 for _ in self.db.iterator())
 
     def __contains__(self, item):
-        return item in self.db
+        v = self.db.get(item.encode())
+        return v is not None
 
     def keys(self):
-        return set(map(bytes.decode, self.db.keys()))
+        return set([key.decode() for key, _ in self.db.iterator()])
 
     def __getitem__(self, key):
         if isinstance(key, str):
-            return np.frombuffer(self.db[key.encode()], dtype=self.dtype)
+            return np.frombuffer(self.db.get(key.encode()), dtype=self.dtype)
         elif isinstance(key, list):
             return np.array([
-                np.frombuffer(self.db[k.encode()], dtype=self.dtype)
+                np.frombuffer(self.db.get(k.encode()), dtype=self.dtype)
                 for k in key])
         else:
             raise TypeError('Key should be str or list of str.')
@@ -59,7 +61,31 @@ class EmbeddingDatabase:
 
         assert value.dtype == self.dtype
 
-        self.db[key.encode()] = value.tobytes()
+        self.db.put(key.encode(), value.tobytes())
 
-    def sync(self):
-        self.db.sync()
+    def write_batch(self):
+        return EmbeddingDatabaseWriteBatch(self)
+
+
+class EmbeddingDatabaseWriteBatch:
+
+    def __init__(self, edb):
+        self.batch = edb.db.write_batch()
+        self.dtype = edb.dtype
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            self.batch.write()
+        else:
+            self.batch.clear()
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, np.ndarray):
+            value = np.array(value)
+
+        assert value.dtype == self.dtype
+
+        self.batch.put(key.encode(), value.tobytes())
