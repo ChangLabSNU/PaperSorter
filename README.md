@@ -20,7 +20,7 @@ user.
 To install PaperSorter, use pip:
 
 ```
-pip install git+https://github.com/ChangLabSNU/PaperSorter.git
+pip install papersorter
 ```
 
 ## Preparing
