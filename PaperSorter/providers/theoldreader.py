@@ -23,10 +23,10 @@
 
 __all__ = ['Connection', 'ItemsSearch', 'Item']
 
-from theoldreader import Connection
-from theoldreader.tor import url_api
-from theoldreader import ItemsSearch as BaseItemsSearch
-from theoldreader import Item as BaseItem
+from ..contrib.tor import Connection
+from ..contrib.tor import url_api
+from ..contrib.tor import ItemsSearch as BaseItemsSearch
+from ..contrib.tor import Item as BaseItem
 
 class Item(BaseItem):
 
