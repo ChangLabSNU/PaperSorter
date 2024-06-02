@@ -62,7 +62,6 @@ setup(
         'click >= 8.0',
         'numpy >= 1.20',
         'openai >= 1.30',
-        'openpyxl >= 3.0',
         'pandas >= 2.0',
         'plyvel >= 1.5',
         'python-dotenv >= 1.0',
@@ -70,5 +69,6 @@ setup(
         'scikit-learn >= 1.4',
         'scipy >= 1.10',
         'xgboost > 2.0',
+        'xlsxwriter >= 3.0',
     ],
 )
