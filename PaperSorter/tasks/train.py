@@ -28,8 +28,32 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import xgboost as xgb
+import pandas as pd
 import click
 import pickle
+
+
+def export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred):
+    feeds_test = feedinfo.loc[fids_test].copy()
+    feeds_test['score'] = y_testpred
+    feeds_test = feeds_test[
+        (feeds_test['starred'] == 0) &
+        (feeds_test['label'].isna())].sort_values('score', ascending=False)
+
+    with pd.ExcelWriter(output_feedback, engine='xlsxwriter') as writer:
+        feeds_test[['score', 'title', 'content', 'label', 'author', 'origin'
+                    ]].to_excel(writer, sheet_name='Feedback')
+        worksheet = writer.sheets['Feedback']
+
+        # Adjust title and content column width
+        regular_fmt = writer.book.add_format({'text_wrap' : True, 'valign': 'top'})
+        label_fmt = writer.book.add_format({'valign': 'top', 'bg_color': '#E8E8E8'})
+
+        worksheet.set_column(1, 1, 5, regular_fmt)
+        worksheet.set_column(2, 3, 50, regular_fmt)
+        worksheet.set_column(4, 4, 5, label_fmt)
+        worksheet.set_column(5, 6, 20, regular_fmt)
+
 
 @click.option('--feed-database', default='feeds.db', help='Feed database file.')
 @click.option('--embedding-database', default='embeddings.db', help='Embedding database file.')
@@ -93,10 +117,4 @@ def main(feed_database, embedding_database, output, rounds, output_feedback,
     log.info(f'-> ROCAUC of the base model: {rocauc:.3f}')
 
     log.info('Saving spreadsheet for feedback...')
-    feeds_test = feedinfo.loc[fids_test].copy()
-    feeds_test['score'] = y_testpred
-    feeds_test = feeds_test[
-        (feeds_test['starred'] == 0) &
-        (feeds_test['label'].isna())].sort_values('score', ascending=False)
-    feeds_test[['score', 'title', 'content', 'label', 'author', 'origin'
-                ]].to_excel(output_feedback)
+    export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred)
