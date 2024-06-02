@@ -49,7 +49,6 @@ def send_slack_notification(endpoint_url, item):
     # Add title block
     title = normalize_text(item['title'])
     blocks = [
-        {'type': 'divider'},
         {'type': 'header',
          'text': {'type': 'plain_text', 'text': title}},
     ]
