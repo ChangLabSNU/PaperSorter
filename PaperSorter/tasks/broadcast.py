@@ -43,7 +43,7 @@ def normalize_item_for_display(item, max_content_length):
     if len(item['content']) > max_content_length:
         item['content'] = item['content'][:max_content_length] + '…'
 
-def send_slack_notification(endpoint_url, item):
+def send_slack_notification(endpoint_url, item, msgopts):
     header = {'Content-type': 'application/json'}
 
     # Add title block
@@ -58,7 +58,8 @@ def send_slack_notification(endpoint_url, item):
         {'type': 'context',
          'elements': [
             {'type': 'mrkdwn',
-              'text': f':heart_decoration: QBio Score: *{int(item["score"]*100)}*'}
+              'text': f':heart_decoration: {msgopts["model_name"]} '
+                      f'Score: *{int(item["score"]*100)}*'}
          ]
         }
     )
@@ -119,16 +120,22 @@ def normalize_text(text):
 @click.option('--feed-database', default='feeds.db', help='Feed database file.')
 @click.option('--days', default=7, help='Number of days to look back.')
 @click.option('--score-threshold', default=0.7, help='Threshold for the score.')
+@click.option('--score-model-name', default='QBio', help='Name of the scoring model.')
 @click.option('--max-content-length', default=400, help='Maximum length of the content.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(feed_database, days, score_threshold, max_content_length, log_file, quiet):
+def main(feed_database, days, score_threshold, score_model_name,
+         max_content_length, log_file, quiet):
+
     initialize_logging(logfile=log_file, quiet=quiet)
 
     from dotenv import load_dotenv
     load_dotenv()
 
     since = time.time() - days * 86400
+    message_options = {
+        'model_name': score_model_name,
+    }
 
     endpoint = os.environ[SLACK_ENDPOINT_KEY]
     feeddb = FeedDatabase(feed_database)
@@ -144,6 +151,6 @@ def main(feed_database, days, score_threshold, max_content_length, log_file, qui
     for item_id, info in newitems.iterrows():
         log.info(f'Sending notification to Slack for {info["title"]}')
         normalize_item_for_display(info, max_content_length)
-        send_slack_notification(endpoint, info)
+        send_slack_notification(endpoint, info, message_options)
         feeddb.update_broadcasted(item_id, int(time.time()))
         feeddb.commit()
