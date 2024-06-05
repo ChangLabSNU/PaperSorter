@@ -25,7 +25,7 @@ from setuptools import setup
 
 setup(
     name='papersorter',
-    version='0.1',
+    version='0.2',
     description='Filters RSS feeds, predicts interest, and notifies '
                 'Slack with top academic articles.',
     author='Hyeshik Chang',
