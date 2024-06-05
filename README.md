@@ -64,7 +64,7 @@ After populating your TheOldReader account, initialize the feed and
 embedding databases using:
 
 ```
-papersorter update --prediction-model ""
+papersorter init
 ```
 
 Next, train your first model with:
@@ -74,15 +74,18 @@ papersorter train
 ```
 
 If the ROCAUC performance metric meets your expectations, you're
-ready to send notifications about new interesting articles. To avoid
-a massive influx of notifications from the newly initialized database,
-run:
+ready to send notifications about new interesting articles.
+
+## Getting Updates and Send Notifications
+
+For the regular updates, this command retrieves updates, converts new
+items to embeddings, and finds interesting articles:
 
 ```
-sqlite3 feeds.db "UPDATE feeds SET broadcasted=0"
+papersorter update
 ```
 
-Now, test sending notifications with:
+To send notifications for new interesting articles, run:
 
 ```
 papersorter broadcast

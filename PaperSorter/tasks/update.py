@@ -72,9 +72,13 @@ def update_star_status(db, items):
     if changes > 0:
         db.commit()
 
-def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_items=False):
+def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_items=False,
+                           bulk_loading=False):
+    default_broadcasted = 0 if bulk_loading else None
+    progress_log = log.info if bulk_loading else log.debug
+
     for page, items in enumerate(iterator):
-        log.debug(f'Processing page {page+1}')
+        progress_log(f'Processing page {page+1}')
         if page == 0 and len(items) > 0:
             # Update starred status for the latest items only
             update_star_status(db, items)
@@ -93,7 +97,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
 
             date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
             log.debug(f'Retrieved: [{date_formatted}] {item.title}')
-            db.insert_item(item, starred=starred)
+            db.insert_item(item, starred=starred, broadcasted=default_broadcasted)
             newitems += 1
 
         if newitems == 0 and stop_at_no_new_items:
@@ -102,8 +106,8 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
 
         db.commit()
 
-def update_feeds(get_full_list, feeddb, date_cutoff, config):
-    conn = Connection(email=config['TOR_EMAIL'], password=config['TOR_PASSWORD'])
+def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
+    conn = Connection(email=credential['TOR_EMAIL'], password=credential['TOR_PASSWORD'])
     conn.login()
 
     log.info('Updating feeds...')
@@ -114,14 +118,18 @@ def update_feeds(get_full_list, feeddb, date_cutoff, config):
     update_limit = FEED_UPDATE_LIMIT_FULL if get_full_list else FEED_UPDATE_LIMIT_REGULAR
 
     retrieve_items_into_db(feeddb, searcher.get_starred_only(limit_items=update_limit), starred=1,
-                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items)
+                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
+                           bulk_loading=bulk_loading)
     retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit), starred=0,
-                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items)
+                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
+                           bulk_loading=bulk_loading)
 
-def update_embeddings(embeddingdb, batch_size, api_key, feeddb, force_reembed=False):
+def update_embeddings(embeddingdb, batch_size, api_key, feeddb, bulk_loading=False,
+                      force_reembed=False):
     keystoupdate = feeddb.keys().copy()
     if not force_reembed:
         keystoupdate -= embeddingdb.keys()
+    progress_log = log.info if bulk_loading else log.debug
 
     log.info(f'Items: feed_db:{len(feeddb)} '
              f'embedding_db:{len(embeddingdb)} '
@@ -136,7 +144,7 @@ def update_embeddings(embeddingdb, batch_size, api_key, feeddb, force_reembed=Fa
 
     with embeddingdb.write_batch() as writer:
         for bid, batch in enumerate(batched(keystoupdate, batch_size)):
-            log.debug(f'Updating embedding: batch {bid+1} ...')
+            progress_log(f'Updating embedding: batch {bid+1} ...')
 
             items = [feeddb.get_formatted_item(item_id) for item_id in batch]
             embresults = client.embeddings.create(model=model_name, input=items)
@@ -201,11 +209,13 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
         'TOR_EMAIL': os.environ['TOR_EMAIL'],
         'TOR_PASSWORD': os.environ['TOR_PASSWORD']
     }
-    update_feeds(get_full_list, feeddb, date_cutoff, tor_config)
+    update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
+                 credential=tor_config)
 
     upstage_api_key = os.environ['UPSTAGE_API_KEY']
     num_updates = update_embeddings(embeddingdb, batch_size, upstage_api_key,
-                                    feeddb, force_reembed)
+                                    feeddb, force_reembed=force_reembed,
+                                    bulk_loading=False)
 
     if prediction_model != '' and num_updates > 0:
         score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore)
