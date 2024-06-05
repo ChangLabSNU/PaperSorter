@@ -31,7 +31,7 @@ import pandas as pd
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
 def main(feed_database, input, log_file, quiet):
-    initialize_logging(logfile=log_file, quiet=quiet)
+    initialize_logging(task='feedback', logfile=log_file, quiet=quiet)
 
     feeddb = FeedDatabase(feed_database)
 

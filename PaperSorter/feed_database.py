@@ -52,6 +52,10 @@ class FeedDatabase:
         self.cursor.execute('SELECT COUNT(*) FROM feeds')
         return self.cursor.fetchone()[0]
 
+    def __getitem__(self, item_id):
+        self.cursor.execute('SELECT * FROM feeds WHERE id = ?', (item_id,))
+        return dict(zip(self.dbfields, self.cursor.fetchone()))
+
     def keys(self):
         return self.idcache
 
