@@ -31,6 +31,10 @@ import re
 import os
 
 SLACK_ENDPOINT_KEY = 'PAPERSORTER_WEBHOOK_URL'
+SLACK_HEADER_MAX_LENGTH = 150
+
+class SlackNotificationError(Exception):
+    pass
 
 def normalize_item_for_display(item, max_content_length):
     # XXX: Fix the source field for the aggregated items.
@@ -41,7 +45,12 @@ def normalize_item_for_display(item, max_content_length):
 
     # Truncate the content if it's too long.
     if len(item['content']) > max_content_length:
-        item['content'] = item['content'][:max_content_length] + '…'
+        item['content'] = limit_text_length(item['content'], max_content_length)
+
+def limit_text_length(text, limit):
+    if len(text) > limit:
+        return text[:limit-3] + '…'
+    return text
 
 def send_slack_notification(endpoint_url, item, msgopts):
     header = {'Content-type': 'application/json'}
@@ -50,7 +59,8 @@ def send_slack_notification(endpoint_url, item, msgopts):
     title = normalize_text(item['title'])
     blocks = [
         {'type': 'header',
-         'text': {'type': 'plain_text', 'text': title}},
+         'text': {'type': 'plain_text',
+                  'text': limit_text_length(title, SLACK_HEADER_MAX_LENGTH)}},
     ]
 
     # Add predicted score block
@@ -110,9 +120,27 @@ def send_slack_notification(endpoint_url, item, msgopts):
             },
         )
 
-    data = {'blocks': blocks}
+    data = {
+        'blocks': blocks,
+        'unfurl_links': False,
+        'unfurl_media': False,
+    }
 
-    return requests.post(endpoint_url, headers=header, json=data)
+    response = requests.post(endpoint_url, headers=header, json=data)
+
+    if response.status_code == 200:
+        pass
+    elif response.status_code in (400, 500):
+        import pprint
+        log.error('There was an error in Slack webhook. '
+                  f'status:{response.status_code} reason:{response.text}\n' +
+                  pprint.pformat(data))
+
+        raise SlackNotificationError(response.status_code)
+    else:
+        log.error('There was an unexpected error in the Slack webhook. Status code: '
+                  f'{response.status_code}')
+        raise SlackNotificationError
 
 def normalize_text(text):
     return re.sub(r'\s+', ' ', text).strip()
@@ -151,6 +179,10 @@ def main(feed_database, days, score_threshold, score_model_name,
     for item_id, info in newitems.iterrows():
         log.info(f'Sending notification to Slack for {info["title"]}')
         normalize_item_for_display(info, max_content_length)
-        send_slack_notification(endpoint, info, message_options)
-        feeddb.update_broadcasted(item_id, int(time.time()))
-        feeddb.commit()
+        try:
+            send_slack_notification(endpoint, info, message_options)
+        except SlackNotificationError:
+            pass
+        else:
+            feeddb.update_broadcasted(item_id, int(time.time()))
+            feeddb.commit()
