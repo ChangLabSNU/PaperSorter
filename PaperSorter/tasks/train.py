@@ -65,7 +65,7 @@ def export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred):
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
 def main(feed_database, embedding_database, output, rounds, output_feedback,
          log_file, quiet):
-    initialize_logging(logfile=log_file, quiet=quiet)
+    initialize_logging(task='train', logfile=log_file, quiet=quiet)
 
     feeddb = FeedDatabase(feed_database)
     embeddingdb = EmbeddingDatabase(embedding_database)

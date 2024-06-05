@@ -155,7 +155,7 @@ def normalize_text(text):
 def main(feed_database, days, score_threshold, score_model_name,
          max_content_length, log_file, quiet):
 
-    initialize_logging(logfile=log_file, quiet=quiet)
+    initialize_logging(task='broadcast', logfile=log_file, quiet=quiet)
 
     from dotenv import load_dotenv
     load_dotenv()
@@ -177,7 +177,7 @@ def main(feed_database, days, score_threshold, score_model_name,
     log.info(f'Found {len(newitems)} new items to broadcast.')
 
     for item_id, info in newitems.iterrows():
-        log.info(f'Sending notification to Slack for {info["title"]}')
+        log.info(f'Sending notification to Slack for "{info["title"]}"')
         normalize_item_for_display(info, max_content_length)
         try:
             send_slack_notification(endpoint, info, message_options)
