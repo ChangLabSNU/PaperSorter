@@ -78,12 +78,12 @@ class FeedDatabase:
     def commit(self):
         self.db.commit()
 
-    def insert_item(self, item, starred=0):
+    def insert_item(self, item, starred=0, broadcasted=None):
         content = remove_html_tags(item.content)
         self.cursor.execute('INSERT INTO feeds VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             (item.item_id, starred, item.title, content, item.author,
                              item.origin, item.published, item.href, item.mediaUrl,
-                             None, None, None))
+                             None, None, broadcasted))
         self.idcache.add(item.item_id)
 
     def get_formatted_item(self, item_id):
