@@ -29,6 +29,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import xgboost as xgb
 import pandas as pd
+import numpy as np
 import click
 import pickle
 
@@ -117,4 +118,7 @@ def main(feed_database, embedding_database, output, rounds, output_feedback,
     log.info(f'-> ROCAUC of the base model: {rocauc:.3f}')
 
     log.info('Saving spreadsheet for feedback...')
-    export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred)
+    y_trainpred = model.predict(dtrain_reg)
+    fids_all = fids_train + fids_test
+    y_allpred = np.hstack([y_trainpred, y_testpred])
+    export_feedback_sheet(output_feedback, feedinfo, fids_all, y_allpred)
