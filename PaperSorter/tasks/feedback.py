@@ -37,6 +37,7 @@ def main(feed_database, input, log_file, quiet):
 
     feedback = pd.read_excel(input).set_index('id')
     newlabels = feedback['label'].dropna().astype(int)
+    newlabels = newlabels.map({0: 0, 1: 1, 2: 0}).dropna().astype(int)
     for item_id, label in newlabels.items():
         feeddb.update_label(item_id, label)
     feeddb.commit()
