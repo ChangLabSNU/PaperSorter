@@ -35,13 +35,14 @@ variables with your TheOldReader email and password, respectively.
 This will allow PaperSorter to authenticate and retrieve the necessary
 data from your feeds.
 
-### Upstage Solar LLM
+### OpenAI Embeddings-Compatible API
 
-Solar LLM's embedding API converts article titles and contents into
-numerical vectors. Sign up on the [Upstage console](https://console.upstage.ai/)
-and create an API key as per the
-[documentation](https://developers.upstage.ai/docs/getting-started/quick-start#get-an-api-key).
-Store the key securely and set the `UPSTAGE_API_KEY` environment
+Embeddings API such [OpenAI's](https://platform.openai.com/docs/guides/embeddings)
+and [Solar LLM](https://developers.upstage.ai/docs/apis/embeddings)
+converts article titles and contents into numerical vectors.
+Sign up on the [OpenAI API](https://platform.openai.com/) or
+[Upstage console](https://console.upstage.ai/) and create an API key as per the
+documentation. Store the key securely and set the `PAPERSORTER_API_KEY` environment
 variable before running PaperSorter.
 
 ### Slack Incoming WebHook
