@@ -53,8 +53,8 @@ def main(feed_database, embedding_database, batch_size, log_file, quiet):
     update_feeds(True, feeddb, date_cutoff, credential=tor_config,
                  bulk_loading=True)
 
-    upstage_api_key = os.environ['UPSTAGE_API_KEY']
-    update_embeddings(embeddingdb, batch_size, upstage_api_key, feeddb,
+    api_key = os.environ['PAPERSORTER_API_KEY']
+    update_embeddings(embeddingdb, batch_size, api_key, feeddb,
                       force_reembed=True, bulk_loading=True)
 
     log.info('Initialization finished.')

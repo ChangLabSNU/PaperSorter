@@ -36,8 +36,8 @@ FEED_UPDATE_LIMIT_REGULAR = 200
 FEED_UPDATE_LIMIT_FULL = 1000
 FEED_EPOCH = 2020, 1, 1
 
-OPENAI_API_URL = 'https://api.upstage.ai/v1/solar'
-OPENAI_EMBEDDING_MODEL = 'solar-embedding-1-large-passage'
+OPENAI_API_URL = 'https://api.openai.com/v1'
+OPENAI_EMBEDDING_MODEL = 'text-embedding-3-large'
 
 def batched(iterable, n):
     items = []
@@ -212,8 +212,8 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
     update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
                  credential=tor_config)
 
-    upstage_api_key = os.environ['UPSTAGE_API_KEY']
-    num_updates = update_embeddings(embeddingdb, batch_size, upstage_api_key,
+    api_key = os.environ['PAPERSORTER_API_KEY']
+    num_updates = update_embeddings(embeddingdb, batch_size, api_key,
                                     feeddb, force_reembed=force_reembed,
                                     bulk_loading=False)
 
