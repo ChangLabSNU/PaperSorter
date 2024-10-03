@@ -27,7 +27,9 @@ from ..embedding_database import EmbeddingDatabase
 from ..log import log, initialize_logging
 from openai import OpenAI
 import xgboost as xgb
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
+import requests
 import pickle
 import click
 import os
@@ -154,6 +156,55 @@ def update_embeddings(embeddingdb, batch_size, api_key, feeddb, bulk_loading=Fal
 
     return len(keystoupdate)
 
+def update_s2_info(feeddb, s2_config, dateoffset=60):
+    unscored_items = feeddb.get_unscored_items()
+    if not unscored_items:
+        return
+
+    api_headers = {'X-API-KEY': s2_config['S2_API_KEY']}
+
+    log.info('Retrieving Semantic Scholar information...')
+
+    for feed_id in unscored_items:
+        time.sleep(s2_config['S2_THROTTLE'])
+
+        feedinfo = feeddb[feed_id]
+        pubdate = datetime.fromtimestamp(feedinfo['published'])
+
+        date_from = pubdate - timedelta(days=dateoffset)
+        date_to = pubdate + timedelta(days=dateoffset)
+        date_range = (f'{date_from.year}-{date_from.month:02d}-{date_from.day:02d}:'
+                      f'{date_to.year}-{date_to.month:02d}-{date_to.day:02d}')
+
+        search_query = {
+            'query': feedinfo['title'],
+            'publicationDateOrYear': date_range,
+            'fields': 'title,url,authors,venue,publicationDate,tldr',
+        }
+        url = 'http://api.semanticscholar.org/graph/v1/paper/search/match'
+        r = requests.get(url, headers=api_headers, params=search_query).json()
+        if 'data' not in r or not r['data']:
+            continue
+
+        s2feed = r['data'][0]
+        # s2feed['matchScore']
+        if s2feed['tldr'] and s2feed['tldr'].get('text'):
+            feeddb.update_tldr(feed_id, s2feed['tldr']['text'])
+        if s2feed['authors']:
+            feeddb.update_author(feed_id, format_authors(s2feed['authors']))
+
+        feeddb.commit()
+
+def format_authors(authors, max_authors=4):
+    assert max_authors >= 3
+
+    if len(authors) <= max_authors:
+        return ', '.join(author['name'] for author in authors)
+    else:
+        first_authors = ', '.join(a['name'] for a in authors[:max_authors-2])
+        last_authors = ', '.join(a['name'] for a in authors[-2:])
+        return first_authors + ', ..., ' + last_authors
+
 def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
     if force_rescore:
         unscored = feeddb.keys()
@@ -211,6 +262,12 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
     }
     update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
                  credential=tor_config)
+
+    s2_config = {
+        'S2_API_KEY': os.environ['S2_API_KEY'],
+        'S2_THROTTLE': 1,
+    }
+    update_s2_info(feeddb, s2_config)
 
     api_key = os.environ['PAPERSORTER_API_KEY']
     num_updates = update_embeddings(embeddingdb, batch_size, api_key,

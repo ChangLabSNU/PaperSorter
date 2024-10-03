@@ -34,7 +34,8 @@ class FeedDatabase:
         'Abstract: {item[3]}.')
 
     dbfields = ['id', 'starred', 'title', 'content', 'author', 'origin',
-                'published', 'link', 'mediaUrl', 'label', 'score', 'broadcasted']
+                'published', 'link', 'mediaUrl', 'label', 'score', 'broadcasted',
+                'tldr']
 
     def __init__(self, filename):
         self.db = sqlite3.connect(filename)
@@ -63,7 +64,8 @@ class FeedDatabase:
         self.cursor.execute('CREATE TABLE IF NOT EXISTS feeds (id TEXT UNIQUE, starred INTEGER, '
                             'title TEXT, content TEXT, author TEXT, origin TEXT, '
                             'published INTEGER, link TEXT, mediaUrl TEXT, '
-                            'label INTEGER, score REAL, broadcasted INTEGER)')
+                            'label INTEGER, score REAL, broadcasted INTEGER, '
+                            'tldr TEXT)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_id ON feeds(id)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_published ON feeds(published)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_starred ON feeds(starred)')
@@ -78,12 +80,12 @@ class FeedDatabase:
     def commit(self):
         self.db.commit()
 
-    def insert_item(self, item, starred=0, broadcasted=None):
+    def insert_item(self, item, starred=0, broadcasted=None, tldr=None):
         content = remove_html_tags(item.content)
-        self.cursor.execute('INSERT INTO feeds VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        self.cursor.execute('INSERT INTO feeds VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             (item.item_id, starred, item.title, content, item.author,
                              item.origin, item.published, item.href, item.mediaUrl,
-                             None, None, broadcasted))
+                             None, None, broadcasted, tldr))
         self.idcache.add(item.item_id)
 
     def get_formatted_item(self, item_id):
@@ -106,6 +108,12 @@ class FeedDatabase:
 
     def update_broadcasted(self, item_id, timemark):
         self.cursor.execute('UPDATE feeds SET broadcasted = ? WHERE id = ?', (timemark, item_id))
+
+    def update_tldr(self, item_id, tldr):
+        self.cursor.execute('UPDATE feeds SET tldr = ? WHERE id = ?', (tldr, item_id))
+
+    def update_author(self, item_id, author):
+        self.cursor.execute('UPDATE feeds SET author = ? WHERE id = ?', (author, item_id))
 
     def get_unscored_items(self):
         self.cursor.execute('SELECT id FROM feeds WHERE score IS NULL')
