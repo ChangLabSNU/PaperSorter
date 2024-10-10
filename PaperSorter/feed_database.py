@@ -115,6 +115,9 @@ class FeedDatabase:
     def update_author(self, item_id, author):
         self.cursor.execute('UPDATE feeds SET author = ? WHERE id = ?', (author, item_id))
 
+    def update_origin(self, item_id, origin):
+        self.cursor.execute('UPDATE feeds SET origin = ? WHERE id = ?', (origin, item_id))
+
     def get_unscored_items(self):
         self.cursor.execute('SELECT id FROM feeds WHERE score IS NULL')
         return [row[0] for row in self.cursor.fetchall()]

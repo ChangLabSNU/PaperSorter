@@ -192,6 +192,8 @@ def update_s2_info(feeddb, s2_config, dateoffset=60):
             feeddb.update_tldr(feed_id, s2feed['tldr']['text'])
         if s2feed['authors']:
             feeddb.update_author(feed_id, format_authors(s2feed['authors']))
+        if s2feed.get('venue') is not None and s2feed['venue'].strip():
+            feeddb.update_origin(feed_id, s2feed['venue'])
 
         feeddb.commit()
 
