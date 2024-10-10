@@ -37,15 +37,15 @@ class SlackNotificationError(Exception):
     pass
 
 def normalize_item_for_display(item, max_content_length):
-    # Replace the abstract content with the TLDR if it's available.
-    if item['tldr'] and len(item['tldr']) >= 5:
-        item['content'] = item['tldr']
-
     # XXX: Fix the source field for the aggregated items.
     if item['origin'] == 'QBio Feed Aggregation' and '  ' in item['content']:
         source, content = item['content'].split('  ', 1)
         item['origin'] = source
         item['content'] = normalize_text(content)
+
+    # Replace the abstract content with the TLDR if it's available.
+    if item['tldr'] and len(item['tldr']) >= 5:
+        item['content'] = '(tl;dr) ' + item['tldr']
 
     # Truncate the content if it's too long.
     if len(item['content']) > max_content_length:
