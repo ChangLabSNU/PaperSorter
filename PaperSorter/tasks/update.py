@@ -41,6 +41,10 @@ FEED_EPOCH = 2020, 1, 1
 OPENAI_API_URL = 'https://api.openai.com/v1'
 OPENAI_EMBEDDING_MODEL = 'text-embedding-3-large'
 
+S2_VENUE_UPDATE_BLACKLIST = {
+    'Molecules and Cells', # Molecular Cell (Cell Press) is incorrectly matched to this.
+}
+
 def batched(iterable, n):
     items = []
     for item in iterable:
@@ -192,7 +196,8 @@ def update_s2_info(feeddb, s2_config, dateoffset=60):
             feeddb.update_tldr(feed_id, s2feed['tldr']['text'])
         if s2feed['authors']:
             feeddb.update_author(feed_id, format_authors(s2feed['authors']))
-        if s2feed.get('venue') is not None and s2feed['venue'].strip():
+        if (s2feed.get('venue') is not None and s2feed['venue'].strip() and
+                s2feed['venue'] not in S2_VENUE_UPDATE_BLACKLIST):
             feeddb.update_origin(feed_id, s2feed['venue'])
 
         feeddb.commit()
@@ -269,7 +274,12 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
         'S2_API_KEY': os.environ['S2_API_KEY'],
         'S2_THROTTLE': 1,
     }
-    update_s2_info(feeddb, s2_config)
+    try:
+        update_s2_info(feeddb, s2_config)
+    except requests.exceptions.ConnectionError:
+        import traceback
+        traceback.print_exc()
+        # Show the exception but proceed to the next job.
 
     api_key = os.environ['PAPERSORTER_API_KEY']
     num_updates = update_embeddings(embeddingdb, batch_size, api_key,
