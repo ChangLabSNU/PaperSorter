@@ -62,7 +62,8 @@ class FeedDatabase:
 
     def create_table_if_not_exists(self):
         self.cursor.execute('CREATE TABLE IF NOT EXISTS feeds (id TEXT UNIQUE, starred INTEGER, '
-                            'title TEXT, content TEXT, author TEXT, origin TEXT, '
+                            'title TEXT COLLATE NOCASE, content TEXT, '
+                            'author TEXT COLLATE NOCASE, origin TEXT, '
                             'published INTEGER, link TEXT, mediaUrl TEXT, '
                             'label INTEGER, score REAL, broadcasted INTEGER, '
                             'tldr TEXT)')
