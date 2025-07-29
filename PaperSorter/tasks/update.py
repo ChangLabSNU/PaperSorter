@@ -252,6 +252,10 @@ def add_starred_to_queue(feeddb):
                   SELECT 1 FROM broadcast_queue bq
                   WHERE bq.feed_id = f.id AND bq.channel_id = 1
               )
+              AND NOT EXISTS (
+                  SELECT 1 FROM broadcast_logs bl
+                  WHERE bl.feed_id = f.id AND bl.channel_id = 1
+              )
     ''', (since,))
 
     starred_items = feeddb.cursor.fetchall()
@@ -325,9 +329,15 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
                     result = feeddb.cursor.fetchone()
                     if result:
                         feed_id = result['id']
-                        feeddb.add_to_broadcast_queue(feed_id, channel_id)
-                        iteminfo = feeddb[item_id]
-                        log.info(f'Added to channel {channel["name"]} queue: {iteminfo["title"]}')
+                        # Check if already broadcasted
+                        feeddb.cursor.execute('''
+                            SELECT 1 FROM broadcast_logs 
+                            WHERE feed_id = %s AND channel_id = %s
+                        ''', (feed_id, channel_id))
+                        if not feeddb.cursor.fetchone():
+                            feeddb.add_to_broadcast_queue(feed_id, channel_id)
+                            iteminfo = feeddb[item_id]
+                            log.info(f'Added to channel {channel["name"]} queue: {iteminfo["title"]}')
 
         feeddb.commit()
 
