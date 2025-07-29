@@ -24,6 +24,7 @@
 from ..providers.theoldreader import Connection, ItemsSearch
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
+from ..broadcast_channels import BroadcastChannels
 from ..log import log, initialize_logging
 from openai import OpenAI
 import xgboost as xgb
@@ -82,6 +83,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
                            bulk_loading=False):
     default_broadcasted = 0 if bulk_loading else None
     progress_log = log.info if bulk_loading else log.debug
+    new_item_ids = []  # Track newly added items
 
     for page, items in enumerate(iterator):
         progress_log(f'Processing page {page+1}')
@@ -104,6 +106,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
             date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
             log.debug(f'Retrieved: [{date_formatted}] {item.title}')
             db.insert_item(item, starred=starred, broadcasted=default_broadcasted)
+            new_item_ids.append(item.item_id)
             newitems += 1
 
         if newitems == 0 and stop_at_no_new_items:
@@ -111,6 +114,8 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
             break
 
         db.commit()
+    
+    return new_item_ids
 
 def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
     conn = Connection(email=credential['TOR_EMAIL'], password=credential['TOR_PASSWORD'])
@@ -123,12 +128,21 @@ def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
     stop_at_no_new_items = not get_full_list
     update_limit = FEED_UPDATE_LIMIT_FULL if get_full_list else FEED_UPDATE_LIMIT_REGULAR
 
-    retrieve_items_into_db(feeddb, searcher.get_starred_only(limit_items=update_limit), starred=1,
-                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
-                           bulk_loading=bulk_loading)
-    retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit), starred=0,
-                           date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
-                           bulk_loading=bulk_loading)
+    new_item_ids = []
+    
+    # Get starred items
+    starred_new = retrieve_items_into_db(feeddb, searcher.get_starred_only(limit_items=update_limit), starred=1,
+                                        date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
+                                        bulk_loading=bulk_loading)
+    new_item_ids.extend(starred_new)
+    
+    # Get all items
+    all_new = retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit), starred=0,
+                                    date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
+                                    bulk_loading=bulk_loading)
+    new_item_ids.extend(all_new)
+    
+    return new_item_ids
 
 def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=False,
                       force_reembed=False):
@@ -161,20 +175,30 @@ def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=
 
     return len(keystoupdate)
 
-def update_s2_info(feeddb, s2_config, dateoffset=60):
-    unscored_items = feeddb.get_unscored_items()
-    if not unscored_items:
+def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
+    if not new_item_ids:
         return
 
     api_headers = {'X-API-KEY': s2_config['S2_API_KEY']}
     api_url = s2_config.get('S2_API_URL', 'http://api.semanticscholar.org/graph/v1/paper/search/match')
 
-    log.info('Retrieving Semantic Scholar information...')
+    log.info(f'Retrieving Semantic Scholar information for {len(new_item_ids)} new items...')
 
-    for feed_id in unscored_items:
+    # Convert external_ids to feed_ids
+    feed_ids = []
+    for external_id in new_item_ids:
+        feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (external_id,))
+        result = feeddb.cursor.fetchone()
+        if result:
+            feed_ids.append(result['id'])
+
+    for feed_id in feed_ids:
         time.sleep(s2_config['S2_THROTTLE'])
 
         feedinfo = feeddb[feed_id]
+        if not feedinfo:
+            continue
+            
         pubdate = datetime.fromtimestamp(feedinfo['published'])
 
         date_from = pubdate - timedelta(days=dateoffset)
@@ -235,8 +259,8 @@ def add_starred_to_queue(feeddb):
         feeddb.add_to_broadcast_queue(item['id'])
         log.info(f'Added starred item to broadcast queue: {item["title"]}')
 
-def score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_rescore=False,
-                    score_threshold=0.7, check_starred=True):
+def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=False,
+                    check_starred=True):
     if force_rescore:
         unscored = feeddb.keys()
     else:
@@ -248,33 +272,62 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_resc
     if not unscored:
         return
 
-    model_file_path = f'{model_dir}/model-{prediction_model}.pkl'
-    predmodel = pickle.load(open(model_file_path, 'rb'))
+    # Get all channels to process items for each channel with its own settings
+    all_channels = channels.get_all_channels()
+    if not all_channels:
+        log.warning('No channels configured')
+        return
+    
+    # Load models for each channel
+    channel_models = {}
+    for channel in all_channels:
+        model_id = channel['model_id'] or 1  # Default to model 1
+        if model_id not in channel_models:
+            model_file_path = f'{model_dir}/model-{model_id}.pkl'
+            try:
+                channel_models[model_id] = pickle.load(open(model_file_path, 'rb'))
+                log.info(f'Loaded model {model_id} from {model_file_path}')
+            except FileNotFoundError:
+                log.error(f'Model file not found: {model_file_path}')
+                channel_models[model_id] = None
     batchsize = 100
 
     for bid, batch in enumerate(batched(unscored, batchsize)):
         log.debug(f'Scoring batch: {bid+1}')
         emb = embeddingdb[batch]
-        emb_xrm = predmodel['scaler'].transform(emb)
+        
+        # Score with each channel's model and add to appropriate queues
+        for channel in all_channels:
+            model_id = channel['model_id'] or 1
+            predmodel = channel_models.get(model_id)
+            if not predmodel:
+                continue
+                
+            score_threshold = channel['score_threshold'] or 0.7
+            channel_id = channel['id']
+            
+            emb_xrm = predmodel['scaler'].transform(emb)
+            dmtx_pred = xgb.DMatrix(emb_xrm)
+            scores = predmodel['model'].predict(dmtx_pred)
 
-        dmtx_pred = xgb.DMatrix(emb_xrm)
-        scores = predmodel['model'].predict(dmtx_pred)
+            for item_id, score in zip(batch, scores):
+                # Update score for this model (using model_id=1 for backward compatibility)
+                if channel_id == 1:  # Only update main score for default channel
+                    feeddb.update_score(item_id, score)
+                    iteminfo = feeddb[item_id]
+                    log.info(f'New item: [{score:.2f}] {iteminfo["origin"]} / '
+                             f'{iteminfo["title"]}')
 
-        for item_id, score in zip(batch, scores):
-            feeddb.update_score(item_id, score)
-            iteminfo = feeddb[item_id]
-            log.info(f'New item: [{score:.2f}] {iteminfo["origin"]} / '
-                     f'{iteminfo["title"]}')
-
-            # Add high-scoring items to broadcast queue
-            if score >= score_threshold:
-                # Get feed_id from external_id
-                feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
-                result = feeddb.cursor.fetchone()
-                if result:
-                    feed_id = result['id']
-                    feeddb.add_to_broadcast_queue(feed_id)
-                    log.info(f'Added to broadcast queue: {iteminfo["title"]}')
+                # Add high-scoring items to this channel's broadcast queue
+                if score >= score_threshold:
+                    # Get feed_id from external_id
+                    feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+                    result = feeddb.cursor.fetchone()
+                    if result:
+                        feed_id = result['id']
+                        feeddb.add_to_broadcast_queue(feed_id, channel_id)
+                        iteminfo = feeddb[item_id]
+                        log.info(f'Added to channel {channel["name"]} queue: {iteminfo["title"]}')
 
         feeddb.commit()
 
@@ -285,14 +338,12 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_resc
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
 @click.option('--get-full-list', is_flag=True, help='Retrieve all items from feeds.')
-@click.option('--prediction-model', default='1', help='Model ID for scoring (will use model-{id}.pkl from config path).')
 @click.option('--force-reembed', is_flag=True, help='Force recalculation of embeddings for all items.')
 @click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
-@click.option('--score-threshold', default=0.7, help='Threshold for adding items to broadcast queue.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
 def main(config, batch_size, get_full_list,
-         prediction_model, force_reembed, force_rescore, score_threshold, log_file, quiet):
+         force_reembed, force_rescore, log_file, quiet):
     initialize_logging(task='update', logfile=log_file, quiet=quiet)
 
     # Load configuration
@@ -303,13 +354,14 @@ def main(config, batch_size, get_full_list,
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
     feeddb = FeedDatabase(config)
     embeddingdb = EmbeddingDatabase(config)
+    channels = BroadcastChannels(config)
 
     tor_config = {
         'TOR_EMAIL': full_config['feed_service']['username'],
         'TOR_PASSWORD': full_config['feed_service']['password']
     }
-    update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
-                 credential=tor_config)
+    new_item_ids = update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
+                                credential=tor_config)
 
     s2_config = {
         'S2_API_KEY': full_config['semanticscholar']['api_key'],
@@ -317,7 +369,7 @@ def main(config, batch_size, get_full_list,
         'S2_THROTTLE': full_config['semanticscholar'].get('throttle', 1),
     }
     try:
-        update_s2_info(feeddb, s2_config)
+        update_s2_info(feeddb, s2_config, new_item_ids)
     except requests.exceptions.ConnectionError:
         import traceback
         traceback.print_exc()
@@ -327,9 +379,8 @@ def main(config, batch_size, get_full_list,
                                     feeddb, force_reembed=force_reembed,
                                     bulk_loading=False)
 
-    if prediction_model != '' and num_updates > 0:
+    if num_updates > 0:
         model_dir = full_config.get('models', {}).get('path', '.')
-        score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_rescore,
-                        score_threshold=score_threshold)
+        score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore)
 
     log.info('Update completed.')

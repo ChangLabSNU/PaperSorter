@@ -496,7 +496,7 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("""
-            SELECT id, name, endpoint_url
+            SELECT id, name, endpoint_url, score_threshold, model_id
             FROM channels
             ORDER BY id
         """)
@@ -518,10 +518,11 @@ def create_app(config_path):
 
         try:
             cursor.execute("""
-                INSERT INTO channels (name, endpoint_url)
-                VALUES (%s, %s)
+                INSERT INTO channels (name, endpoint_url, score_threshold, model_id)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id
-            """, (data['name'], data['endpoint_url']))
+            """, (data['name'], data['endpoint_url'], 
+                  data.get('score_threshold', 0.7), data.get('model_id', 1)))
 
             channel_id = cursor.fetchone()[0]
             conn.commit()
@@ -547,9 +548,11 @@ def create_app(config_path):
         try:
             cursor.execute("""
                 UPDATE channels
-                SET name = %s, endpoint_url = %s
+                SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s
                 WHERE id = %s
-            """, (data['name'], data['endpoint_url'], channel_id))
+            """, (data['name'], data['endpoint_url'], 
+                  data.get('score_threshold', 0.7), data.get('model_id', 1), 
+                  channel_id))
 
             conn.commit()
             cursor.close()

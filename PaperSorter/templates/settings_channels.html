@@ -299,6 +299,20 @@
                     <label for="channelEndpoint">Endpoint URL</label>
                     <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/...">
                 </div>
+                <div class="form-group">
+                    <label for="channelScoreThreshold">Score Threshold</label>
+                    <input type="number" id="channelScoreThreshold" required 
+                           min="0" max="1" step="0.01" value="0.7" 
+                           placeholder="0.7">
+                    <small style="color: #666;">Items with scores above this threshold will be broadcasted (0.0 - 1.0)</small>
+                </div>
+                <div class="form-group">
+                    <label for="channelModelId">Model ID</label>
+                    <input type="number" id="channelModelId" required 
+                           min="1" value="1" 
+                           placeholder="1">
+                    <small style="color: #666;">ID of the scoring model to use for this channel</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Channel</button>
@@ -343,6 +357,8 @@
                             <th>ID</th>
                             <th>Name</th>
                             <th>Endpoint URL</th>
+                            <th>Score Threshold</th>
+                            <th>Model ID</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -352,6 +368,8 @@
                                 <td>${channel.id}</td>
                                 <td><strong>${channel.name}</strong></td>
                                 <td><code>${channel.endpoint_url}</code></td>
+                                <td>${channel.score_threshold || 0.7}</td>
+                                <td>${channel.model_id || 1}</td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editChannel(${channel.id})">Edit</button>
@@ -380,6 +398,8 @@
             document.getElementById('channelId').value = channel.id;
             document.getElementById('channelName').value = channel.name;
             document.getElementById('channelEndpoint').value = channel.endpoint_url;
+            document.getElementById('channelScoreThreshold').value = channel.score_threshold || 0.7;
+            document.getElementById('channelModelId').value = channel.model_id || 1;
             document.getElementById('channelModal').style.display = 'block';
         }
         
@@ -393,7 +413,9 @@
             const id = document.getElementById('channelId').value;
             const data = {
                 name: document.getElementById('channelName').value,
-                endpoint_url: document.getElementById('channelEndpoint').value
+                endpoint_url: document.getElementById('channelEndpoint').value,
+                score_threshold: parseFloat(document.getElementById('channelScoreThreshold').value),
+                model_id: parseInt(document.getElementById('channelModelId').value)
             };
             
             const url = id ? `/api/settings/channels/${id}` : '/api/settings/channels';
