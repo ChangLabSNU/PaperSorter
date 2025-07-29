@@ -322,6 +322,8 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Get feeds with all the necessary information
+        # Filter preferences by current user
+        user_id = current_user.id
         cursor.execute("""
             SELECT
                 f.id as rowid,
@@ -337,13 +339,13 @@ def create_app(config_path):
                 pf.score as label
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
-            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
             LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
-            LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
+            LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
             WHERE pp.score >= %s OR pp.score IS NULL
             ORDER BY f.published DESC
             LIMIT %s OFFSET %s
-        """, (min_score, limit + 1, offset))
+        """, (user_id, user_id, min_score, limit + 1, offset))
 
         results = cursor.fetchall()
         cursor.close()
@@ -384,7 +386,7 @@ def create_app(config_path):
     @login_required
     def api_star_feed(feed_id):
         """API endpoint to star/unstar a feed"""
-        user_id = 1  # Default user
+        user_id = current_user.id
 
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -427,7 +429,7 @@ def create_app(config_path):
     @login_required
     def api_feedback_feed(feed_id):
         """API endpoint to set feedback (like/dislike) for a feed"""
-        user_id = 1  # Default user
+        user_id = current_user.id
         data = request.get_json()
         score = data.get('score')
 
@@ -711,8 +713,8 @@ def create_app(config_path):
             # Load embedding database with config
             edb = EmbeddingDatabase(config_path)
             
-            # Get similar articles
-            similar_feeds = edb.find_similar(feed_id, limit=30)
+            # Get similar articles filtered by current user
+            similar_feeds = edb.find_similar(feed_id, limit=30, user_id=current_user.id)
             
             # Convert to format compatible with feeds list
             feeds = []
