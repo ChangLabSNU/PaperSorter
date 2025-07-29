@@ -579,6 +579,7 @@
         let lastDateShown = null;
         let bookmarkId = null;
         let bookmarkInserted = false;
+        let userInitialized = false;
         const userTimezone = '{{ current_user.timezone }}';
 
         // Score threshold values corresponding to slider positions
@@ -731,12 +732,18 @@
                 .then(data => {
                     const feedsList = document.getElementById('feeds-list');
 
-                    // Store bookmark ID from first page load
+                    // Store bookmark ID and user preferences from first page load
                     if (currentPage === 1) {
                         if (data.bookmark_id !== undefined && data.bookmark_id !== null) {
                             bookmarkId = data.bookmark_id;
                         }
                         bookmarkInserted = false;
+
+                        // Update min score if user preference is provided
+                        if (data.user_min_score !== undefined && !userInitialized) {
+                            initializeFromUserPreference(data.user_min_score);
+                            userInitialized = true;
+                        }
                     }
 
                     // Check if we should insert bookmark at the beginning of this page
@@ -1080,6 +1087,21 @@
             currentMinScore = scoreThresholds[sliderValue];
             scoreValue.textContent = scoreLabels[sliderValue];
 
+            // Save preference to server
+            if (userInitialized) {
+                fetch('/api/user/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        feedlist_minscore: currentMinScore
+                    })
+                }).catch(error => {
+                    console.error('Failed to save preference:', error);
+                });
+            }
+
             // Reset pagination and reload feeds
             currentPage = 1;
             hasMore = true;
@@ -1101,6 +1123,28 @@
 
             // Add event listener
             slider.addEventListener('input', updateScoreFilter);
+        }
+
+        // Initialize from user preference
+        function initializeFromUserPreference(userMinScore) {
+            // Find the closest threshold index
+            let closestIndex = 0;
+            let minDiff = Math.abs(scoreThresholds[0] - userMinScore);
+
+            for (let i = 1; i < scoreThresholds.length; i++) {
+                const diff = Math.abs(scoreThresholds[i] - userMinScore);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestIndex = i;
+                }
+            }
+
+            const slider = document.getElementById('scoreSlider');
+            const scoreValue = document.getElementById('scoreValue');
+
+            slider.value = closestIndex;
+            scoreValue.textContent = scoreLabels[closestIndex];
+            currentMinScore = scoreThresholds[closestIndex];
         }
 
         // Initial load
