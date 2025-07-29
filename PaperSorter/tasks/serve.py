@@ -336,12 +336,23 @@ def create_app(config_path):
                 pp.score as score,
                 CASE WHEN p.score > 0 THEN true ELSE false END as starred,
                 CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
-                pf.score as label
+                pf.score as label,
+                COALESCE(vote_counts.positive_votes, 0) as positive_votes,
+                COALESCE(vote_counts.negative_votes, 0) as negative_votes
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
             LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
             LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
             LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
+            LEFT JOIN (
+                SELECT 
+                    feed_id,
+                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                FROM preferences
+                WHERE source = 'interactive'
+                GROUP BY feed_id
+            ) vote_counts ON f.id = vote_counts.feed_id
             WHERE pp.score >= %s OR pp.score IS NULL
             ORDER BY f.published DESC
             LIMIT %s OFFSET %s
@@ -748,7 +759,9 @@ def create_app(config_path):
                     'starred': feed['starred'],
                     'broadcasted': feed['broadcasted'],
                     'label': feed['label'],
-                    'similarity': float(feed['similarity'])
+                    'similarity': float(feed['similarity']),
+                    'positive_votes': feed['positive_votes'],
+                    'negative_votes': feed['negative_votes']
                 })
 
             # Also get the source article info
