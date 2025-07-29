@@ -107,6 +107,31 @@
             color: white;
         }
         
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #e8f5e9;
+            border-radius: 20px;
+            font-weight: 600;
+            color: #2e7d32;
+            font-size: 14px;
+            gap: 8px;
+        }
+        
+        .user-icon {
+            width: 24px;
+            height: 24px;
+            background: #4caf50;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
         .feeds-container {
             background: white;
             border-radius: 8px;
@@ -445,6 +470,10 @@
                     <div class="score-filter-label">Min Score</div>
                     <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
                     <div class="score-value" id="scoreValue">0.05</div>
+                </div>
+                <div class="user-info">
+                    <div class="user-icon">{{ current_user.username[0].upper() }}</div>
+                    <span>{{ current_user.username }}</span>
                 </div>
                 {% if current_user.is_admin %}
                 <a href="/settings" class="nav-link">⚙️ Settings</a>
