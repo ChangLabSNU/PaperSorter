@@ -484,8 +484,8 @@
 
         function createFeedElement(feed) {
             const scoreColor = calculateScoreColor(feed.score);
-            const scoreText = feed.score !== null ? feed.score.toFixed(3) : 'N/A';
-            const similarityText = (feed.similarity * 100).toFixed(1) + '%';
+            const scoreText = feed.score !== null ? Math.round(feed.score * 100).toString() : 'N/A';
+            const similarityText = Math.round(feed.similarity * 100).toString();
 
             // Create icons for score badge
             let icons = [];

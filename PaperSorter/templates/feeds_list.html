@@ -502,7 +502,7 @@
 
         // Score threshold values corresponding to slider positions
         const scoreThresholds = [0, 0.01, 0.05, 0.1, 0.3];
-        const scoreLabels = ['Unlimited', '≥ 0.01', '≥ 0.05', '≥ 0.10', '≥ 0.30'];
+        const scoreLabels = ['Unlimited', '≥ 1', '≥ 5', '≥ 10', '≥ 30'];
 
         function calculateScoreColor(score) {
             if (score === null) return 'rgb(149, 165, 166)';
@@ -559,7 +559,7 @@
 
         function createFeedElement(feed) {
             const scoreColor = calculateScoreColor(feed.score);
-            const scoreText = feed.score !== null ? feed.score.toFixed(3) : 'N/A';
+            const scoreText = feed.score !== null ? Math.round(feed.score * 100).toString() : 'N/A';
 
             // Create icons for score badge
             let icons = [];
