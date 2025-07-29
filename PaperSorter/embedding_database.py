@@ -157,7 +157,7 @@ class EmbeddingDatabase:
                     FROM embeddings
                     WHERE feed_id = %s
                 )
-                SELECT 
+                SELECT
                     e.feed_id,
                     f.external_id,
                     f.title,
@@ -189,7 +189,7 @@ class EmbeddingDatabase:
                     FROM embeddings
                     WHERE feed_id = %s
                 )
-                SELECT 
+                SELECT
                     e.feed_id,
                     f.external_id,
                     f.title,
@@ -213,14 +213,14 @@ class EmbeddingDatabase:
                 ORDER BY e.embedding <=> se.embedding
                 LIMIT %s
             ''', (feed_id, user_id, user_id, feed_id, limit))
-        
+
         results = self.cursor.fetchall()
         if not results:
             # Check if the source feed_id exists
             self.cursor.execute('SELECT 1 FROM embeddings WHERE feed_id = %s', (feed_id,))
             if not self.cursor.fetchone():
                 raise KeyError(f"No embedding found for feed_id: {feed_id}")
-        
+
         return results
 
 

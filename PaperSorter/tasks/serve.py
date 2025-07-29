@@ -401,7 +401,7 @@ def create_app(config_path):
             """, (feed_id, user_id))
 
             existing = cursor.fetchone()
-            
+
             if action == 'toggle':
                 # Toggle based on current state
                 if existing and existing['score'] > 0:
@@ -553,7 +553,7 @@ def create_app(config_path):
                 INSERT INTO channels (name, endpoint_url, score_threshold, model_id)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
-            """, (data['name'], data['endpoint_url'], 
+            """, (data['name'], data['endpoint_url'],
                   data.get('score_threshold', 0.7), data.get('model_id', 1)))
 
             channel_id = cursor.fetchone()[0]
@@ -582,8 +582,8 @@ def create_app(config_path):
                 UPDATE channels
                 SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s
                 WHERE id = %s
-            """, (data['name'], data['endpoint_url'], 
-                  data.get('score_threshold', 0.7), data.get('model_id', 1), 
+            """, (data['name'], data['endpoint_url'],
+                  data.get('score_threshold', 0.7), data.get('model_id', 1),
                   channel_id))
 
             conn.commit()
@@ -721,7 +721,7 @@ def create_app(config_path):
     def similar_articles(feed_id):
         """Show articles similar to the given feed"""
         return render_template('similar_articles.html', source_feed_id=feed_id)
-    
+
     @app.route('/api/feeds/<int:feed_id>/similar')
     @login_required
     def api_similar_feeds(feed_id):
@@ -729,10 +729,10 @@ def create_app(config_path):
         try:
             # Load embedding database with config
             edb = EmbeddingDatabase(config_path)
-            
+
             # Get similar articles filtered by current user
             similar_feeds = edb.find_similar(feed_id, limit=30, user_id=current_user.id)
-            
+
             # Convert to format compatible with feeds list
             feeds = []
             for feed in similar_feeds:
@@ -750,7 +750,7 @@ def create_app(config_path):
                     'label': feed['label'],
                     'similarity': float(feed['similarity'])
                 })
-            
+
             # Also get the source article info
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -762,12 +762,12 @@ def create_app(config_path):
             source_article = cursor.fetchone()
             cursor.close()
             conn.close()
-            
+
             return jsonify({
                 'source_article': source_article,
                 'similar_feeds': feeds
             })
-            
+
         except Exception as e:
             log.error(f"Error finding similar articles: {e}")
             return jsonify({'error': str(e)}), 500
