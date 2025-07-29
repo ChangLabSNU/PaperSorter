@@ -12,7 +12,7 @@
             background-color: #f5f5f5;
             line-height: 1.6;
         }
-        
+
         .container {
             max-width: 1000px;
             margin: 0 auto;
@@ -21,14 +21,14 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-        
+
         .header {
             background: #2c3e50;
             color: white;
             padding: 20px;
             text-align: center;
         }
-        
+
         .progress {
             background: #34495e;
             height: 6px;
@@ -36,28 +36,28 @@
             margin-top: 10px;
             overflow: hidden;
         }
-        
+
         .progress-bar {
             background: #3498db;
             height: 100%;
             transition: width 0.3s ease;
         }
-        
+
         .stats {
             display: flex;
             justify-content: space-around;
             margin-top: 10px;
             font-size: 14px;
         }
-        
+
         .content {
             padding: 30px;
         }
-        
+
         .paper-item {
             margin-bottom: 30px;
         }
-        
+
         .title {
             font-size: 24px;
             font-weight: bold;
@@ -65,7 +65,7 @@
             margin-bottom: 15px;
             line-height: 1.3;
         }
-        
+
         .score-badge {
             display: inline-flex;
             align-items: center;
@@ -78,7 +78,7 @@
             justify-content: center;
             margin-bottom: 10px;
         }
-        
+
         .meta {
             display: flex;
             gap: 20px;
@@ -86,18 +86,18 @@
             font-size: 14px;
             color: #7f8c8d;
         }
-        
+
         .meta-item {
             display: flex;
             flex-direction: column;
         }
-        
+
         .meta-label {
             font-weight: bold;
             color: #34495e;
             margin-bottom: 2px;
         }
-        
+
         .abstract {
             background: #f8f9fa;
             padding: 20px;
@@ -107,7 +107,7 @@
             font-size: 16px;
             line-height: 1.7;
         }
-        
+
         .controls {
             position: fixed;
             bottom: 0;
@@ -119,14 +119,14 @@
             text-align: center;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
         }
-        
+
         .buttons {
             display: flex;
             justify-content: center;
             gap: 20px;
             margin-bottom: 15px;
         }
-        
+
         .btn {
             padding: 15px 30px;
             font-size: 18px;
@@ -137,78 +137,78 @@
             transition: all 0.2s ease;
             min-width: 120px;
         }
-        
+
         .btn-positive {
             background: #27ae60;
             color: white;
         }
-        
+
         .btn-positive:hover {
             background: #229954;
         }
-        
+
         .btn-negative {
             background: #e74c3c;
             color: white;
         }
-        
+
         .btn-negative:hover {
             background: #c0392b;
         }
-        
+
         .btn-skip {
             background: #95a5a6;
             color: white;
         }
-        
+
         .btn-skip:hover {
             background: #7f8c8d;
         }
-        
+
         .btn-visit {
             background: #3498db;
             color: white;
         }
-        
+
         .btn-visit:hover {
             background: #2980b9;
         }
-        
+
         .keyboard-help {
             font-size: 14px;
             color: #7f8c8d;
             margin-top: 10px;
         }
-        
+
         .loading {
             text-align: center;
             padding: 40px;
             color: #7f8c8d;
         }
-        
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
             }
-            
+
             .content {
                 padding: 20px;
             }
-            
+
             .title {
                 font-size: 20px;
             }
-            
+
             .meta {
                 flex-direction: column;
                 gap: 10px;
             }
-            
+
             .buttons {
                 flex-direction: column;
                 gap: 10px;
             }
-            
+
             .btn {
                 width: 100%;
             }
@@ -228,7 +228,7 @@
                 <span>Progress: {{ "%.1f"|format(stats.progress) }}%</span>
             </div>
         </div>
-        
+
         <div class="content">
             <div class="paper-item" id="current-item" data-id="{{ item.id }}" data-url="{{ item.link or '' }}">
                 {% if item.predicted_score is not none %}
@@ -237,7 +237,7 @@
                 </div>
                 {% endif %}
                 <div class="title">{{ item.title }}</div>
-                
+
                 <div class="meta">
                     {% if item.author %}
                     <div class="meta-item">
@@ -245,7 +245,7 @@
                         <div>{{ item.author }}</div>
                     </div>
                     {% endif %}
-                    
+
                     {% if item.origin %}
                     <div class="meta-item">
                         <div class="meta-label">Origin</div>
@@ -253,14 +253,14 @@
                     </div>
                     {% endif %}
                 </div>
-                
+
                 {% if item.content %}
                 <div class="abstract">{{ item.content }}</div>
                 {% endif %}
             </div>
         </div>
     </div>
-    
+
     <div class="controls">
         <div class="buttons">
             <button class="btn btn-positive" onclick="labelItem(1)">
@@ -285,7 +285,7 @@
         let currentItemId = null;
         let currentItemUrl = null;
         let itemHistory = [];
-        
+
         function updateCurrentItem() {
             const item = document.getElementById('current-item');
             if (item) {
@@ -293,22 +293,22 @@
                 currentItemUrl = item.getAttribute('data-url');
             }
         }
-        
+
         function visitArticle() {
             if (currentItemUrl) {
                 window.open(currentItemUrl, '_blank');
             }
         }
-        
+
         function labelItem(label) {
             if (!currentItemId) return;
-            
+
             // Add current item to history before moving to next
             itemHistory.push({
                 id: currentItemId,
                 item: document.getElementById('current-item').cloneNode(true)
             });
-            
+
             fetch('/label', {
                 method: 'POST',
                 headers: {
@@ -329,7 +329,7 @@
                 console.error('Error:', error);
             });
         }
-        
+
         function skipItem() {
             // Add current item to history before skipping
             itemHistory.push({
@@ -338,23 +338,23 @@
             });
             loadNextItem();
         }
-        
+
         function goToPrevious() {
             if (itemHistory.length === 0) return;
-            
+
             const previousItem = itemHistory.pop();
             const content = document.querySelector('.content');
             content.innerHTML = '';
             content.appendChild(previousItem.item);
-            
+
             currentItemId = previousItem.id;
         }
-        
+
         function loadNextItem() {
             // Simply reload the page to get the next item
             window.location.reload();
         }
-        
+
         function updatePage(item, stats) {
             // Update progress bar and stats
             document.querySelector('.progress-bar').style.width = stats.progress + '%';
@@ -363,11 +363,11 @@
             statsElements[1].textContent = `Remaining: ${stats.unlabeled}`;
             statsElements[2].textContent = `Total: ${stats.total}`;
             statsElements[3].textContent = `Progress: ${stats.progress.toFixed(1)}%`;
-            
+
             // Update content
             const content = document.querySelector('.content');
             let metaHtml = '';
-            
+
             if (item.author) {
                 metaHtml += `
                     <div class="meta-item">
@@ -376,7 +376,7 @@
                     </div>
                 `;
             }
-            
+
             if (item.origin) {
                 metaHtml += `
                     <div class="meta-item">
@@ -385,10 +385,10 @@
                     </div>
                 `;
             }
-            
-            
+
+
             const abstractHtml = item.content ? `<div class="abstract">${item.content}</div>` : '';
-            
+
             let scoreBadgeHtml = '';
             if (item.score !== null) {
                 // Apply gamma transformation (square root) to weight towards red
@@ -399,7 +399,7 @@
                 const b = Math.round(166 + (60 - 166) * gamma);
                 scoreBadgeHtml = `<div><span class="score-badge" style="background-color: rgb(${r}, ${g}, ${b});">${item.score.toFixed(3)}</span></div>`;
             }
-            
+
             content.innerHTML = `
                 <div class="paper-item" id="current-item" data-id="${item.id}" data-url="${item.link || ''}">
                     ${scoreBadgeHtml}
@@ -408,16 +408,16 @@
                     ${abstractHtml}
                 </div>
             `;
-            
+
             updateCurrentItem();
         }
-        
+
         // Keyboard shortcuts
         document.addEventListener('keydown', function(event) {
             if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
                 return;
             }
-            
+
             switch(event.key.toLowerCase()) {
                 case 'z':
                 case '.':
@@ -443,7 +443,7 @@
                     break;
             }
         });
-        
+
         // Initialize
         updateCurrentItem();
     </script>

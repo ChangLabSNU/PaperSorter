@@ -114,7 +114,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
             break
 
         db.commit()
-    
+
     return new_item_ids
 
 def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
@@ -129,19 +129,19 @@ def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
     update_limit = FEED_UPDATE_LIMIT_FULL if get_full_list else FEED_UPDATE_LIMIT_REGULAR
 
     new_item_ids = []
-    
+
     # Get starred items
     starred_new = retrieve_items_into_db(feeddb, searcher.get_starred_only(limit_items=update_limit), starred=1,
                                         date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
                                         bulk_loading=bulk_loading)
     new_item_ids.extend(starred_new)
-    
+
     # Get all items
     all_new = retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit), starred=0,
                                     date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
                                     bulk_loading=bulk_loading)
     new_item_ids.extend(all_new)
-    
+
     return new_item_ids
 
 def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=False,
@@ -198,7 +198,7 @@ def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
         feedinfo = feeddb[feed_id]
         if not feedinfo:
             continue
-            
+
         pubdate = datetime.fromtimestamp(feedinfo['published'])
 
         date_from = pubdate - timedelta(days=dateoffset)
@@ -277,7 +277,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
     if not all_channels:
         log.warning('No channels configured')
         return
-    
+
     # Load models for each channel
     channel_models = {}
     for channel in all_channels:
@@ -295,17 +295,17 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
     for bid, batch in enumerate(batched(unscored, batchsize)):
         log.debug(f'Scoring batch: {bid+1}')
         emb = embeddingdb[batch]
-        
+
         # Score with each channel's model and add to appropriate queues
         for channel in all_channels:
             model_id = channel['model_id'] or 1
             predmodel = channel_models.get(model_id)
             if not predmodel:
                 continue
-                
+
             score_threshold = channel['score_threshold'] or 0.7
             channel_id = channel['id']
-            
+
             emb_xrm = predmodel['scaler'].transform(emb)
             dmtx_pred = xgb.DMatrix(emb_xrm)
             scores = predmodel['model'].predict(dmtx_pred)

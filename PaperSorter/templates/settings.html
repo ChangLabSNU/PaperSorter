@@ -12,12 +12,12 @@
             background-color: #f5f5f5;
             line-height: 1.6;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         .header {
             background: white;
             border-radius: 8px;
@@ -28,12 +28,12 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .header h1 {
             margin: 0;
             color: #2c3e50;
         }
-        
+
         .nav-link {
             color: #3498db;
             text-decoration: none;
@@ -43,18 +43,18 @@
             border-radius: 6px;
             transition: all 0.2s ease;
         }
-        
+
         .nav-link:hover {
             background: #3498db;
             color: white;
         }
-        
+
         .settings-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
         }
-        
+
         .settings-card {
             background: white;
             border-radius: 8px;
@@ -66,52 +66,52 @@
             text-decoration: none;
             color: inherit;
         }
-        
+
         .settings-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
         }
-        
+
         .settings-icon {
             font-size: 48px;
             margin-bottom: 15px;
         }
-        
+
         .settings-title {
             font-size: 24px;
             font-weight: bold;
             color: #2c3e50;
             margin-bottom: 10px;
         }
-        
+
         .settings-description {
             color: #7f8c8d;
             font-size: 16px;
         }
-        
+
         .channels-icon {
             color: #3498db;
         }
-        
+
         .users-icon {
             color: #27ae60;
         }
-        
+
         .models-icon {
             color: #e74c3c;
         }
-        
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
             }
-            
+
             .header {
                 flex-direction: column;
                 gap: 15px;
                 text-align: center;
             }
-            
+
             .settings-grid {
                 grid-template-columns: 1fr;
             }
@@ -124,7 +124,7 @@
             <h1>Settings</h1>
             <a href="/" class="nav-link">← Back to Feeds</a>
         </div>
-        
+
         <div class="settings-grid">
             <a href="/settings/channels" class="settings-card">
                 <div class="settings-icon channels-icon">📡</div>
@@ -133,7 +133,7 @@
                     Manage broadcast channels for notifications
                 </div>
             </a>
-            
+
             <a href="/settings/users" class="settings-card">
                 <div class="settings-icon users-icon">👥</div>
                 <div class="settings-title">Users</div>
@@ -141,7 +141,7 @@
                     Manage users and their preferences
                 </div>
             </a>
-            
+
             <a href="/settings/models" class="settings-card">
                 <div class="settings-icon models-icon">🤖</div>
                 <div class="settings-title">Models</div>

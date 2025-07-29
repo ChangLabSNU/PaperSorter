@@ -343,7 +343,7 @@ class FeedDatabase:
             where_clause = "a.external_id = %s"
         else:
             where_clause = "a.id = %s"
-            
+
         self.cursor.execute(f'''
             SELECT COUNT(*) as count
             FROM feeds a

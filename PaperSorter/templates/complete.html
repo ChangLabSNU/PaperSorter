@@ -16,7 +16,7 @@
             align-items: center;
             min-height: 100vh;
         }
-        
+
         .container {
             max-width: 600px;
             background: white;
@@ -25,49 +25,49 @@
             padding: 40px;
             text-align: center;
         }
-        
+
         .success-icon {
             font-size: 64px;
             color: #27ae60;
             margin-bottom: 20px;
         }
-        
+
         .title {
             font-size: 28px;
             font-weight: bold;
             color: #2c3e50;
             margin-bottom: 20px;
         }
-        
+
         .message {
             font-size: 18px;
             color: #7f8c8d;
             margin-bottom: 30px;
         }
-        
+
         .stats {
             background: #f8f9fa;
             border-radius: 6px;
             padding: 20px;
             margin-bottom: 30px;
         }
-        
+
         .stat-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 10px;
             font-size: 16px;
         }
-        
+
         .stat-label {
             font-weight: bold;
             color: #34495e;
         }
-        
+
         .stat-value {
             color: #2c3e50;
         }
-        
+
         .btn {
             padding: 15px 30px;
             font-size: 16px;
@@ -81,7 +81,7 @@
             display: inline-block;
             transition: background 0.2s ease;
         }
-        
+
         .btn:hover {
             background: #2980b9;
         }
@@ -94,7 +94,7 @@
         <div class="message">
             Great job! You have labeled all available items in the dataset.
         </div>
-        
+
         <div class="stats">
             <div class="stat-row">
                 <span class="stat-label">Total Items:</span>
@@ -109,7 +109,7 @@
                 <span class="stat-value">{{ "%.1f"|format(stats.progress) }}%</span>
             </div>
         </div>
-        
+
         <a href="/" class="btn">Check for New Items</a>
     </div>
 </body>

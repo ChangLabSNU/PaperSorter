@@ -15,7 +15,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .login-container {
             background: white;
             border-radius: 8px;
@@ -26,24 +26,24 @@
             width: 100%;
             margin: 20px;
         }
-        
+
         .logo {
             font-size: 48px;
             margin-bottom: 20px;
         }
-        
+
         h1 {
             color: #2c3e50;
             margin-bottom: 10px;
             font-size: 28px;
         }
-        
+
         .subtitle {
             color: #7f8c8d;
             margin-bottom: 30px;
             font-size: 16px;
         }
-        
+
         .google-btn {
             display: inline-flex;
             align-items: center;
@@ -62,19 +62,19 @@
             margin: 0 auto;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        
+
         .google-btn:hover {
             background: #f8f9fa;
             box-shadow: 0 2px 6px rgba(0,0,0,0.15);
             transform: translateY(-1px);
         }
-        
+
         .google-icon {
             width: 20px;
             height: 20px;
             margin-right: 12px;
         }
-        
+
         .error-message {
             background: #fee;
             color: #c00;
@@ -83,7 +83,7 @@
             margin-bottom: 20px;
             font-size: 14px;
         }
-        
+
         .info-message {
             background: #e3f2fd;
             color: #1976d2;
@@ -92,22 +92,22 @@
             margin-bottom: 20px;
             font-size: 14px;
         }
-        
+
         .footer {
             margin-top: 40px;
             color: #95a5a6;
             font-size: 14px;
         }
-        
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 30px 20px;
             }
-            
+
             h1 {
                 font-size: 24px;
             }
-            
+
             .logo {
                 font-size: 36px;
             }
@@ -119,15 +119,15 @@
         <div class="logo">📚</div>
         <h1>Papersorter</h1>
         <p class="subtitle">AI-powered academic paper recommendation system</p>
-        
+
         {% if error %}
         <div class="error-message">{{ error }}</div>
         {% endif %}
-        
+
         {% if message %}
         <div class="info-message">{{ message }}</div>
         {% endif %}
-        
+
         <a href="{{ url_for('google_login') }}" class="google-btn">
             <svg class="google-icon" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -137,7 +137,7 @@
             </svg>
             Sign in with Google
         </a>
-        
+
         <div class="footer">
             <p>By signing in, you agree to use this service responsibly.</p>
         </div>
