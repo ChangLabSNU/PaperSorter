@@ -56,30 +56,7 @@ def batched(iterable, n):
     if items:
         yield items
 
-def update_star_status(db, items):
-    time_begin = min(it.published for it in items) - 1
-    time_end = max(it.published for it in items) + 1
-
-    current_status = db.get_star_status(time_begin, time_end)
-    changes = 0
-
-    for item in items:
-        if item.starred is None or item.item_id not in current_status:
-            continue
-
-        if item.starred != current_status[item.item_id]:
-            if item.starred:
-                log.info(f'New star: {item.title}')
-            else:
-                log.info(f'Dropped star: {item.title}')
-
-            db.update_star_status(item.item_id, item.starred)
-            changes += 1
-
-    if changes > 0:
-        db.commit()
-
-def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_items=False,
+def retrieve_items_into_db(db, iterator, date_cutoff, stop_at_no_new_items=False,
                            bulk_loading=False):
     default_broadcasted = 0 if bulk_loading else None
     progress_log = log.info if bulk_loading else log.debug
@@ -87,10 +64,6 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
 
     for page, items in enumerate(iterator):
         progress_log(f'Processing page {page+1}')
-        if page == 0 and len(items) > 0:
-            # Update starred status for the latest items only
-            update_star_status(db, items)
-
         newitems = 0
 
         for item in items:
@@ -105,7 +78,7 @@ def retrieve_items_into_db(db, iterator, starred, date_cutoff, stop_at_no_new_it
 
             date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
             log.debug(f'Retrieved: [{date_formatted}] {item.title}')
-            db.insert_item(item, starred=starred, broadcasted=default_broadcasted)
+            db.insert_item(item, starred=0, broadcasted=default_broadcasted)
             new_item_ids.append(item.item_id)
             newitems += 1
 
@@ -128,19 +101,10 @@ def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
     stop_at_no_new_items = not get_full_list
     update_limit = FEED_UPDATE_LIMIT_FULL if get_full_list else FEED_UPDATE_LIMIT_REGULAR
 
-    new_item_ids = []
-
-    # Get starred items
-    starred_new = retrieve_items_into_db(feeddb, searcher.get_starred_only(limit_items=update_limit), starred=1,
-                                        date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
-                                        bulk_loading=bulk_loading)
-    new_item_ids.extend(starred_new)
-
     # Get all items
-    all_new = retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit), starred=0,
-                                    date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
-                                    bulk_loading=bulk_loading)
-    new_item_ids.extend(all_new)
+    new_item_ids = retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit),
+                                         date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
+                                         bulk_loading=bulk_loading)
 
     return new_item_ids
 
@@ -237,30 +201,7 @@ def format_authors(authors, max_authors=4):
         last_authors = ', '.join(a['name'] for a in authors[-2:])
         return first_authors + ', ..., ' + last_authors
 
-def add_starred_to_queue(feeddb):
-    """Add recently starred items to the broadcast queue."""
-    # Get recently starred items (last 7 days)
-    since = time.time() - 7 * 86400
-    feeddb.cursor.execute('''
-        SELECT f.id, f.title
-        FROM feeds f
-        JOIN preferences p ON f.id = p.feed_id
-        WHERE p.source = 'feed-star'
-              AND p.score > 0
-              AND p.time >= to_timestamp(%s)
-              AND NOT EXISTS (
-                  SELECT 1 FROM broadcasts bl
-                  WHERE bl.feed_id = f.id AND bl.channel_id = 1
-              )
-    ''', (since,))
-
-    starred_items = feeddb.cursor.fetchall()
-    for item in starred_items:
-        feeddb.add_to_broadcast_queue(item['id'])
-        log.info(f'Added starred item to broadcast queue: {item["title"]}')
-
-def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=False,
-                    check_starred=True):
+def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=False):
     if force_rescore:
         unscored = feeddb.keys()
     else:
@@ -355,10 +296,6 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
                             log.info(f'Added to channel {channel["name"]} queue: {iteminfo["title"]}')
 
         feeddb.commit()
-
-    # Also check for newly starred items and add them to the queue
-    if check_starred:
-        add_starred_to_queue(feeddb)
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
