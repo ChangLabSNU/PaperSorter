@@ -42,37 +42,37 @@ class User(UserMixin):
 def create_app(config_path):
     """Create and configure the Flask application"""
     app = Flask(__name__, template_folder='../templates')
-    
+
     # Configure for reverse proxy (fixes HTTPS redirect URIs)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-    
+
     # Load database configuration
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
-    
+
     db_config = config['db']
     google_config = config.get('google_oauth', {})
-    
+
     # Set up Flask secret key
-    app.secret_key = google_config.get('flask_secret_key', os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32)))
-    
+    app.secret_key = google_config.get('flask_secret_key', secrets.token_hex(32))
+
     # Set up Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
-    
+
     # Set up OAuth
     oauth = OAuth(app)
     google = oauth.register(
         name='google',
-        client_id=google_config.get('client_id', os.environ.get('GOOGLE_CLIENT_ID')),
-        client_secret=google_config.get('secret', os.environ.get('GOOGLE_CLIENT_SECRET')),
+        client_id=google_config['client_id'],
+        client_secret=google_config['secret'],
         server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
         client_kwargs={
             'scope': 'openid email profile'
         }
     )
-    
+
     def get_db_connection():
         return psycopg2.connect(
             host=db_config['host'],
@@ -80,7 +80,7 @@ def create_app(config_path):
             user=db_config['user'],
             password=db_config['password']
         )
-    
+
     @login_manager.user_loader
     def load_user(user_id):
         conn = get_db_connection()
@@ -89,16 +89,16 @@ def create_app(config_path):
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
-        
+
         if user_data:
             return User(user_data['id'], user_data['username'])
         return None
-    
+
     def get_unlabeled_item():
         """Get a random unlabeled item from the database"""
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
         cursor.execute("""
             SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
@@ -110,81 +110,81 @@ def create_app(config_path):
             ORDER BY RANDOM()
             LIMIT 1
         """)
-        
+
         item = cursor.fetchone()
         cursor.close()
         conn.close()
-        
+
         return item
-    
+
     def update_label(session_id, label_value):
         """Update the label for a specific item"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute(
             "UPDATE labeling_sessions SET score = %s, update_time = CURRENT_TIMESTAMP WHERE id = %s",
             (float(label_value), session_id)
         )
-        
+
         conn.commit()
         cursor.close()
         conn.close()
-    
+
     def get_labeling_stats():
         """Get statistics about labeling progress"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NULL")
         unlabeled = cursor.fetchone()[0]
-        
+
         cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NOT NULL")
         labeled = cursor.fetchone()[0]
-        
+
         cursor.execute("SELECT COUNT(*) FROM labeling_sessions")
         total = cursor.fetchone()[0]
-        
+
         cursor.close()
         conn.close()
-        
+
         return {
             'unlabeled': unlabeled,
             'labeled': labeled,
             'total': total,
             'progress': (labeled / total * 100) if total > 0 else 0
         }
-    
+
     # Authentication routes
     @app.route('/login')
     def login():
         """Login page"""
         return render_template('login.html')
-    
+
     @app.route('/login/google')
     def google_login():
         """Initiate Google OAuth login"""
         redirect_uri = url_for('google_callback', _external=True)
         return google.authorize_redirect(redirect_uri)
-    
+
     @app.route('/callback')
     def google_callback():
         """Handle Google OAuth callback"""
         try:
             token = google.authorize_access_token()
             user_info = token.get('userinfo')
-            
+
             if user_info:
                 email = user_info.get('email')
                 name = user_info.get('name', email.split('@')[0])
-                
+
                 conn = get_db_connection()
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                
+
                 # Check if user exists
                 cursor.execute("SELECT id, username FROM users WHERE username = %s", (email,))
                 user_data = cursor.fetchone()
-                
+
                 if not user_data:
                     # Create new user
                     cursor.execute("""
@@ -194,42 +194,42 @@ def create_app(config_path):
                     """, (email, 'oauth'))
                     user_data = cursor.fetchone()
                     conn.commit()
-                
+
                 # Update last login
                 cursor.execute("""
                     UPDATE users SET lastlogin = CURRENT_TIMESTAMP
                     WHERE id = %s
                 """, (user_data['id'],))
                 conn.commit()
-                
+
                 cursor.close()
                 conn.close()
-                
+
                 # Log the user in
                 user = User(user_data['id'], user_data['username'], email)
                 login_user(user)
-                
+
                 # Redirect to the original requested page or home
                 next_page = request.args.get('next')
                 return redirect(next_page) if next_page else redirect(url_for('index'))
-                
+
         except Exception as e:
             log.error(f"OAuth callback error: {e}")
             return redirect(url_for('login', error='Authentication failed'))
-    
+
     @app.route('/logout')
     @login_required
     def logout():
         """Logout the user"""
         logout_user()
         return redirect(url_for('login', message='You have been logged out'))
-    
+
     @app.route('/')
     @login_required
     def index():
         """Show list of all feeds with their labels"""
         return render_template('feeds_list.html')
-    
+
     @app.route('/label', methods=['POST'])
     @login_required
     def label_item():
@@ -237,35 +237,35 @@ def create_app(config_path):
         data = request.get_json()
         session_id = data.get('id')
         label_value = data.get('label')
-        
+
         if session_id and label_value is not None:
             update_label(session_id, label_value)
-            
+
             # Also update preferences table
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
+
             # Get feed_id and user_id from labeling_sessions
             cursor.execute("SELECT feed_id, user_id FROM labeling_sessions WHERE id = %s", (session_id,))
             result = cursor.fetchone()
-            
+
             if result:
                 feed_id = result['feed_id']
                 user_id = result['user_id']
-                
+
                 # First check if a preference already exists
                 cursor.execute("""
-                    SELECT id FROM preferences 
+                    SELECT id FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                 """, (feed_id, user_id))
-                
+
                 existing = cursor.fetchone()
-                
+
                 if existing:
                     # Update existing preference
                     cursor.execute("""
-                        UPDATE preferences 
-                        SET score = %s, time = CURRENT_TIMESTAMP 
+                        UPDATE preferences
+                        SET score = %s, time = CURRENT_TIMESTAMP
                         WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                     """, (float(label_value), feed_id, user_id))
                 else:
@@ -274,28 +274,28 @@ def create_app(config_path):
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
                         VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
                     """, (feed_id, user_id, float(label_value)))
-                
+
                 conn.commit()
-            
+
             cursor.close()
             conn.close()
-            
+
             return jsonify({'status': 'success'})
-        
+
         return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
-    
+
     @app.route('/labeling')
     @login_required
     def labeling():
         """Labeling interface - hidden page"""
         item = get_unlabeled_item()
         stats = get_labeling_stats()
-        
+
         if not item:
             return render_template('complete.html', stats=stats)
-        
+
         return render_template('labeling.html', item=item, stats=stats)
-    
+
     @app.route('/api/feeds')
     @login_required
     def api_feeds():
@@ -304,13 +304,13 @@ def create_app(config_path):
         limit = int(request.args.get('limit', 20))
         min_score = float(request.args.get('min_score', 0))
         offset = (page - 1) * limit
-        
+
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         # Get feeds with all the necessary information
         cursor.execute("""
-            SELECT 
+            SELECT
                 f.id as rowid,
                 f.external_id,
                 f.title,
@@ -331,65 +331,65 @@ def create_app(config_path):
             ORDER BY f.published DESC
             LIMIT %s OFFSET %s
         """, (min_score, limit + 1, offset))
-        
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         # Check if there are more results
         has_more = len(results) > limit
         feeds = results[:limit] if has_more else results
-        
+
         return jsonify({
             'feeds': feeds,
             'has_more': has_more
         })
-    
+
     @app.route('/api/feeds/<int:feed_id>/content')
     @login_required
     def api_feed_content(feed_id):
         """API endpoint to get feed content"""
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         cursor.execute("""
             SELECT content, tldr
             FROM feeds
             WHERE id = %s
         """, (feed_id,))
-        
+
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        
+
         if result:
             return jsonify(result)
         else:
             return jsonify({'error': 'Feed not found'}), 404
-    
+
     @app.route('/api/feeds/<int:feed_id>/star', methods=['POST'])
     @login_required
     def api_star_feed(feed_id):
         """API endpoint to star/unstar a feed"""
         user_id = 1  # Default user
-        
+
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         try:
             # Check if preference already exists
             cursor.execute("""
-                SELECT id, score FROM preferences 
+                SELECT id, score FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
             """, (feed_id, user_id))
-            
+
             existing = cursor.fetchone()
-            
+
             if existing:
                 # Update existing preference to starred
                 cursor.execute("""
-                    UPDATE preferences 
-                    SET score = 1.0, time = CURRENT_TIMESTAMP 
+                    UPDATE preferences
+                    SET score = 1.0, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
                 """, (feed_id, user_id))
             else:
@@ -398,18 +398,18 @@ def create_app(config_path):
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
                 """, (feed_id, user_id))
-            
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/feeds/<int:feed_id>/feedback', methods=['POST'])
     @login_required
     def api_feedback_feed(feed_id):
@@ -417,31 +417,31 @@ def create_app(config_path):
         user_id = 1  # Default user
         data = request.get_json()
         score = data.get('score')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         try:
             if score is None:
                 # Remove feedback
                 cursor.execute("""
-                    DELETE FROM preferences 
+                    DELETE FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                 """, (feed_id, user_id))
             else:
                 # Check if preference already exists
                 cursor.execute("""
-                    SELECT id FROM preferences 
+                    SELECT id FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                 """, (feed_id, user_id))
-                
+
                 existing = cursor.fetchone()
-                
+
                 if existing:
                     # Update existing preference
                     cursor.execute("""
-                        UPDATE preferences 
-                        SET score = %s, time = CURRENT_TIMESTAMP 
+                        UPDATE preferences
+                        SET score = %s, time = CURRENT_TIMESTAMP
                         WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                     """, (float(score), feed_id, user_id))
                 else:
@@ -450,43 +450,43 @@ def create_app(config_path):
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
                         VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
                     """, (feed_id, user_id, float(score)))
-            
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     # Settings routes
     @app.route('/settings')
     @login_required
     def settings():
         """Settings main page"""
         return render_template('settings.html')
-    
+
     @app.route('/settings/channels')
     @login_required
     def settings_channels():
         """Channels settings page"""
         return render_template('settings_channels.html')
-    
+
     @app.route('/settings/users')
     @login_required
     def settings_users():
         """Users settings page"""
         return render_template('settings_users.html')
-    
+
     @app.route('/settings/models')
     @login_required
     def settings_models():
         """Models settings page"""
         return render_template('settings_models.html')
-    
+
     # Channels API endpoints
     @app.route('/api/settings/channels')
     @login_required
@@ -494,94 +494,94 @@ def create_app(config_path):
         """Get all channels"""
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         cursor.execute("""
             SELECT id, name, endpoint_url
             FROM channels
             ORDER BY id
         """)
-        
+
         channels = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         return jsonify({'channels': channels})
-    
+
     @app.route('/api/settings/channels', methods=['POST'])
     @login_required
     def api_create_channel():
         """Create a new channel"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
                 INSERT INTO channels (name, endpoint_url)
                 VALUES (%s, %s)
                 RETURNING id
             """, (data['name'], data['endpoint_url']))
-            
+
             channel_id = cursor.fetchone()[0]
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True, 'id': channel_id})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/channels/<int:channel_id>', methods=['PUT'])
     @login_required
     def api_update_channel(channel_id):
         """Update a channel"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
-                UPDATE channels 
+                UPDATE channels
                 SET name = %s, endpoint_url = %s
                 WHERE id = %s
             """, (data['name'], data['endpoint_url'], channel_id))
-            
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/channels/<int:channel_id>', methods=['DELETE'])
     @login_required
     def api_delete_channel(channel_id):
         """Delete a channel"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("DELETE FROM channels WHERE id = %s", (channel_id,))
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     # Users API endpoints
     @app.route('/api/settings/users')
     @login_required
@@ -589,97 +589,97 @@ def create_app(config_path):
         """Get all users"""
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         cursor.execute("""
             SELECT id, username, created, lastlogin
             FROM users
             ORDER BY id
         """)
-        
+
         users = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         return jsonify({'users': users})
-    
+
     @app.route('/api/settings/users', methods=['POST'])
     @login_required
     def api_create_user():
         """Create a new user"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
                 INSERT INTO users (username, password, created)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
                 RETURNING id
             """, (data['username'], data.get('password', 'default')))
-            
+
             user_id = cursor.fetchone()[0]
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True, 'id': user_id})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/users/<int:user_id>', methods=['PUT'])
     @login_required
     def api_update_user(user_id):
         """Update a user"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
-                UPDATE users 
+                UPDATE users
                 SET username = %s
                 WHERE id = %s
             """, (data['username'], user_id))
-            
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/users/<int:user_id>', methods=['DELETE'])
     @login_required
     def api_delete_user(user_id):
         """Delete a user"""
         if user_id == 1:
             return jsonify({'success': False, 'error': 'Cannot delete default user'}), 400
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     # Models API endpoints
     @app.route('/api/settings/models')
     @login_required
@@ -687,97 +687,97 @@ def create_app(config_path):
         """Get all models"""
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         cursor.execute("""
             SELECT id, name, user_id, created
             FROM models
             ORDER BY id
         """)
-        
+
         models = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         return jsonify({'models': models})
-    
+
     @app.route('/api/settings/models', methods=['POST'])
     @login_required
     def api_create_model():
         """Create a new model"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
                 INSERT INTO models (name, user_id, created)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
                 RETURNING id
             """, (data['name'], data.get('user_id', 1)))
-            
+
             model_id = cursor.fetchone()[0]
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True, 'id': model_id})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/models/<int:model_id>', methods=['PUT'])
     @login_required
     def api_update_model(model_id):
         """Update a model"""
         data = request.get_json()
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("""
-                UPDATE models 
+                UPDATE models
                 SET name = %s
                 WHERE id = %s
             """, (data['name'], model_id))
-            
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/settings/models/<int:model_id>', methods=['DELETE'])
     @login_required
     def api_delete_model(model_id):
         """Delete a model"""
         if model_id == 1:
             return jsonify({'success': False, 'error': 'Cannot delete default model'}), 400
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute("DELETE FROM models WHERE id = %s", (model_id,))
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             return jsonify({'success': True})
         except Exception as e:
             conn.rollback()
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     return app
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
@@ -789,10 +789,10 @@ def create_app(config_path):
 def main(config, host, port, debug, log_file, quiet):
     """Serve web interface for article labeling and other tasks"""
     initialize_logging(task='serve', logfile=log_file, quiet=quiet)
-    
+
     log.info(f'Starting web server on {host}:{port}')
-    
+
     app = create_app(config)
-    
+
     # Run the Flask app
     app.run(host=host, port=port, debug=debug)

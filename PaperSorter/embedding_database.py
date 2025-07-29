@@ -23,6 +23,7 @@
 
 import psycopg2
 import psycopg2.extras
+from pgvector.psycopg2 import register_vector
 import numpy as np
 import yaml
 
@@ -48,7 +49,7 @@ class EmbeddingDatabase:
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Register pgvector extension
-        psycopg2.extras.register_vector(self.db)
+        register_vector(self.db)
 
     def __del__(self):
         if hasattr(self, 'db'):

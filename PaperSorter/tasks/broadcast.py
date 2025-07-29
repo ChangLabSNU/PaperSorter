@@ -150,37 +150,42 @@ def normalize_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
-@click.option('--days', default=7, help='Number of days to look back.')
-@click.option('--score-threshold', default=0.7, help='Threshold for the score.')
+@click.option('--channel-id', default=1, help='Channel ID to broadcast to.')
+@click.option('--limit', default=None, type=int, help='Maximum number of items to process.')
 @click.option('--score-model-name', default='QBio', help='Name of the scoring model.')
 @click.option('--max-content-length', default=400, help='Maximum length of the content.')
+@click.option('--clear-old-days', default=30, help='Clear processed items older than this many days.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(config, days, score_threshold, score_model_name,
-         max_content_length, log_file, quiet):
+def main(config, channel_id, limit, score_model_name,
+         max_content_length, clear_old_days, log_file, quiet):
 
     initialize_logging(task='broadcast', logfile=log_file, quiet=quiet)
 
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    since = time.time() - days * 86400
     message_options = {
         'model_name': score_model_name,
     }
 
-    endpoint = os.environ[SLACK_ENDPOINT_KEY]
     feeddb = FeedDatabase(config)
 
-    newitems = feeddb.get_new_interesting_items(score_threshold, since,
-                                                remove_duplicated=since)
-    newstars = feeddb.get_newly_starred_items(since=0, remove_duplicated=since)
-    if len(newstars) > 0:
-        newitems = (
-            pd.concat([newitems, newstars]) if len(newitems) > 0 else newstars)
-    log.info(f'Found {len(newitems)} new items to broadcast.')
+    # Get channel endpoint URL from database
+    feeddb.cursor.execute('SELECT endpoint_url FROM channels WHERE id = %s', (channel_id,))
+    channel = feeddb.cursor.fetchone()
+    if not channel or not channel['endpoint_url']:
+        log.error(f'No endpoint URL found for channel {channel_id}')
+        return
 
-    for item_id, info in newitems.iterrows():
+    endpoint = channel['endpoint_url']
+
+    # Clear old processed items from the queue
+    feeddb.clear_old_broadcast_queue(clear_old_days)
+    feeddb.commit()
+
+    # Get items from the broadcast queue
+    queue_items = feeddb.get_broadcast_queue_items(channel_id=channel_id, limit=limit)
+    log.info(f'Found {len(queue_items)} items in broadcast queue.')
+
+    for feed_id, info in queue_items.iterrows():
         log.info(f'Sending notification to Slack for "{info["title"]}"')
         normalize_item_for_display(info, max_content_length)
         try:
@@ -188,5 +193,10 @@ def main(config, days, score_threshold, score_model_name,
         except SlackNotificationError:
             pass
         else:
-            feeddb.update_broadcasted(item_id, int(time.time()))
+            # Mark as processed in the queue
+            feeddb.mark_broadcast_queue_processed(feed_id, channel_id)
+            # Also update the broadcast_logs table for backward compatibility
+            feeddb.update_broadcasted(info['external_id'], int(time.time()))
             feeddb.commit()
+
+    log.info('Broadcast completed.')

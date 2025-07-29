@@ -14,9 +14,9 @@ The system consists of several key components:
 - **EmbeddingDatabase** (`embedding_database.py`): PostgreSQL-based storage for article embedding vectors using pgvector extension
 - **Tasks** (`tasks/`): CLI commands implemented as Click commands
   - `init`: Initialize databases from TheOldReader feeds
-  - `update`: Fetch new articles and generate embeddings
+  - `update`: Fetch new articles, generate embeddings, and queue items for broadcast
   - `train`: Train XGBoost model on labeled data
-  - `broadcast`: Send notifications for high-scoring articles to Slack
+  - `broadcast`: Process broadcast queue and send notifications to Slack
   - `serve`: Web interface for article labeling and other interactive tasks
 - **Providers** (`providers/`): TheOldReader API integration
 - **Contrib** (`contrib/`): Additional utilities like Tor support
@@ -59,27 +59,43 @@ python -m black PaperSorter/         # Code formatting
 ### Task-specific Options
 - All tasks support `--config` (default: `qbio/config.yml`), `--log-file` and `-q/--quiet` options
 - `init`: `--batch-size` (default: 100)
-- `update`: `--batch-size`, `--get-full-list`, `--force-reembed`, `--force-rescore`
+- `update`: `--batch-size`, `--get-full-list`, `--force-reembed`, `--force-rescore`, `--score-threshold` (default: 0.7)
 - `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `-f/--output-feedback` (Excel file)
-- `broadcast`: `--days` (lookback period), `--score-threshold` (default: 0.7), `--max-content-length`
+- `broadcast`: `--channel-id` (default: 1), `--limit` (max items to process), `--max-content-length`, `--clear-old-days` (default: 30)
 - `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`
 
-## Environment Variables
+## Configuration
 
-Required for operation:
-- `TOR_EMAIL`: TheOldReader account email
-- `TOR_PASSWORD`: TheOldReader account password  
-- `PAPERSORTER_API_KEY`: OpenAI/Solar LLM API key for embeddings
-- `PAPERSORTER_WEBHOOK_URL`: Slack webhook URL for notifications
+All configuration is stored in `qbio/config.yml`:
 
-Required for Google OAuth authentication:
-- `GOOGLE_CLIENT_ID`: Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret
-- `FLASK_SECRET_KEY`: Flask session secret key (generate with `secrets.token_hex(32)`)
+```yaml
+db:
+  type: postgres
+  host: localhost
+  user: papersorter
+  database: papersorter
+  password: "your_password"
 
-Optional configuration:
-- `PAPERSORTER_API_URL`: Custom API endpoint (defaults to Solar LLM)
-- `PAPERSORTER_MODEL`: Embedding model name (default: `solar-embedding-1-large-query`)
+google_oauth:
+  client_id: "your_google_client_id"
+  secret: "your_google_client_secret"
+  flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
+
+embedding_api:
+  api_key: "your_openai_api_key"
+  api_url: ""   # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
+  model: ""     # Optional: model name (defaults to text-embedding-3-large)
+
+feed_service:
+  type: "theoldreader"
+  username: "your_email"
+  password: "your_password"
+
+semanticscholar:
+  api_key: "your_s2_api_key"
+```
+
+Note: Slack webhook URLs are stored in the database `channels` table per channel.
 
 ## Data Storage
 
@@ -93,6 +109,7 @@ The PostgreSQL database includes tables for:
 - **preferences**: User labels and ratings (feed_id, user_id, score, source)
 - **predicted_preferences**: Model predictions (feed_id, model_id, score)
 - **broadcast_logs**: Tracking of sent notifications (feed_id, channel_id, broadcasted_time)
+- **broadcast_queue**: Queue for items pending broadcast (feed_id, channel_id, processed)
 - **labeling_sessions**: Manual labeling interface data
 - **users**: User accounts
 - **channels**: Notification channels
@@ -112,6 +129,7 @@ The PostgreSQL database includes tables for:
 - Google OAuth authentication for web interface access
 - Session management with Flask-Login
 - Protected routes require authentication
+- Broadcast queue mechanism: items are queued during update phase based on score threshold and processed during broadcast phase
 
 ## Dependencies
 
@@ -122,7 +140,6 @@ Core dependencies (from setup.py):
 - pandas >= 2.0 (data manipulation)
 - psycopg2-binary >= 2.9 (PostgreSQL database adapter)
 - pgvector >= 0.2.0 (PostgreSQL vector extension support)
-- python-dotenv >= 1.0 (environment variable management)
 - PyYAML >= 6.0 (configuration parsing)
 - requests >= 2.7.0 (HTTP requests)
 - scikit-learn >= 1.4 (machine learning utilities)
@@ -130,4 +147,6 @@ Core dependencies (from setup.py):
 - xgboost > 2.0 (gradient boosting model)
 - xlsxwriter >= 3.0 (Excel file generation for training feedback)
 - Flask >= 2.0 (web framework for serve task)
+- Flask-Login >= 0.6.0 (user session management)
+- Authlib >= 1.2.0 (OAuth authentication)
 

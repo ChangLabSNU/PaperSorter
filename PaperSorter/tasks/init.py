@@ -38,22 +38,23 @@ FEED_EPOCH = 2020, 1, 1
 def main(config, batch_size, log_file, quiet):
     initialize_logging(task='init', logfile=log_file, quiet=quiet)
 
-    from dotenv import load_dotenv
-    load_dotenv()
+    # Load configuration
+    import yaml
+    with open(config, 'r') as f:
+        full_config = yaml.safe_load(f)
 
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
     feeddb = FeedDatabase(config)
     embeddingdb = EmbeddingDatabase(config)
 
     tor_config = {
-        'TOR_EMAIL': os.environ['TOR_EMAIL'],
-        'TOR_PASSWORD': os.environ['TOR_PASSWORD']
+        'TOR_EMAIL': full_config['feed_service']['username'],
+        'TOR_PASSWORD': full_config['feed_service']['password']
     }
     update_feeds(True, feeddb, date_cutoff, credential=tor_config,
                  bulk_loading=True)
 
-    api_key = os.environ['PAPERSORTER_API_KEY']
-    update_embeddings(embeddingdb, batch_size, api_key, feeddb,
+    update_embeddings(embeddingdb, batch_size, full_config['embedding_api'], feeddb,
                       force_reembed=True, bulk_loading=True)
 
     log.info('Initialization finished.')
