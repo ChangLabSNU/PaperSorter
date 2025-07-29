@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feeds List - Papersorter</title>
+    <title>QBio Feeds - PaperSorter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -439,7 +439,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Feeds List</h1>
+            <h1>QBio Feeds</h1>
             <div class="filter-controls">
                 <div class="score-filter">
                     <div class="score-filter-label">Min Score</div>
@@ -682,8 +682,8 @@
                     if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
                         labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
                     } else if (!labelsDiv) {
-                        const feedContent = feedItem.querySelector('.feed-content');
-                        feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                        const feedHeader = feedItem.querySelector('.feed-header');
+                        feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
                     }
                 } else {
                     throw new Error(data.error || 'Unknown error');
@@ -775,9 +775,9 @@
                     } else {
                         // Add or update label
                         if (!labelsDiv) {
-                            const feedContent = feedItem.querySelector('.feed-content');
-                            feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
-                            labelsDiv = feedContent.querySelector('.feed-labels');
+                            const feedHeader = feedItem.querySelector('.feed-header');
+                            feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
+                            labelsDiv = feedHeader.querySelector('.feed-labels');
                         }
                         
                         // Remove opposite label if exists
