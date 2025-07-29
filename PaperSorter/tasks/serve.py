@@ -36,12 +36,15 @@ import click
 import secrets
 
 class User(UserMixin):
-    def __init__(self, id, username, email=None, is_admin=False, timezone='Asia/Seoul'):
+    def __init__(self, id, username, email=None, is_admin=False, timezone='Asia/Seoul', feedlist_minscore=None):
         self.id = id
         self.username = username
         self.email = email
         self.is_admin = is_admin
         self.timezone = timezone
+        # Store the integer value from DB, convert to decimal for internal use
+        self.feedlist_minscore_int = feedlist_minscore if feedlist_minscore is not None else 25
+        self.feedlist_minscore = self.feedlist_minscore_int / 100.0  # Convert to decimal (e.g., 25 -> 0.25)
 
 def admin_required(f):
     """Decorator to require admin privileges for a route"""
@@ -114,7 +117,7 @@ def create_app(config_path):
     def load_user(user_id):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT id, username, is_admin, timezone FROM users WHERE id = %s", (int(user_id),))
+        cursor.execute("SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE id = %s", (int(user_id),))
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -122,7 +125,8 @@ def create_app(config_path):
         if user_data:
             return User(user_data['id'], user_data['username'],
                        is_admin=user_data.get('is_admin', False),
-                       timezone=user_data.get('timezone', 'Asia/Seoul'))
+                       timezone=user_data.get('timezone', 'Asia/Seoul'),
+                       feedlist_minscore=user_data.get('feedlist_minscore'))
         return None
 
     def get_unlabeled_item():
@@ -221,7 +225,7 @@ def create_app(config_path):
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
                 # Check if user exists
-                cursor.execute("SELECT id, username, is_admin, timezone FROM users WHERE username = %s", (email,))
+                cursor.execute("SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s", (email,))
                 user_data = cursor.fetchone()
 
                 if not user_data:
@@ -247,7 +251,8 @@ def create_app(config_path):
                 # Log the user in
                 user = User(user_data['id'], user_data['username'], email,
                            is_admin=user_data.get('is_admin', False),
-                           timezone=user_data.get('timezone', 'Asia/Seoul'))
+                           timezone=user_data.get('timezone', 'Asia/Seoul'),
+                           feedlist_minscore=user_data.get('feedlist_minscore'))
                 login_user(user)
 
                 # Redirect to the original requested page or home
@@ -358,7 +363,7 @@ def create_app(config_path):
         # Filter preferences by current user
         user_id = current_user.id
         default_model_id = get_default_model_id()
-        
+
         # Update bookmark if on first page
         if page == 1:
             cursor.execute("""
@@ -369,7 +374,7 @@ def create_app(config_path):
                 ORDER BY f.added DESC
                 LIMIT 1
             """, (default_model_id, min_score))
-            
+
             top_feed = cursor.fetchone()
             if top_feed:
                 cursor.execute("""
@@ -378,12 +383,12 @@ def create_app(config_path):
                     WHERE id = %s
                 """, (top_feed['id'], user_id))
                 conn.commit()
-        
+
         # Get user's bookmark
         cursor.execute("SELECT bookmark FROM users WHERE id = %s", (user_id,))
         bookmark_result = cursor.fetchone()
         bookmark_id = bookmark_result['bookmark'] if bookmark_result else None
-        
+
         cursor.execute("""
             SELECT
                 f.id as rowid,
@@ -427,11 +432,17 @@ def create_app(config_path):
         has_more = len(results) > limit
         feeds = results[:limit] if has_more else results
 
-        return jsonify({
+        # Include user's saved min score preference on first page
+        response_data = {
             'feeds': feeds,
             'has_more': has_more,
             'bookmark_id': bookmark_id
-        })
+        }
+
+        if page == 1:
+            response_data['user_min_score'] = current_user.feedlist_minscore
+
+        return jsonify(response_data)
 
     @app.route('/api/feeds/<int:feed_id>/content')
     @login_required
@@ -555,6 +566,43 @@ def create_app(config_path):
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
                         VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
                     """, (feed_id, user_id, float(score)))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return jsonify({'success': True})
+        except Exception as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/user/preferences', methods=['PUT'])
+    @login_required
+    def api_update_user_preferences():
+        """Update current user's preferences"""
+        data = request.get_json()
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Handle feedlist_minscore update
+            if 'feedlist_minscore' in data:
+                # Convert decimal to integer for storage (e.g., 0.25 -> 25)
+                min_score_decimal = float(data['feedlist_minscore'])
+                min_score_int = int(min_score_decimal * 100)
+
+                cursor.execute("""
+                    UPDATE users
+                    SET feedlist_minscore = %s
+                    WHERE id = %s
+                """, (min_score_int, current_user.id))
+
+                # Update the current user object
+                current_user.feedlist_minscore_int = min_score_int
+                current_user.feedlist_minscore = min_score_decimal
 
             conn.commit()
             cursor.close()
