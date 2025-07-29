@@ -521,7 +521,7 @@
             if (!timestamp) return 'Unknown';
             const date = new Date(timestamp * 1000);
             
-            // Format date in user's timezone
+            // Format date in user's timezone to YYYY-mm-dd
             const options = {
                 year: 'numeric',
                 month: '2-digit',
@@ -529,6 +529,12 @@
                 timeZone: userTimezone || 'UTC'
             };
             
+            // Get the parts and reformat to YYYY-mm-dd
+            const parts = date.toLocaleDateString('en-US', options).split('/');
+            if (parts.length === 3) {
+                const [month, day, year] = parts;
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
             return date.toLocaleDateString('en-US', options).replace(/\//g, '-');
         }
 
