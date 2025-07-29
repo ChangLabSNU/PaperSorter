@@ -30,6 +30,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 from ..log import log, initialize_logging
+from ..embedding_database import EmbeddingDatabase
 import click
 import secrets
 
@@ -682,6 +683,63 @@ def create_app(config_path):
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Similar articles routes
+    @app.route('/similar/<int:feed_id>')
+    @login_required
+    def similar_articles(feed_id):
+        """Show articles similar to the given feed"""
+        return render_template('similar_articles.html', source_feed_id=feed_id)
+    
+    @app.route('/api/feeds/<int:feed_id>/similar')
+    @login_required
+    def api_similar_feeds(feed_id):
+        """API endpoint to get similar feeds"""
+        try:
+            # Load embedding database with config
+            edb = EmbeddingDatabase(config_path)
+            
+            # Get similar articles
+            similar_feeds = edb.find_similar(feed_id, limit=30)
+            
+            # Convert to format compatible with feeds list
+            feeds = []
+            for feed in similar_feeds:
+                feeds.append({
+                    'rowid': feed['feed_id'],
+                    'external_id': feed['external_id'],
+                    'title': feed['title'],
+                    'author': feed['author'],
+                    'origin': feed['origin'],
+                    'link': feed['link'],
+                    'published': feed['published'],
+                    'score': feed['predicted_score'],
+                    'starred': feed['starred'],
+                    'broadcasted': feed['broadcasted'],
+                    'label': feed['label'],
+                    'similarity': float(feed['similarity'])
+                })
+            
+            # Also get the source article info
+            conn = get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT title, author, origin
+                FROM feeds
+                WHERE id = %s
+            """, (feed_id,))
+            source_article = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            return jsonify({
+                'source_article': source_article,
+                'similar_feeds': feeds
+            })
+            
+        except Exception as e:
+            log.error(f"Error finding similar articles: {e}")
+            return jsonify({'error': str(e)}), 500
 
     # Models API endpoints
     @app.route('/api/settings/models')

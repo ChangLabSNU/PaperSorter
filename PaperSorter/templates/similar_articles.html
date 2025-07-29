@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feeds List - Papersorter</title>
+    <title>Similar Articles - Papersorter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -24,72 +24,42 @@
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .filter-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
-        .score-filter {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .score-filter-label {
-            font-size: 14px;
-            color: #7f8c8d;
-            font-weight: bold;
-        }
-        
-        .score-slider {
-            width: 200px;
-            height: 6px;
-            border-radius: 3px;
-            background: #e9ecef;
-            outline: none;
-            -webkit-appearance: none;
-            appearance: none;
-        }
-        
-        .score-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #3498db;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .score-slider::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #3498db;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .score-value {
-            font-size: 12px;
-            color: #2c3e50;
-            font-weight: bold;
-            min-width: 60px;
-            text-align: center;
         }
         
         .header h1 {
-            margin: 0;
+            margin: 0 0 10px 0;
             color: #2c3e50;
+        }
+        
+        .source-article {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .source-article h3 {
+            margin: 0 0 8px 0;
+            color: #388e3c;
+            font-size: 16px;
+        }
+        
+        .source-article-title {
+            font-weight: bold;
+            color: #2e7d32;
+            margin-bottom: 5px;
+        }
+        
+        .source-article-meta {
+            font-size: 14px;
+            color: #558b2f;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
         
         .nav-link {
@@ -100,6 +70,7 @@
             border: 2px solid #3498db;
             border-radius: 6px;
             transition: all 0.2s ease;
+            display: inline-block;
         }
         
         .nav-link:hover {
@@ -114,16 +85,13 @@
             overflow: hidden;
         }
         
-        .date-header {
+        .similarity-header {
             background: #f8f9fa;
             padding: 15px 20px;
             border-bottom: 1px solid #e9ecef;
             font-weight: bold;
             color: #2c3e50;
             font-size: 16px;
-            position: sticky;
-            top: 0;
-            z-index: 10;
         }
         
         .feed-item {
@@ -160,6 +128,12 @@
             justify-content: center;
             flex-shrink: 0;
             position: relative;
+        }
+        
+        .similarity-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-width: 70px;
         }
         
         .score-icons {
@@ -392,25 +366,9 @@
             100% { transform: rotate(360deg); }
         }
         
-        
         @media (max-width: 768px) {
             body {
                 padding: 10px;
-            }
-            
-            .header {
-                flex-direction: column;
-                gap: 15px;
-                text-align: center;
-            }
-            
-            .filter-controls {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .score-slider {
-                width: 150px;
             }
             
             .feed-header {
@@ -439,39 +397,31 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Feeds List</h1>
-            <div class="filter-controls">
-                <div class="score-filter">
-                    <div class="score-filter-label">Min Score</div>
-                    <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
-                    <div class="score-value" id="scoreValue">0.05</div>
-                </div>
-                <a href="/settings" class="nav-link">⚙️ Settings</a>
-                <a href="/logout" class="nav-link">🚪 Logout</a>
+            <h1>Similar Articles</h1>
+            <div class="source-article" id="source-article">
+                <h3>Finding articles similar to:</h3>
+                <div class="source-article-title">Loading...</div>
+                <div class="source-article-meta"></div>
+            </div>
+            <div class="nav-buttons">
+                <a href="/" class="nav-link">← Back to Feeds</a>
             </div>
         </div>
         
         <div class="feeds-container">
+            <div class="similarity-header">30 Most Similar Articles (Ordered by Similarity)</div>
             <div id="feeds-list">
-                <!-- Feeds will be loaded here -->
+                <!-- Similar feeds will be loaded here -->
             </div>
             <div id="loading" class="loading">
                 <div class="loading-spinner"></div>
-                Loading feeds...
+                Finding similar articles...
             </div>
         </div>
     </div>
 
     <script>
-        let currentPage = 1;
-        let isLoading = false;
-        let hasMore = true;
-        let currentMinScore = 0.05;
-        let lastDateShown = null;
-        
-        // Score threshold values corresponding to slider positions
-        const scoreThresholds = [0, 0.01, 0.05, 0.1, 0.3];
-        const scoreLabels = ['Unlimited', '≥ 0.01', '≥ 0.05', '≥ 0.10', '≥ 0.30'];
+        const sourceFeedId = {{ source_feed_id }};
         
         function calculateScoreColor(score) {
             if (score === null) return 'rgb(149, 165, 166)';
@@ -491,41 +441,10 @@
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
         
-        function formatDateHeader(timestamp) {
-            if (!timestamp) return 'Unknown Date';
-            const date = new Date(timestamp * 1000);
-            const today = new Date();
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
-            
-            // Check if it's today
-            if (date.toDateString() === today.toDateString()) {
-                return 'Today';
-            }
-            // Check if it's yesterday
-            else if (date.toDateString() === yesterday.toDateString()) {
-                return 'Yesterday';
-            }
-            // Otherwise show the date
-            else {
-                return date.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                });
-            }
-        }
-        
-        function getDateKey(timestamp) {
-            if (!timestamp) return 'unknown';
-            const date = new Date(timestamp * 1000);
-            return date.toDateString();
-        }
-        
         function createFeedElement(feed) {
             const scoreColor = calculateScoreColor(feed.score);
             const scoreText = feed.score !== null ? feed.score.toFixed(3) : 'N/A';
+            const similarityText = (feed.similarity * 100).toFixed(1) + '%';
             
             // Create icons for score badge
             let icons = [];
@@ -541,6 +460,9 @@
             return `
                 <div class="feed-item" data-feed-rowid="${feed.rowid}">
                     <div class="feed-header">
+                        <div class="similarity-badge score-badge">
+                            ${similarityText}
+                        </div>
                         <div class="score-badge" style="background-color: ${scoreColor};">
                             ${scoreText}
                             ${iconsHtml}
@@ -577,60 +499,40 @@
             `;
         }
         
-        function loadFeeds() {
-            if (isLoading || !hasMore) return;
-            
-            isLoading = true;
-            document.getElementById('loading').style.display = 'block';
-            
-            fetch(`/api/feeds?page=${currentPage}&limit=20&min_score=${currentMinScore}`)
+        function loadSimilarFeeds() {
+            fetch(`/api/feeds/${sourceFeedId}/similar`)
                 .then(response => response.json())
                 .then(data => {
+                    // Update source article info
+                    if (data.source_article) {
+                        document.querySelector('.source-article-title').textContent = data.source_article.title;
+                        document.querySelector('.source-article-meta').textContent = 
+                            `${data.source_article.author || 'Unknown Author'} · ${data.source_article.origin || 'Unknown Source'}`;
+                    }
+                    
+                    // Display similar feeds
                     const feedsList = document.getElementById('feeds-list');
+                    feedsList.innerHTML = '';
                     
-                    data.feeds.forEach(feed => {
-                        const feedDateKey = getDateKey(feed.published);
-                        
-                        // Add date header if this is a new date
-                        if (feedDateKey !== lastDateShown) {
-                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.published)}</div>`;
-                            feedsList.insertAdjacentHTML('beforeend', dateHeader);
-                            lastDateShown = feedDateKey;
-                        }
-                        
-                        feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
-                    });
-                    
-                    hasMore = data.has_more;
-                    currentPage++;
-                    
-                    if (!hasMore) {
-                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No more feeds to load</div>';
-                    } else {
+                    if (data.similar_feeds && data.similar_feeds.length > 0) {
+                        data.similar_feeds.forEach(feed => {
+                            feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
+                        });
                         document.getElementById('loading').style.display = 'none';
+                    } else {
+                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No similar articles found</div>';
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading feeds:', error);
-                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #e74c3c;">Error loading feeds</div>';
-                })
-                .finally(() => {
-                    isLoading = false;
+                    console.error('Error loading similar feeds:', error);
+                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #e74c3c;">Error loading similar articles</div>';
                 });
         }
         
         function loadFeedContent(feedRowid, detailsElement) {
-            console.log('Loading content for feed rowid:', feedRowid);
             fetch(`/api/feeds/${feedRowid}/content`)
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('Content data:', data);
                     const abstractElement = detailsElement.querySelector('.feed-abstract');
                     if (data.content) {
                         abstractElement.textContent = data.content;
@@ -643,17 +545,15 @@
                 .catch(error => {
                     console.error('Error loading feed content:', error);
                     const abstractElement = detailsElement.querySelector('.feed-abstract');
-                    abstractElement.textContent = `Error loading content: ${error.message}`;
+                    abstractElement.textContent = 'Error loading content';
                 });
         }
         
         function starFeed(feedRowid, buttonElement) {
-            // Prevent event bubbling to avoid triggering row expand/collapse
             event.stopPropagation();
             
             const isCurrentlyStarred = buttonElement.dataset.starred === 'true';
             
-            // Optimistically update UI
             buttonElement.disabled = true;
             buttonElement.textContent = 'Starring...';
             
@@ -663,20 +563,13 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Update button state
                     buttonElement.dataset.starred = 'true';
                     buttonElement.textContent = '★ Starred';
                     buttonElement.classList.add('starred');
                     
-                    // Update the header label if it exists
                     const feedItem = buttonElement.closest('.feed-item');
                     const labelsDiv = feedItem.querySelector('.feed-labels');
                     if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
@@ -691,7 +584,6 @@
             })
             .catch(error => {
                 console.error('Error starring feed:', error);
-                // Revert UI changes on error
                 buttonElement.textContent = isCurrentlyStarred ? '★ Starred' : '☆ Star';
                 alert('Failed to star the feed. Please try again.');
             })
@@ -700,20 +592,12 @@
             });
         }
         
-        function moreLikeThis(feedRowid) {
-            // Prevent event bubbling to avoid triggering row expand/collapse
-            event.stopPropagation();
-            window.location.href = `/similar/${feedRowid}`;
-        }
-        
         function feedbackFeed(feedRowid, score, buttonElement) {
-            // Prevent event bubbling to avoid triggering row expand/collapse
             event.stopPropagation();
             
             const currentLabel = parseFloat(buttonElement.dataset.label);
             const isRemoving = currentLabel === score;
             
-            // Optimistically update UI
             buttonElement.disabled = true;
             const otherButton = score === 1 
                 ? buttonElement.nextElementSibling 
@@ -731,15 +615,9 @@
                     score: isRemoving ? null : score
                 })
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Update button states
                     if (isRemoving) {
                         buttonElement.classList.remove('active');
                         buttonElement.dataset.label = '';
@@ -747,47 +625,40 @@
                         buttonElement.classList.add('active');
                         buttonElement.dataset.label = score;
                         
-                        // Remove active state from other button
                         if (otherButton && otherButton.classList.contains(score === 1 ? 'btn-thumbs-down' : 'btn-thumbs-up')) {
                             otherButton.classList.remove('active');
                             otherButton.dataset.label = '';
                         }
                     }
                     
-                    // Update labels in the header
                     const feedItem = buttonElement.closest('.feed-item');
                     let labelsDiv = feedItem.querySelector('.feed-labels');
                     const existingPositive = labelsDiv ? labelsDiv.querySelector('.label-positive') : null;
                     const existingNegative = labelsDiv ? labelsDiv.querySelector('.label-negative') : null;
                     
                     if (isRemoving) {
-                        // Remove the label
                         if (score === 1 && existingPositive) {
                             existingPositive.remove();
                         } else if (score === 0 && existingNegative) {
                             existingNegative.remove();
                         }
                         
-                        // Remove labels div if empty
                         if (labelsDiv && labelsDiv.children.length === 0) {
                             labelsDiv.remove();
                         }
                     } else {
-                        // Add or update label
                         if (!labelsDiv) {
                             const feedContent = feedItem.querySelector('.feed-content');
                             feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
                             labelsDiv = feedContent.querySelector('.feed-labels');
                         }
                         
-                        // Remove opposite label if exists
                         if (score === 1 && existingNegative) {
                             existingNegative.remove();
                         } else if (score === 0 && existingPositive) {
                             existingPositive.remove();
                         }
                         
-                        // Add new label if not exists
                         if (score === 1 && !existingPositive) {
                             labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-positive">+1</span>');
                         } else if (score === 0 && !existingNegative) {
@@ -810,9 +681,13 @@
             });
         }
         
+        function moreLikeThis(feedRowid) {
+            event.stopPropagation();
+            window.location.href = `/similar/${feedRowid}`;
+        }
+        
         // Event delegation for feed item clicks
         document.addEventListener('click', function(e) {
-            // Don't expand/collapse if clicking on buttons or links
             if (e.target.closest('button') || e.target.closest('a')) return;
             
             const feedItem = e.target.closest('.feed-item');
@@ -822,15 +697,12 @@
             const isExpanded = feedItem.classList.contains('expanded');
             
             if (isExpanded) {
-                // Collapse
                 feedItem.classList.remove('expanded');
                 detailsElement.classList.remove('expanded');
             } else {
-                // Expand
                 feedItem.classList.add('expanded');
                 detailsElement.classList.add('expanded');
                 
-                // Load content if not already loaded
                 const abstractElement = detailsElement.querySelector('.feed-abstract');
                 if (abstractElement.textContent === 'Loading content...') {
                     loadFeedContent(feedItem.dataset.feedRowid, detailsElement);
@@ -838,46 +710,8 @@
             }
         });
         
-        // Infinite scroll
-        window.addEventListener('scroll', function() {
-            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 1000) {
-                loadFeeds();
-            }
-        });
-        
-        // Score filter functionality
-        function updateScoreFilter() {
-            const slider = document.getElementById('scoreSlider');
-            const scoreValue = document.getElementById('scoreValue');
-            const sliderValue = parseInt(slider.value);
-            
-            currentMinScore = scoreThresholds[sliderValue];
-            scoreValue.textContent = scoreLabels[sliderValue];
-            
-            // Reset pagination and reload feeds
-            currentPage = 1;
-            hasMore = true;
-            lastDateShown = null;
-            document.getElementById('feeds-list').innerHTML = '';
-            loadFeeds();
-        }
-        
-        // Initialize slider
-        function initializeSlider() {
-            const slider = document.getElementById('scoreSlider');
-            const scoreValue = document.getElementById('scoreValue');
-            
-            // Set initial value (0.05 corresponds to index 2)
-            slider.value = 2;
-            scoreValue.textContent = scoreLabels[2];
-            
-            // Add event listener
-            slider.addEventListener('input', updateScoreFilter);
-        }
-        
         // Initial load
-        initializeSlider();
-        loadFeeds();
+        loadSimilarFeeds();
     </script>
 </body>
 </html>
