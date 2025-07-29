@@ -232,9 +232,7 @@ class FeedDatabase:
                     VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
                 ''', (feed_id, user_id, float(label)))
 
-    def update_score(self, item_id, score):
-        model_id = 1  # Default model
-
+    def update_score(self, item_id, score, model_id=1):
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
             self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
