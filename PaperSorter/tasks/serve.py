@@ -36,7 +36,7 @@ import click
 import secrets
 
 class User(UserMixin):
-    def __init__(self, id, username, email=None, is_admin=False, timezone='UTC'):
+    def __init__(self, id, username, email=None, is_admin=False, timezone='Asia/Seoul'):
         self.id = id
         self.username = username
         self.email = email
@@ -122,7 +122,7 @@ def create_app(config_path):
         if user_data:
             return User(user_data['id'], user_data['username'],
                        is_admin=user_data.get('is_admin', False),
-                       timezone=user_data.get('timezone', 'UTC'))
+                       timezone=user_data.get('timezone', 'Asia/Seoul'))
         return None
 
     def get_unlabeled_item():
@@ -228,7 +228,7 @@ def create_app(config_path):
                     # Create new user (non-admin by default)
                     cursor.execute("""
                         INSERT INTO users (username, password, created, is_admin, timezone)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'UTC')
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
                         RETURNING id, username, is_admin, timezone
                     """, (email, 'oauth'))
                     user_data = cursor.fetchone()
@@ -247,7 +247,7 @@ def create_app(config_path):
                 # Log the user in
                 user = User(user_data['id'], user_data['username'], email,
                            is_admin=user_data.get('is_admin', False),
-                           timezone=user_data.get('timezone', 'UTC'))
+                           timezone=user_data.get('timezone', 'Asia/Seoul'))
                 login_user(user)
 
                 # Redirect to the original requested page or home
