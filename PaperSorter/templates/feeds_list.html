@@ -588,8 +588,8 @@
         function calculateScoreColor(score) {
             if (score === null) return 'rgb(149, 165, 166)';
 
-            // Apply gamma transformation (square root) to weight towards red
-            const gamma = Math.pow(Math.max(0, Math.min(1, score)), 0.5);
+            // Apply gamma transformation to weight towards red (0.7 = lighter colors)
+            const gamma = Math.pow(Math.max(0, Math.min(1, score)), 0.7);
             // Interpolate between gray (149,165,166) and red (231,116,60)
             const r = Math.round(149 + (231 - 149) * gamma);
             const g = Math.round(165 + (116 - 165) * gamma);
