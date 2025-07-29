@@ -145,6 +145,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            position: relative;
         }
         
         .score-badge {
@@ -234,7 +235,9 @@
         .feed-labels {
             display: flex;
             gap: 8px;
-            margin-top: 8px;
+            align-items: center;
+            margin-left: auto;
+            flex-shrink: 0;
         }
         
         .label-badge {
@@ -378,13 +381,6 @@
             100% { transform: rotate(360deg); }
         }
         
-        .feed-labels {
-            margin-left: auto;
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
-            align-items: center;
-        }
         
         @media (max-width: 768px) {
             body {
@@ -408,9 +404,7 @@
             
             .feed-header {
                 padding: 15px;
-                flex-direction: column;
-                align-items: stretch;
-                text-align: center;
+                flex-wrap: wrap;
             }
             
             .feed-meta {
@@ -423,6 +417,7 @@
             }
             
             .feed-labels {
+                width: 100%;
                 margin-top: 10px;
                 margin-left: 0;
                 justify-content: center;
@@ -529,8 +524,8 @@
             
             let labels = [];
             if (feed.starred) labels.push('<span class="label-badge label-starred">★ Starred</span>');
-            if (feed.label === 1) labels.push('<span class="label-badge label-positive">Positive</span>');
-            if (feed.label === 0) labels.push('<span class="label-badge label-negative">Negative</span>');
+            if (feed.label === 1) labels.push('<span class="label-badge label-positive">+1</span>');
+            if (feed.label === 0) labels.push('<span class="label-badge label-negative">−1</span>');
             
             return `
                 <div class="feed-item" data-feed-rowid="${feed.rowid}">
@@ -774,9 +769,9 @@
                         
                         // Add new label if not exists
                         if (score === 1 && !existingPositive) {
-                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-positive">Positive</span>');
+                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-positive">+1</span>');
                         } else if (score === 0 && !existingNegative) {
-                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-negative">Negative</span>');
+                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-negative">−1</span>');
                         }
                     }
                 } else {
