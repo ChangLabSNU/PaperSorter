@@ -446,7 +446,9 @@
                     <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
                     <div class="score-value" id="scoreValue">0.05</div>
                 </div>
+                {% if current_user.is_admin %}
                 <a href="/settings" class="nav-link">⚙️ Settings</a>
+                {% endif %}
                 <a href="/logout" class="nav-link">🚪 Logout</a>
             </div>
         </div>

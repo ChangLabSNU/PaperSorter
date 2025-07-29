@@ -25,20 +25,32 @@ import os
 import yaml
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
+from functools import wraps
 from ..log import log, initialize_logging
 from ..embedding_database import EmbeddingDatabase
 import click
 import secrets
 
 class User(UserMixin):
-    def __init__(self, id, username, email=None):
+    def __init__(self, id, username, email=None, is_admin=False):
         self.id = id
         self.username = username
         self.email = email
+        self.is_admin = is_admin
+
+def admin_required(f):
+    """Decorator to require admin privileges for a route"""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            abort(403)  # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
 
 def create_app(config_path):
     """Create and configure the Flask application"""
@@ -86,13 +98,13 @@ def create_app(config_path):
     def load_user(user_id):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT id, username FROM users WHERE id = %s", (int(user_id),))
+        cursor.execute("SELECT id, username, is_admin FROM users WHERE id = %s", (int(user_id),))
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
 
         if user_data:
-            return User(user_data['id'], user_data['username'])
+            return User(user_data['id'], user_data['username'], is_admin=user_data.get('is_admin', False))
         return None
 
     def get_unlabeled_item():
@@ -183,15 +195,15 @@ def create_app(config_path):
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
                 # Check if user exists
-                cursor.execute("SELECT id, username FROM users WHERE username = %s", (email,))
+                cursor.execute("SELECT id, username, is_admin FROM users WHERE username = %s", (email,))
                 user_data = cursor.fetchone()
 
                 if not user_data:
-                    # Create new user
+                    # Create new user (non-admin by default)
                     cursor.execute("""
-                        INSERT INTO users (username, password, created)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP)
-                        RETURNING id, username
+                        INSERT INTO users (username, password, created, is_admin)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false)
+                        RETURNING id, username, is_admin
                     """, (email, 'oauth'))
                     user_data = cursor.fetchone()
                     conn.commit()
@@ -207,7 +219,7 @@ def create_app(config_path):
                 conn.close()
 
                 # Log the user in
-                user = User(user_data['id'], user_data['username'], email)
+                user = User(user_data['id'], user_data['username'], email, is_admin=user_data.get('is_admin', False))
                 login_user(user)
 
                 # Redirect to the original requested page or home
@@ -465,32 +477,32 @@ def create_app(config_path):
 
     # Settings routes
     @app.route('/settings')
-    @login_required
+    @admin_required
     def settings():
         """Settings main page"""
         return render_template('settings.html')
 
     @app.route('/settings/channels')
-    @login_required
+    @admin_required
     def settings_channels():
         """Channels settings page"""
         return render_template('settings_channels.html')
 
     @app.route('/settings/users')
-    @login_required
+    @admin_required
     def settings_users():
         """Users settings page"""
         return render_template('settings_users.html')
 
     @app.route('/settings/models')
-    @login_required
+    @admin_required
     def settings_models():
         """Models settings page"""
         return render_template('settings_models.html')
 
     # Channels API endpoints
     @app.route('/api/settings/channels')
-    @login_required
+    @admin_required
     def api_get_channels():
         """Get all channels"""
         conn = get_db_connection()
@@ -509,7 +521,7 @@ def create_app(config_path):
         return jsonify({'channels': channels})
 
     @app.route('/api/settings/channels', methods=['POST'])
-    @login_required
+    @admin_required
     def api_create_channel():
         """Create a new channel"""
         data = request.get_json()
@@ -538,7 +550,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/channels/<int:channel_id>', methods=['PUT'])
-    @login_required
+    @admin_required
     def api_update_channel(channel_id):
         """Update a channel"""
         data = request.get_json()
@@ -567,7 +579,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/channels/<int:channel_id>', methods=['DELETE'])
-    @login_required
+    @admin_required
     def api_delete_channel(channel_id):
         """Delete a channel"""
         conn = get_db_connection()
@@ -588,7 +600,7 @@ def create_app(config_path):
 
     # Users API endpoints
     @app.route('/api/settings/users')
-    @login_required
+    @admin_required
     def api_get_users():
         """Get all users"""
         conn = get_db_connection()
@@ -607,7 +619,7 @@ def create_app(config_path):
         return jsonify({'users': users})
 
     @app.route('/api/settings/users', methods=['POST'])
-    @login_required
+    @admin_required
     def api_create_user():
         """Create a new user"""
         data = request.get_json()
@@ -635,7 +647,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/users/<int:user_id>', methods=['PUT'])
-    @login_required
+    @admin_required
     def api_update_user(user_id):
         """Update a user"""
         data = request.get_json()
@@ -662,7 +674,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/users/<int:user_id>', methods=['DELETE'])
-    @login_required
+    @admin_required
     def api_delete_user(user_id):
         """Delete a user"""
         if user_id == 1:
@@ -743,7 +755,7 @@ def create_app(config_path):
 
     # Models API endpoints
     @app.route('/api/settings/models')
-    @login_required
+    @admin_required
     def api_get_models():
         """Get all models"""
         conn = get_db_connection()
@@ -762,7 +774,7 @@ def create_app(config_path):
         return jsonify({'models': models})
 
     @app.route('/api/settings/models', methods=['POST'])
-    @login_required
+    @admin_required
     def api_create_model():
         """Create a new model"""
         data = request.get_json()
@@ -790,7 +802,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/models/<int:model_id>', methods=['PUT'])
-    @login_required
+    @admin_required
     def api_update_model(model_id):
         """Update a model"""
         data = request.get_json()
@@ -817,7 +829,7 @@ def create_app(config_path):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings/models/<int:model_id>', methods=['DELETE'])
-    @login_required
+    @admin_required
     def api_delete_model(model_id):
         """Delete a model"""
         if model_id == 1:
@@ -838,6 +850,11 @@ def create_app(config_path):
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Error handlers
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template('403.html'), 403
 
     return app
 
