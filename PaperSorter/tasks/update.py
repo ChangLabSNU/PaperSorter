@@ -235,7 +235,7 @@ def add_starred_to_queue(feeddb):
         feeddb.add_to_broadcast_queue(item['id'])
         log.info(f'Added starred item to broadcast queue: {item["title"]}')
 
-def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False,
+def score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_rescore=False,
                     score_threshold=0.7, check_starred=True):
     if force_rescore:
         unscored = feeddb.keys()
@@ -248,7 +248,8 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False,
     if not unscored:
         return
 
-    predmodel = pickle.load(open(prediction_model, 'rb'))
+    model_file_path = f'{model_dir}/model-{prediction_model}.pkl'
+    predmodel = pickle.load(open(model_file_path, 'rb'))
     batchsize = 100
 
     for bid, batch in enumerate(batched(unscored, batchsize)):
@@ -284,7 +285,7 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False,
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
 @click.option('--get-full-list', is_flag=True, help='Retrieve all items from feeds.')
-@click.option('--prediction-model', default='model.pkl', help='Predictor model for scoring.')
+@click.option('--prediction-model', default='1', help='Model ID for scoring (will use model-{id}.pkl from config path).')
 @click.option('--force-reembed', is_flag=True, help='Force recalculation of embeddings for all items.')
 @click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
 @click.option('--score-threshold', default=0.7, help='Threshold for adding items to broadcast queue.')
@@ -327,7 +328,8 @@ def main(config, batch_size, get_full_list,
                                     bulk_loading=False)
 
     if prediction_model != '' and num_updates > 0:
-        score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore,
+        model_dir = full_config.get('models', {}).get('path', '.')
+        score_new_feeds(feeddb, embeddingdb, prediction_model, model_dir, force_rescore,
                         score_threshold=score_threshold)
 
     log.info('Update completed.')
