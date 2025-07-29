@@ -146,8 +146,11 @@ class EmbeddingDatabase:
     def write_batch(self):
         return EmbeddingDatabaseWriteBatch(self)
 
-    def find_similar(self, feed_id, limit=30, user_id=None):
+    def find_similar(self, feed_id, limit=30, user_id=None, model_id=None):
         """Find similar articles using pgvector similarity search"""
+        # Use provided model_id or default to 1
+        if model_id is None:
+            model_id = 1
         # Use WITH statement to avoid transferring embedding vectors
         if user_id is None:
             # If no user_id provided, don't filter preferences
@@ -175,9 +178,9 @@ class EmbeddingDatabase:
                 FROM embeddings e
                 CROSS JOIN source_embedding se
                 JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-                LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
                 LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
                 LEFT JOIN (
                     SELECT 
@@ -191,7 +194,7 @@ class EmbeddingDatabase:
                 WHERE e.feed_id != %s
                 ORDER BY e.embedding <=> se.embedding
                 LIMIT %s
-            ''', (feed_id, feed_id, limit))
+            ''', (model_id, feed_id, feed_id, limit))
         else:
             # Filter preferences by user_id
             self.cursor.execute('''
@@ -218,9 +221,9 @@ class EmbeddingDatabase:
                 FROM embeddings e
                 CROSS JOIN source_embedding se
                 JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-                LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
                 LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
                 LEFT JOIN (
                     SELECT 
@@ -234,7 +237,7 @@ class EmbeddingDatabase:
                 WHERE e.feed_id != %s
                 ORDER BY e.embedding <=> se.embedding
                 LIMIT %s
-            ''', (feed_id, user_id, user_id, feed_id, limit))
+            ''', (feed_id, model_id, user_id, user_id, feed_id, limit))
 
         results = self.cursor.fetchall()
         if not results:

@@ -313,6 +313,13 @@
                            placeholder="1">
                     <small style="color: #666;">ID of the scoring model to use for this channel</small>
                 </div>
+                <div class="form-group">
+                    <label for="channelIsActive">
+                        <input type="checkbox" id="channelIsActive" checked>
+                        Channel is Active
+                    </label>
+                    <small style="color: #666;">Only active channels will broadcast notifications</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Channel</button>
@@ -359,6 +366,7 @@
                             <th>Endpoint URL</th>
                             <th>Score Threshold</th>
                             <th>Model ID</th>
+                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -370,6 +378,11 @@
                                 <td><code>${channel.endpoint_url}</code></td>
                                 <td>${channel.score_threshold || 0.7}</td>
                                 <td>${channel.model_id || 1}</td>
+                                <td>
+                                    <span class="tag ${channel.is_active !== false ? 'tag-active' : 'tag-inactive'}">
+                                        ${channel.is_active !== false ? 'Active' : 'Inactive'}
+                                    </span>
+                                </td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editChannel(${channel.id})">Edit</button>
@@ -400,6 +413,7 @@
             document.getElementById('channelEndpoint').value = channel.endpoint_url;
             document.getElementById('channelScoreThreshold').value = channel.score_threshold || 0.7;
             document.getElementById('channelModelId').value = channel.model_id || 1;
+            document.getElementById('channelIsActive').checked = channel.is_active !== false;
             document.getElementById('channelModal').style.display = 'block';
         }
 
@@ -415,7 +429,8 @@
                 name: document.getElementById('channelName').value,
                 endpoint_url: document.getElementById('channelEndpoint').value,
                 score_threshold: parseFloat(document.getElementById('channelScoreThreshold').value),
-                model_id: parseInt(document.getElementById('channelModelId').value)
+                model_id: parseInt(document.getElementById('channelModelId').value),
+                is_active: document.getElementById('channelIsActive').checked
             };
 
             const url = id ? `/api/settings/channels/${id}` : '/api/settings/channels';

@@ -249,11 +249,7 @@ def add_starred_to_queue(feeddb):
               AND p.score > 0
               AND p.time >= to_timestamp(%s)
               AND NOT EXISTS (
-                  SELECT 1 FROM broadcast_queue bq
-                  WHERE bq.feed_id = f.id AND bq.channel_id = 1
-              )
-              AND NOT EXISTS (
-                  SELECT 1 FROM broadcast_logs bl
+                  SELECT 1 FROM broadcasts bl
                   WHERE bl.feed_id = f.id AND bl.channel_id = 1
               )
     ''', (since,))
