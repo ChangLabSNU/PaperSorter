@@ -418,6 +418,10 @@
         }
 
 
+        .btn-text {
+            margin-left: 5px;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -440,7 +444,17 @@
 
             .feed-header {
                 padding: 15px;
-                flex-wrap: wrap;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .score-badge {
+                margin-bottom: 10px;
+                min-width: 60px;
+            }
+
+            .feed-content {
+                width: 100%;
             }
 
             .feed-meta {
@@ -453,10 +467,56 @@
             }
 
             .feed-labels {
-                width: 100%;
-                margin-top: 10px;
-                margin-left: 0;
-                justify-content: center;
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                margin: 0;
+                width: auto;
+            }
+
+            .feed-actions {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            .btn {
+                padding: 8px 12px;
+                font-size: 16px;
+                min-width: 44px;
+                text-align: center;
+            }
+
+            .btn-text {
+                display: none;
+            }
+
+            .btn-primary {
+                background: #e3f2fd;
+                color: #1976d2;
+                border-color: #90caf9;
+            }
+
+            .btn-primary:hover {
+                background: #bbdefb;
+                border-color: #64b5f6;
+            }
+
+            .btn-star.starred {
+                background: #f39c12;
+                color: white;
+                border-color: #f39c12;
+            }
+
+            .btn-thumbs-up.active {
+                background: #27ae60;
+                color: white;
+                border-color: #27ae60;
+            }
+
+            .btn-thumbs-down.active {
+                background: #e74c3c;
+                color: white;
+                border-color: #e74c3c;
             }
         }
     </style>
@@ -621,18 +681,18 @@
                     <div class="feed-details">
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
-                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary">View Article</a>` : ''}
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary">📄<span class="btn-text"> View Article</span></a>` : ''}
                             <button class="btn btn-star ${feed.starred ? 'starred' : ''}" onclick="starFeed(${feed.rowid}, this)" data-starred="${feed.starred ? 'true' : 'false'}">
-                                ${feed.starred ? '★ Starred' : '☆ Star'}
+                                ${feed.starred ? '★' : '☆'}<span class="btn-text"> ${feed.starred ? 'Starred' : 'Star'}</span>
                             </button>
                             <button class="btn btn-thumbs-up ${feed.label === 1 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 1, this)" data-label="${feed.label}">
-                                👍 Interested
+                                👍<span class="btn-text"> Interested</span>
                             </button>
                             <button class="btn btn-thumbs-down ${feed.label === 0 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 0, this)" data-label="${feed.label}">
-                                👎 Not Interested
+                                👎<span class="btn-text"> Not Interested</span>
                             </button>
                             <button class="btn btn-similar" onclick="moreLikeThis(${feed.rowid})">
-                                🔍 More Like This
+                                🔍<span class="btn-text"> More Like This</span>
                             </button>
                         </div>
                     </div>
@@ -718,7 +778,7 @@
 
             // Optimistically update UI
             buttonElement.disabled = true;
-            buttonElement.textContent = isCurrentlyStarred ? 'Unstarring...' : 'Starring...';
+            buttonElement.innerHTML = isCurrentlyStarred ? '★<span class="btn-text"> Unstarring...</span>' : '☆<span class="btn-text"> Starring...</span>';
 
             fetch(`/api/feeds/${feedRowid}/star`, {
                 method: 'POST',
@@ -743,7 +803,7 @@
                     if (data.action === 'star') {
                         // Update button state to starred
                         buttonElement.dataset.starred = 'true';
-                        buttonElement.textContent = '★ Starred';
+                        buttonElement.innerHTML = '★<span class="btn-text"> Starred</span>';
                         buttonElement.classList.add('starred');
 
                         // Add star label if not exists
@@ -756,7 +816,7 @@
                     } else {  // unstar
                         // Update button state to unstarred
                         buttonElement.dataset.starred = 'false';
-                        buttonElement.textContent = '☆ Star';
+                        buttonElement.innerHTML = '☆<span class="btn-text"> Star</span>';
                         buttonElement.classList.remove('starred');
 
                         // Remove star label
@@ -778,7 +838,7 @@
             .catch(error => {
                 console.error('Error toggling star:', error);
                 // Revert UI changes on error
-                buttonElement.textContent = isCurrentlyStarred ? '★ Starred' : '☆ Star';
+                buttonElement.innerHTML = isCurrentlyStarred ? '★<span class="btn-text"> Starred</span>' : '☆<span class="btn-text"> Star</span>';
                 alert('Failed to update star. Please try again.');
             })
             .finally(() => {
