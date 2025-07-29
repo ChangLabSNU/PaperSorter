@@ -477,7 +477,7 @@
         function formatDate(timestamp) {
             if (!timestamp) return 'Unknown';
             const date = new Date(timestamp * 1000);
-            
+
             // Format date in user's timezone to YYYY-mm-dd
             const options = {
                 year: 'numeric',
@@ -485,7 +485,7 @@
                 day: '2-digit',
                 timeZone: userTimezone || 'UTC'
             };
-            
+
             // Get the parts and reformat to YYYY-mm-dd
             const parts = date.toLocaleDateString('en-US', options).split('/');
             if (parts.length === 3) {
@@ -508,7 +508,7 @@
 
             let labels = [];
             if (feed.starred) labels.push('<span class="label-badge label-starred">★ Starred</span>');
-            
+
             // Show vote badges with counts (including current user's vote)
             if (feed.positive_votes > 0 || feed.label === 1) {
                 const count = feed.positive_votes || 0;
@@ -726,7 +726,7 @@
                     // Get current vote counts from data attributes
                     let positiveCount = parseInt(feedItem.dataset.positiveVotes) || 0;
                     let negativeCount = parseInt(feedItem.dataset.negativeVotes) || 0;
-                    
+
                     // Adjust counts based on user action
                     if (isRemoving) {
                         if (score === 1) positiveCount = Math.max(0, positiveCount - 1);
@@ -780,7 +780,7 @@
                     if (labelsDiv && labelsDiv.children.length === 0) {
                         labelsDiv.remove();
                     }
-                    
+
                     // Update the feed data attributes for consistency
                     feedItem.dataset.positiveVotes = positiveCount;
                     feedItem.dataset.negativeVotes = negativeCount;

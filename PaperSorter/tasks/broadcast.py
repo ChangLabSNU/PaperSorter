@@ -114,10 +114,10 @@ def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
                 'text': {'type': 'mrkdwn', 'text': item['content'].strip()}
             },
         )
-    
+
     # Add buttons block
     button_elements = []
-    
+
     # Read button
     if item['link']:
         button_elements.append({
@@ -131,7 +131,7 @@ def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
             'url': item['link'],
             'action_id': 'read-action'
         })
-    
+
     # More Like This button
     if base_url and 'id' in item:
         similar_url = f"{base_url.rstrip('/')}/similar/{item['id']}"
@@ -146,7 +146,7 @@ def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
             'url': similar_url,
             'action_id': 'similar-action'
         })
-    
+
     if button_elements:
         blocks.append({
             'type': 'actions',
@@ -191,13 +191,13 @@ def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
     # Load configuration to get base URL
     with open(config, 'r') as f:
         config_data = yaml.safe_load(f)
-    
+
     base_url = config_data.get('web', {}).get('base_url', None)
     if base_url:
         log.info(f'Using base URL for More Like This links: {base_url}')
     else:
         log.info('No base URL configured - More Like This buttons will not be shown')
-    
+
     feeddb = FeedDatabase(config)
 
     # Clear old processed items from the queue
@@ -234,7 +234,7 @@ def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
 
         # Get items from the broadcast queue for this channel
         queue_items = feeddb.get_broadcast_queue_items(channel_id=channel_id, limit=limit, model_id=model_id)
-        
+
         if len(queue_items) == 0:
             log.info(f'No items in broadcast queue for channel "{channel_name}" (id={channel_id}).')
             continue
