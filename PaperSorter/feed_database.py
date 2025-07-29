@@ -70,7 +70,10 @@ class FeedDatabase:
         return self.cursor.fetchone()['count']
 
     def __getitem__(self, item_id):
-        self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT * FROM feeds WHERE id = %s', (item_id,))
         result = self.cursor.fetchone()
         if result:
             # Map to old field names for compatibility
@@ -147,7 +150,10 @@ class FeedDatabase:
             self.idcache.add(item.item_id)
 
     def get_formatted_item(self, item_id):
-        self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT * FROM feeds WHERE id = %s', (item_id,))
         item = self.cursor.fetchone()
         if item:
             return self.llm_input_format.format(item=item)
@@ -196,8 +202,11 @@ class FeedDatabase:
     def update_label(self, item_id, label):
         user_id = 1  # Default user
 
-        # Get feed_id from external_id
-        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        # Get feed_id based on item_id type
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
         result = self.cursor.fetchone()
         if result:
             feed_id = result['id']
@@ -226,8 +235,11 @@ class FeedDatabase:
     def update_score(self, item_id, score):
         model_id = 1  # Default model
 
-        # Get feed_id from external_id
-        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        # Get feed_id based on item_id type
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
         result = self.cursor.fetchone()
         if result:
             feed_id = result['id']
@@ -240,8 +252,11 @@ class FeedDatabase:
     def update_broadcasted(self, item_id, timemark):
         channel_id = 1  # Default channel
 
-        # Get feed_id from external_id
-        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        # Get feed_id based on item_id type
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
         result = self.cursor.fetchone()
         if result:
             feed_id = result['id']
@@ -252,13 +267,22 @@ class FeedDatabase:
             ''', (feed_id, channel_id, timemark))
 
     def update_tldr(self, item_id, tldr):
-        self.cursor.execute('UPDATE feeds SET tldr = %s WHERE external_id = %s', (tldr, item_id))
+        if isinstance(item_id, str):
+            self.cursor.execute('UPDATE feeds SET tldr = %s WHERE external_id = %s', (tldr, item_id))
+        else:
+            self.cursor.execute('UPDATE feeds SET tldr = %s WHERE id = %s', (tldr, item_id))
 
     def update_author(self, item_id, author):
-        self.cursor.execute('UPDATE feeds SET author = %s WHERE external_id = %s', (author, item_id))
+        if isinstance(item_id, str):
+            self.cursor.execute('UPDATE feeds SET author = %s WHERE external_id = %s', (author, item_id))
+        else:
+            self.cursor.execute('UPDATE feeds SET author = %s WHERE id = %s', (author, item_id))
 
     def update_origin(self, item_id, origin):
-        self.cursor.execute('UPDATE feeds SET origin = %s WHERE external_id = %s', (origin, item_id))
+        if isinstance(item_id, str):
+            self.cursor.execute('UPDATE feeds SET origin = %s WHERE external_id = %s', (origin, item_id))
+        else:
+            self.cursor.execute('UPDATE feeds SET origin = %s WHERE id = %s', (origin, item_id))
 
     def get_unscored_items(self):
         model_id = 1  # Default model
@@ -315,12 +339,17 @@ class FeedDatabase:
         return self.filter_duplicates(matches, remove_duplicated)
 
     def check_broadcasted(self, item_id, since):
-        self.cursor.execute('''
+        if isinstance(item_id, str):
+            where_clause = "a.external_id = %s"
+        else:
+            where_clause = "a.id = %s"
+            
+        self.cursor.execute(f'''
             SELECT COUNT(*) as count
             FROM feeds a
             JOIN feeds b ON a.title = b.title AND a.id != b.id
             JOIN broadcast_logs bl ON b.id = bl.feed_id
-            WHERE a.external_id = %s AND b.published >= to_timestamp(%s)
+            WHERE {where_clause} AND b.published >= to_timestamp(%s)
                   AND bl.broadcasted_time IS NOT NULL
         ''', (item_id, since))
         dup_broadcasted = self.cursor.fetchone()['count']
@@ -328,7 +357,10 @@ class FeedDatabase:
         if dup_broadcasted > 0:
             # Mark duplicates as blacklisted
             channel_id = 1  # Default channel
-            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            if isinstance(item_id, str):
+                self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            else:
+                self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
             result = self.cursor.fetchone()
             if result:
                 feed_id = result['id']
@@ -354,8 +386,11 @@ class FeedDatabase:
     def update_star_status(self, item_id, starred):
         user_id = 1  # Default user
 
-        # Get feed_id from external_id
-        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        # Get feed_id based on item_id type
+        if isinstance(item_id, str):
+            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        else:
+            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
         result = self.cursor.fetchone()
         if result:
             feed_id = result['id']
