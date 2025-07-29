@@ -296,6 +296,9 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
         log.debug(f'Scoring batch: {bid+1}')
         emb = embeddingdb[batch]
 
+        # Track which models have been processed to avoid duplicate scoring
+        processed_models = set()
+        
         # Score with each channel's model and add to appropriate queues
         for channel in all_channels:
             model_id = channel['model_id'] or 1
@@ -306,19 +309,35 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
             score_threshold = channel['score_threshold'] or 0.7
             channel_id = channel['id']
 
-            emb_xrm = predmodel['scaler'].transform(emb)
-            dmtx_pred = xgb.DMatrix(emb_xrm)
-            scores = predmodel['model'].predict(dmtx_pred)
+            # Score items if this model hasn't been processed yet
+            if model_id not in processed_models:
+                emb_xrm = predmodel['scaler'].transform(emb)
+                dmtx_pred = xgb.DMatrix(emb_xrm)
+                scores = predmodel['model'].predict(dmtx_pred)
 
-            for item_id, score in zip(batch, scores):
-                # Update score for this model (using model_id=1 for backward compatibility)
-                if channel_id == 1:  # Only update main score for default channel
-                    feeddb.update_score(item_id, score)
+                # Update scores and log new items for this model
+                for item_id, score in zip(batch, scores):
+                    feeddb.update_score(item_id, score, model_id)
                     iteminfo = feeddb[item_id]
                     log.info(f'New item: [{score:.2f}] {iteminfo["origin"]} / '
                              f'{iteminfo["title"]}')
+                
+                processed_models.add(model_id)
+            else:
+                # Retrieve already computed scores for this model
+                scores = []
+                for item_id in batch:
+                    feeddb.cursor.execute('''
+                        SELECT pp.score 
+                        FROM feeds f
+                        JOIN predicted_preferences pp ON f.id = pp.feed_id
+                        WHERE f.external_id = %s AND pp.model_id = %s
+                    ''', (item_id, model_id))
+                    result = feeddb.cursor.fetchone()
+                    scores.append(result['score'] if result else 0.0)
 
-                # Add high-scoring items to this channel's broadcast queue
+            # Add high-scoring items to this channel's broadcast queue
+            for item_id, score in zip(batch, scores):
                 if score >= score_threshold:
                     # Get feed_id from external_id
                     feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
