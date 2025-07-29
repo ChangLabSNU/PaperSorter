@@ -183,7 +183,7 @@ class EmbeddingDatabase:
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
                 LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
                 LEFT JOIN (
-                    SELECT 
+                    SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
@@ -226,7 +226,7 @@ class EmbeddingDatabase:
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
                 LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
                 LEFT JOIN (
-                    SELECT 
+                    SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes

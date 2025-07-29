@@ -430,14 +430,14 @@ class FeedDatabase:
         # If no model_id provided, get the most recent active model
         if model_id is None:
             self.cursor.execute("""
-                SELECT id FROM models 
-                WHERE is_active = TRUE 
-                ORDER BY id DESC 
+                SELECT id FROM models
+                WHERE is_active = TRUE
+                ORDER BY id DESC
                 LIMIT 1
             """)
             result = self.cursor.fetchone()
             model_id = result['id'] if result else 1
-        
+
         query = '''
             SELECT f.*, pp.score, bl.feed_id as queue_feed_id
             FROM broadcasts bl

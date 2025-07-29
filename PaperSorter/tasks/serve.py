@@ -94,15 +94,15 @@ def create_app(config_path):
             user=db_config['user'],
             password=db_config['password']
         )
-    
+
     def get_default_model_id():
         """Get the most recent active model ID"""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id FROM models 
-            WHERE is_active = TRUE 
-            ORDER BY id DESC 
+            SELECT id FROM models
+            WHERE is_active = TRUE
+            ORDER BY id DESC
             LIMIT 1
         """)
         result = cursor.fetchone()
@@ -120,7 +120,7 @@ def create_app(config_path):
         conn.close()
 
         if user_data:
-            return User(user_data['id'], user_data['username'], 
+            return User(user_data['id'], user_data['username'],
                        is_admin=user_data.get('is_admin', False),
                        timezone=user_data.get('timezone', 'UTC'))
         return None
@@ -191,11 +191,18 @@ def create_app(config_path):
     @app.route('/login')
     def login():
         """Login page"""
-        return render_template('login.html')
+        # Get the next parameter from the request
+        next_page = request.args.get('next')
+        return render_template('login.html', next=next_page)
 
     @app.route('/login/google')
     def google_login():
         """Initiate Google OAuth login"""
+        # Store the next parameter in session to preserve it through OAuth flow
+        next_page = request.args.get('next')
+        if next_page:
+            session['next_page'] = next_page
+
         redirect_uri = url_for('google_callback', _external=True)
         return google.authorize_redirect(redirect_uri)
 
@@ -238,14 +245,19 @@ def create_app(config_path):
                 conn.close()
 
                 # Log the user in
-                user = User(user_data['id'], user_data['username'], email, 
+                user = User(user_data['id'], user_data['username'], email,
                            is_admin=user_data.get('is_admin', False),
                            timezone=user_data.get('timezone', 'UTC'))
                 login_user(user)
 
                 # Redirect to the original requested page or home
-                next_page = request.args.get('next')
-                return redirect(next_page) if next_page else redirect(url_for('index'))
+                # First check session, then request args
+                next_page = session.pop('next_page', None) or request.args.get('next')
+                if next_page:
+                    # Ensure the URL is safe for redirects
+                    if next_page.startswith('/'):
+                        return redirect(next_page)
+                return redirect(url_for('index'))
 
         except Exception as e:
             log.error(f"OAuth callback error: {e}")
@@ -368,7 +380,7 @@ def create_app(config_path):
             LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
             LEFT JOIN (
-                SELECT 
+                SELECT
                     feed_id,
                     SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                     SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
@@ -714,14 +726,14 @@ def create_app(config_path):
             # Update query parts
             update_parts = ['username = %s']
             update_values = [data['username']]
-            
+
             if 'timezone' in data:
                 update_parts.append('timezone = %s')
                 update_values.append(data['timezone'])
-            
+
             # Add user_id at the end
             update_values.append(user_id)
-            
+
             cursor.execute(f"""
                 UPDATE users
                 SET {', '.join(update_parts)}
@@ -884,14 +896,14 @@ def create_app(config_path):
             # Update query parts
             update_parts = ['name = %s']
             update_values = [data['name']]
-            
+
             if 'is_active' in data:
                 update_parts.append('is_active = %s')
                 update_values.append(data['is_active'])
-            
+
             # Add model_id at the end
             update_values.append(model_id)
-            
+
             cursor.execute(f"""
                 UPDATE models
                 SET {', '.join(update_parts)}
