@@ -499,6 +499,7 @@
         let hasMore = true;
         let currentMinScore = 0.05;
         let lastDateShown = null;
+        const userTimezone = '{{ current_user.timezone }}';
 
         // Score threshold values corresponding to slider positions
         const scoreThresholds = [0, 0.01, 0.05, 0.1, 0.3];
@@ -519,25 +520,37 @@
         function formatDate(timestamp) {
             if (!timestamp) return 'Unknown';
             const date = new Date(timestamp * 1000);
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+            
+            // Format date in user's timezone
+            const options = {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                timeZone: userTimezone || 'UTC'
+            };
+            
+            return date.toLocaleDateString('en-US', options).replace(/\//g, '-');
         }
 
         function formatDateHeader(timestamp) {
             if (!timestamp) return 'Unknown Date';
             const date = new Date(timestamp * 1000);
-            const today = new Date();
-            const yesterday = new Date(today);
+            
+            // Get today and yesterday in user's timezone
+            const now = new Date();
+            const todayStr = now.toLocaleDateString('en-US', { timeZone: userTimezone || 'UTC' });
+            const dateStr = date.toLocaleDateString('en-US', { timeZone: userTimezone || 'UTC' });
+            
+            const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toLocaleDateString('en-US', { timeZone: userTimezone || 'UTC' });
 
             // Check if it's today
-            if (date.toDateString() === today.toDateString()) {
+            if (dateStr === todayStr) {
                 return 'Today';
             }
             // Check if it's yesterday
-            else if (date.toDateString() === yesterday.toDateString()) {
+            else if (dateStr === yesterdayStr) {
                 return 'Yesterday';
             }
             // Otherwise show the date
@@ -546,7 +559,8 @@
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',
-                    day: 'numeric'
+                    day: 'numeric',
+                    timeZone: userTimezone || 'UTC'
                 });
             }
         }
@@ -554,7 +568,8 @@
         function getDateKey(timestamp) {
             if (!timestamp) return 'unknown';
             const date = new Date(timestamp * 1000);
-            return date.toDateString();
+            // Use timezone-aware date string for grouping
+            return date.toLocaleDateString('en-US', { timeZone: userTimezone || 'UTC' });
         }
 
         function createFeedElement(feed) {
@@ -581,7 +596,7 @@
             }
 
             return `
-                <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}">
+                <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}" data-added="${feed.added}">
                     <div class="feed-header">
                         <div class="score-badge" style="background-color: ${scoreColor};">
                             ${scoreText}
@@ -631,11 +646,11 @@
                     const feedsList = document.getElementById('feeds-list');
 
                     data.feeds.forEach(feed => {
-                        const feedDateKey = getDateKey(feed.published);
+                        const feedDateKey = getDateKey(feed.added);
 
                         // Add date header if this is a new date
                         if (feedDateKey !== lastDateShown) {
-                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.published)}</div>`;
+                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.added)}</div>`;
                             feedsList.insertAdjacentHTML('beforeend', dateHeader);
                             lastDateShown = feedDateKey;
                         }
