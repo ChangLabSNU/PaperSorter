@@ -130,7 +130,7 @@ def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
                            date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
                            bulk_loading=bulk_loading)
 
-def update_embeddings(embeddingdb, batch_size, api_key, feeddb, bulk_loading=False,
+def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=False,
                       force_reembed=False):
     keystoupdate = feeddb.keys().copy()
     if not force_reembed:
@@ -145,8 +145,9 @@ def update_embeddings(embeddingdb, batch_size, api_key, feeddb, bulk_loading=Fal
 
     log.info('Updating embeddings...')
 
-    client = OpenAI(api_key=api_key, base_url=OPENAI_API_URL)
-    model_name = OPENAI_EMBEDDING_MODEL
+    api_url = api_config.get('api_url', OPENAI_API_URL)
+    client = OpenAI(api_key=api_config['api_key'], base_url=api_url)
+    model_name = api_config.get('model') or OPENAI_EMBEDDING_MODEL
 
     with embeddingdb.write_batch() as writer:
         for bid, batch in enumerate(batched(keystoupdate, batch_size)):
@@ -166,6 +167,7 @@ def update_s2_info(feeddb, s2_config, dateoffset=60):
         return
 
     api_headers = {'X-API-KEY': s2_config['S2_API_KEY']}
+    api_url = s2_config.get('S2_API_URL', 'http://api.semanticscholar.org/graph/v1/paper/search/match')
 
     log.info('Retrieving Semantic Scholar information...')
 
@@ -185,8 +187,7 @@ def update_s2_info(feeddb, s2_config, dateoffset=60):
             'publicationDateOrYear': date_range,
             'fields': 'title,url,authors,venue,publicationDate,tldr',
         }
-        url = 'http://api.semanticscholar.org/graph/v1/paper/search/match'
-        r = requests.get(url, headers=api_headers, params=search_query).json()
+        r = requests.get(api_url, headers=api_headers, params=search_query).json()
         if 'data' not in r or not r['data']:
             continue
 
@@ -212,7 +213,30 @@ def format_authors(authors, max_authors=4):
         last_authors = ', '.join(a['name'] for a in authors[-2:])
         return first_authors + ', ..., ' + last_authors
 
-def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
+def add_starred_to_queue(feeddb):
+    """Add recently starred items to the broadcast queue."""
+    # Get recently starred items (last 7 days)
+    since = time.time() - 7 * 86400
+    feeddb.cursor.execute('''
+        SELECT f.id, f.title
+        FROM feeds f
+        JOIN preferences p ON f.id = p.feed_id
+        WHERE p.source = 'feed-star'
+              AND p.score > 0
+              AND p.time >= to_timestamp(%s)
+              AND NOT EXISTS (
+                  SELECT 1 FROM broadcast_queue bq
+                  WHERE bq.feed_id = f.id AND bq.channel_id = 1
+              )
+    ''', (since,))
+
+    starred_items = feeddb.cursor.fetchall()
+    for item in starred_items:
+        feeddb.add_to_broadcast_queue(item['id'])
+        log.info(f'Added starred item to broadcast queue: {item["title"]}')
+
+def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False,
+                    score_threshold=0.7, check_starred=True):
     if force_rescore:
         unscored = feeddb.keys()
     else:
@@ -241,7 +265,21 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
             log.info(f'New item: [{score:.2f}] {iteminfo["origin"]} / '
                      f'{iteminfo["title"]}')
 
+            # Add high-scoring items to broadcast queue
+            if score >= score_threshold:
+                # Get feed_id from external_id
+                feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+                result = feeddb.cursor.fetchone()
+                if result:
+                    feed_id = result['id']
+                    feeddb.add_to_broadcast_queue(feed_id)
+                    log.info(f'Added to broadcast queue: {iteminfo["title"]}')
+
         feeddb.commit()
+
+    # Also check for newly starred items and add them to the queue
+    if check_starred:
+        add_starred_to_queue(feeddb)
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
@@ -249,29 +287,33 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
 @click.option('--prediction-model', default='model.pkl', help='Predictor model for scoring.')
 @click.option('--force-reembed', is_flag=True, help='Force recalculation of embeddings for all items.')
 @click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
+@click.option('--score-threshold', default=0.7, help='Threshold for adding items to broadcast queue.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
 def main(config, batch_size, get_full_list,
-         prediction_model, force_reembed, force_rescore, log_file, quiet):
+         prediction_model, force_reembed, force_rescore, score_threshold, log_file, quiet):
     initialize_logging(task='update', logfile=log_file, quiet=quiet)
 
-    from dotenv import load_dotenv
-    load_dotenv()
+    # Load configuration
+    import yaml
+    with open(config, 'r') as f:
+        full_config = yaml.safe_load(f)
 
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
     feeddb = FeedDatabase(config)
     embeddingdb = EmbeddingDatabase(config)
 
     tor_config = {
-        'TOR_EMAIL': os.environ['TOR_EMAIL'],
-        'TOR_PASSWORD': os.environ['TOR_PASSWORD']
+        'TOR_EMAIL': full_config['feed_service']['username'],
+        'TOR_PASSWORD': full_config['feed_service']['password']
     }
     update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
                  credential=tor_config)
 
     s2_config = {
-        'S2_API_KEY': os.environ['S2_API_KEY'],
-        'S2_THROTTLE': 1,
+        'S2_API_KEY': full_config['semanticscholar']['api_key'],
+        'S2_API_URL': full_config['semanticscholar'].get('api_url'),
+        'S2_THROTTLE': full_config['semanticscholar'].get('throttle', 1),
     }
     try:
         update_s2_info(feeddb, s2_config)
@@ -280,12 +322,12 @@ def main(config, batch_size, get_full_list,
         traceback.print_exc()
         # Show the exception but proceed to the next job.
 
-    api_key = os.environ['PAPERSORTER_API_KEY']
-    num_updates = update_embeddings(embeddingdb, batch_size, api_key,
+    num_updates = update_embeddings(embeddingdb, batch_size, full_config['embedding_api'],
                                     feeddb, force_reembed=force_reembed,
                                     bulk_loading=False)
 
     if prediction_model != '' and num_updates > 0:
-        score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore)
+        score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore,
+                        score_threshold=score_threshold)
 
     log.info('Update completed.')

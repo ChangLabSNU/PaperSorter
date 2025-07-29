@@ -25,12 +25,15 @@ import click
 import importlib
 from .tasks import __all__ as alltasks
 
-@click.group()
+# Configure Click to use -h as an alias for --help
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+@click.group(context_settings=CONTEXT_SETTINGS)
 def main():
     pass
 
 for task in alltasks:
     mod = importlib.import_module('.tasks.' + task, package='PaperSorter')
-    globals()[task] = main.command(name=task.replace('_', '-'))(mod.main)
+    globals()[task] = main.command(name=task.replace('_', '-'), context_settings=CONTEXT_SETTINGS)(mod.main)
 
 main()

@@ -69,7 +69,6 @@ setup(
         'pandas >= 2.0',
         'psycopg2-binary >= 2.9',
         'pgvector >= 0.2.0',
-        'python-dotenv >= 1.0',
         'PyYAML >= 6.0',
         'requests >= 2.7.0',
         'scikit-learn >= 1.4',

@@ -125,10 +125,10 @@ class FeedDatabase:
             if starred:
                 # Check if preference already exists before inserting
                 self.cursor.execute('''
-                    SELECT id FROM preferences 
+                    SELECT id FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
                 ''', (feed_id, user_id))
-                
+
                 if not self.cursor.fetchone():
                     self.cursor.execute('''
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
@@ -203,17 +203,17 @@ class FeedDatabase:
             feed_id = result['id']
             # First check if a preference already exists
             self.cursor.execute('''
-                SELECT id FROM preferences 
+                SELECT id FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
             ''', (feed_id, user_id))
-            
+
             existing = self.cursor.fetchone()
-            
+
             if existing:
                 # Update existing preference
                 self.cursor.execute('''
-                    UPDATE preferences 
-                    SET score = %s, time = CURRENT_TIMESTAMP 
+                    UPDATE preferences
+                    SET score = %s, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                 ''', (float(label), feed_id, user_id))
             else:
@@ -362,17 +362,17 @@ class FeedDatabase:
             score = 1.0 if starred else 0.0
             # First check if a preference already exists
             self.cursor.execute('''
-                SELECT id FROM preferences 
+                SELECT id FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
             ''', (feed_id, user_id))
-            
+
             existing = self.cursor.fetchone()
-            
+
             if existing:
                 # Update existing preference
                 self.cursor.execute('''
-                    UPDATE preferences 
-                    SET score = %s, time = CURRENT_TIMESTAMP 
+                    UPDATE preferences
+                    SET score = %s, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
                 ''', (score, feed_id, user_id))
             else:
@@ -381,6 +381,57 @@ class FeedDatabase:
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'feed-star')
                 ''', (feed_id, user_id, score))
+
+    def add_to_broadcast_queue(self, feed_id, channel_id=1):
+        """Add an item to the broadcast queue."""
+        self.cursor.execute('''
+            INSERT INTO broadcast_queue (feed_id, channel_id, processed)
+            VALUES (%s, %s, NULL)
+            ON CONFLICT (feed_id, channel_id) DO NOTHING
+        ''', (feed_id, channel_id))
+
+    def get_broadcast_queue_items(self, channel_id=1, limit=None):
+        """Get unprocessed items from the broadcast queue."""
+        query = '''
+            SELECT f.*, pp.score, bq.feed_id as queue_feed_id
+            FROM broadcast_queue bq
+            JOIN feeds f ON bq.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+            WHERE bq.channel_id = %s AND bq.processed IS NULL
+            ORDER BY f.published DESC
+        '''
+        if limit:
+            query += f' LIMIT {limit}'
+
+        self.cursor.execute(query, (channel_id,))
+        items = []
+        for row in self.cursor.fetchall():
+            item = dict(row)
+            items.append(item)
+
+        # Convert to DataFrame to match the existing broadcast.py interface
+        import pandas as pd
+        if items:
+            df = pd.DataFrame(items)
+            df.set_index('queue_feed_id', inplace=True)
+            return df
+        else:
+            return pd.DataFrame()
+
+    def mark_broadcast_queue_processed(self, feed_id, channel_id=1):
+        """Mark an item in the broadcast queue as processed."""
+        self.cursor.execute('''
+            UPDATE broadcast_queue
+            SET processed = CURRENT_TIMESTAMP
+            WHERE feed_id = %s AND channel_id = %s
+        ''', (feed_id, channel_id))
+
+    def clear_old_broadcast_queue(self, days=30):
+        """Clear old processed items from the broadcast queue."""
+        self.cursor.execute('''
+            DELETE FROM broadcast_queue
+            WHERE processed < CURRENT_TIMESTAMP - INTERVAL '%s days'
+        ''', (days,))
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):
     return pattern.sub(' ', text)
