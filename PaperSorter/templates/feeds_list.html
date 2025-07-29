@@ -151,6 +151,23 @@
             z-index: 10;
         }
 
+        .bookmark-divider {
+            border-top: 3px solid #3498db;
+            margin: 0;
+            padding: 10px 20px;
+            background: #e3f2fd;
+            color: #1976d2;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            position: relative;
+        }
+
+        .bookmark-divider::before {
+            content: '📖';
+            margin-right: 8px;
+        }
+
         .feed-item {
             border-bottom: 1px solid #e9ecef;
             cursor: pointer;
@@ -560,6 +577,8 @@
         let hasMore = true;
         let currentMinScore = 0.05;
         let lastDateShown = null;
+        let bookmarkId = null;
+        let bookmarkInserted = false;
         const userTimezone = '{{ current_user.timezone }}';
 
         // Score threshold values corresponding to slider positions
@@ -712,7 +731,29 @@
                 .then(data => {
                     const feedsList = document.getElementById('feeds-list');
 
-                    data.feeds.forEach(feed => {
+                    // Store bookmark ID from first page load
+                    if (currentPage === 1) {
+                        if (data.bookmark_id !== undefined && data.bookmark_id !== null) {
+                            bookmarkId = data.bookmark_id;
+                        }
+                        bookmarkInserted = false;
+                    }
+
+                    // Check if we should insert bookmark at the beginning of this page
+                    // This handles the case where bookmark is not in the current result set
+                    if (bookmarkId && !bookmarkInserted && currentPage > 1 && data.feeds.length > 0) {
+                        // Check if all feeds on this page are older than the bookmark
+                        // by checking if the first feed's ID is less than bookmark ID
+                        const firstFeedId = data.feeds[0].rowid;
+                        if (firstFeedId < bookmarkId) {
+                            const bookmarkDivider = `<div class="bookmark-divider">Articles above were added since your last visit</div>`;
+                            feedsList.insertAdjacentHTML('beforeend', bookmarkDivider);
+                            bookmarkInserted = true;
+                        }
+                    }
+
+                    // Process feeds and check for bookmark position
+                    data.feeds.forEach((feed, index) => {
                         const feedDateKey = getDateKey(feed.added);
 
                         // Add date header if this is a new date
@@ -723,6 +764,17 @@
                         }
 
                         feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
+
+                        // Insert bookmark divider after the bookmarked item
+                        if (bookmarkId && !bookmarkInserted && feed.rowid === bookmarkId) {
+                            // Only show divider if this isn't the very first item shown
+                            const totalItemsShown = (currentPage - 1) * 20 + index;
+                            if (totalItemsShown > 0) {
+                                const bookmarkDivider = `<div class="bookmark-divider">Articles above were added since your last visit</div>`;
+                                feedsList.insertAdjacentHTML('beforeend', bookmarkDivider);
+                                bookmarkInserted = true;
+                            }
+                        }
                     });
 
                     hasMore = data.has_more;
@@ -1032,6 +1084,8 @@
             currentPage = 1;
             hasMore = true;
             lastDateShown = null;
+            bookmarkId = null;
+            bookmarkInserted = false;
             document.getElementById('feeds-list').innerHTML = '';
             loadFeeds();
         }

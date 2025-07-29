@@ -358,6 +358,32 @@ def create_app(config_path):
         # Filter preferences by current user
         user_id = current_user.id
         default_model_id = get_default_model_id()
+        
+        # Update bookmark if on first page
+        if page == 1:
+            cursor.execute("""
+                SELECT f.id
+                FROM feeds f
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                WHERE pp.score >= %s OR pp.score IS NULL
+                ORDER BY f.added DESC
+                LIMIT 1
+            """, (default_model_id, min_score))
+            
+            top_feed = cursor.fetchone()
+            if top_feed:
+                cursor.execute("""
+                    UPDATE users
+                    SET bookmark = %s
+                    WHERE id = %s
+                """, (top_feed['id'], user_id))
+                conn.commit()
+        
+        # Get user's bookmark
+        cursor.execute("SELECT bookmark FROM users WHERE id = %s", (user_id,))
+        bookmark_result = cursor.fetchone()
+        bookmark_id = bookmark_result['bookmark'] if bookmark_result else None
+        
         cursor.execute("""
             SELECT
                 f.id as rowid,
@@ -403,7 +429,8 @@ def create_app(config_path):
 
         return jsonify({
             'feeds': feeds,
-            'has_more': has_more
+            'has_more': has_more,
+            'bookmark_id': bookmark_id
         })
 
     @app.route('/api/feeds/<int:feed_id>/content')
