@@ -36,11 +36,12 @@ import click
 import secrets
 
 class User(UserMixin):
-    def __init__(self, id, username, email=None, is_admin=False):
+    def __init__(self, id, username, email=None, is_admin=False, timezone='UTC'):
         self.id = id
         self.username = username
         self.email = email
         self.is_admin = is_admin
+        self.timezone = timezone
 
 def admin_required(f):
     """Decorator to require admin privileges for a route"""
@@ -98,13 +99,15 @@ def create_app(config_path):
     def load_user(user_id):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT id, username, is_admin FROM users WHERE id = %s", (int(user_id),))
+        cursor.execute("SELECT id, username, is_admin, timezone FROM users WHERE id = %s", (int(user_id),))
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
 
         if user_data:
-            return User(user_data['id'], user_data['username'], is_admin=user_data.get('is_admin', False))
+            return User(user_data['id'], user_data['username'], 
+                       is_admin=user_data.get('is_admin', False),
+                       timezone=user_data.get('timezone', 'UTC'))
         return None
 
     def get_unlabeled_item():
@@ -195,15 +198,15 @@ def create_app(config_path):
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
                 # Check if user exists
-                cursor.execute("SELECT id, username, is_admin FROM users WHERE username = %s", (email,))
+                cursor.execute("SELECT id, username, is_admin, timezone FROM users WHERE username = %s", (email,))
                 user_data = cursor.fetchone()
 
                 if not user_data:
                     # Create new user (non-admin by default)
                     cursor.execute("""
-                        INSERT INTO users (username, password, created, is_admin)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP, false)
-                        RETURNING id, username, is_admin
+                        INSERT INTO users (username, password, created, is_admin, timezone)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'UTC')
+                        RETURNING id, username, is_admin, timezone
                     """, (email, 'oauth'))
                     user_data = cursor.fetchone()
                     conn.commit()
@@ -219,7 +222,9 @@ def create_app(config_path):
                 conn.close()
 
                 # Log the user in
-                user = User(user_data['id'], user_data['username'], email, is_admin=user_data.get('is_admin', False))
+                user = User(user_data['id'], user_data['username'], email, 
+                           is_admin=user_data.get('is_admin', False),
+                           timezone=user_data.get('timezone', 'UTC'))
                 login_user(user)
 
                 # Redirect to the original requested page or home
@@ -333,6 +338,7 @@ def create_app(config_path):
                 f.origin,
                 f.link,
                 EXTRACT(EPOCH FROM f.published)::integer as published,
+                EXTRACT(EPOCH FROM f.added)::integer as added,
                 pp.score as score,
                 CASE WHEN p.score > 0 THEN true ELSE false END as starred,
                 CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
@@ -354,7 +360,7 @@ def create_app(config_path):
                 GROUP BY feed_id
             ) vote_counts ON f.id = vote_counts.feed_id
             WHERE pp.score >= %s OR pp.score IS NULL
-            ORDER BY f.published DESC
+            ORDER BY f.added DESC
             LIMIT %s OFFSET %s
         """, (user_id, user_id, min_score, limit + 1, offset))
 
