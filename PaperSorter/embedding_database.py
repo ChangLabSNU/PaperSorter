@@ -146,39 +146,73 @@ class EmbeddingDatabase:
     def write_batch(self):
         return EmbeddingDatabaseWriteBatch(self)
 
-    def find_similar(self, feed_id, limit=30):
+    def find_similar(self, feed_id, limit=30, user_id=None):
         """Find similar articles using pgvector similarity search"""
         # Use WITH statement to avoid transferring embedding vectors
-        self.cursor.execute('''
-            WITH source_embedding AS (
-                SELECT embedding
-                FROM embeddings
-                WHERE feed_id = %s
-            )
-            SELECT 
-                e.feed_id,
-                f.external_id,
-                f.title,
-                f.author,
-                f.origin,
-                f.link,
-                EXTRACT(EPOCH FROM f.published)::integer as published,
-                1 - (e.embedding <=> se.embedding) as similarity,
-                pp.score as predicted_score,
-                CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
-                pf.score as label
-            FROM embeddings e
-            CROSS JOIN source_embedding se
-            JOIN feeds f ON e.feed_id = f.id
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
-            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
-            LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
-            WHERE e.feed_id != %s
-            ORDER BY e.embedding <=> se.embedding
-            LIMIT %s
-        ''', (feed_id, feed_id, limit))
+        if user_id is None:
+            # If no user_id provided, don't filter preferences
+            self.cursor.execute('''
+                WITH source_embedding AS (
+                    SELECT embedding
+                    FROM embeddings
+                    WHERE feed_id = %s
+                )
+                SELECT 
+                    e.feed_id,
+                    f.external_id,
+                    f.title,
+                    f.author,
+                    f.origin,
+                    f.link,
+                    EXTRACT(EPOCH FROM f.published)::integer as published,
+                    1 - (e.embedding <=> se.embedding) as similarity,
+                    pp.score as predicted_score,
+                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
+                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    pf.score as label
+                FROM embeddings e
+                CROSS JOIN source_embedding se
+                JOIN feeds f ON e.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+                LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
+                WHERE e.feed_id != %s
+                ORDER BY e.embedding <=> se.embedding
+                LIMIT %s
+            ''', (feed_id, feed_id, limit))
+        else:
+            # Filter preferences by user_id
+            self.cursor.execute('''
+                WITH source_embedding AS (
+                    SELECT embedding
+                    FROM embeddings
+                    WHERE feed_id = %s
+                )
+                SELECT 
+                    e.feed_id,
+                    f.external_id,
+                    f.title,
+                    f.author,
+                    f.origin,
+                    f.link,
+                    EXTRACT(EPOCH FROM f.published)::integer as published,
+                    1 - (e.embedding <=> se.embedding) as similarity,
+                    pp.score as predicted_score,
+                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
+                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    pf.score as label
+                FROM embeddings e
+                CROSS JOIN source_embedding se
+                JOIN feeds f ON e.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
+                LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
+                WHERE e.feed_id != %s
+                ORDER BY e.embedding <=> se.embedding
+                LIMIT %s
+            ''', (feed_id, user_id, user_id, feed_id, limit))
         
         results = self.cursor.fetchall()
         if not results:
