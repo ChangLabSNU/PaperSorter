@@ -746,7 +746,7 @@
                         // by checking if the first feed's ID is less than bookmark ID
                         const firstFeedId = data.feeds[0].rowid;
                         if (firstFeedId < bookmarkId) {
-                            const bookmarkDivider = `<div class="bookmark-divider">New articles since last visit</div>`;
+                            const bookmarkDivider = `<div class="bookmark-divider">You were here</div>`;
                             feedsList.insertAdjacentHTML('beforeend', bookmarkDivider);
                             bookmarkInserted = true;
                         }
@@ -770,7 +770,7 @@
                             // Only show divider if this isn't the very first item shown
                             const totalItemsShown = (currentPage - 1) * 20 + index;
                             if (totalItemsShown > 0) {
-                                const bookmarkDivider = `<div class="bookmark-divider">New articles since last visit</div>`;
+                                const bookmarkDivider = `<div class="bookmark-divider">You were here</div>`;
                                 feedsList.insertAdjacentHTML('beforeend', bookmarkDivider);
                                 bookmarkInserted = true;
                             }
