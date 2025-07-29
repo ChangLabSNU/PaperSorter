@@ -56,20 +56,19 @@ def export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred):
         worksheet.set_column(5, 6, 20, regular_fmt)
 
 
-@click.option('--feed-database', default='feeds.db', help='Feed database file.')
-@click.option('--embedding-database', default='embeddings.db', help='Embedding database file.')
+@click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('-o', '--output', default='model.pkl', help='Output file name.')
 @click.option('-r', '--rounds', default=100, help='Number of boosting rounds.')
 @click.option('-f', '--output-feedback', default='feedback.xlsx',
               help='Output file name for feedback.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(feed_database, embedding_database, output, rounds, output_feedback,
+def main(config, output, rounds, output_feedback,
          log_file, quiet):
     initialize_logging(task='train', logfile=log_file, quiet=quiet)
 
-    feeddb = FeedDatabase(feed_database)
-    embeddingdb = EmbeddingDatabase(embedding_database)
+    feeddb = FeedDatabase(config)
+    embeddingdb = EmbeddingDatabase(config)
 
     feedinfo = feeddb.get_metadata()
     feed_ids = sorted(set(feedinfo.index.to_list()) & embeddingdb.keys())

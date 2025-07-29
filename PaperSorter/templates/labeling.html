@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Papersorter Labeling</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .progress {
+            background: #34495e;
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            background: #3498db;
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .paper-item {
+            margin-bottom: 30px;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            line-height: 1.3;
+        }
+        
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            min-width: 60px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        
+        .meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .meta-label {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 2px;
+        }
+        
+        .abstract {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.7;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 2px solid #e9ecef;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 120px;
+        }
+        
+        .btn-positive {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-positive:hover {
+            background: #229954;
+        }
+        
+        .btn-negative {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-negative:hover {
+            background: #c0392b;
+        }
+        
+        .btn-skip {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-skip:hover {
+            background: #7f8c8d;
+        }
+        
+        .btn-visit {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-visit:hover {
+            background: #2980b9;
+        }
+        
+        .keyboard-help {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .title {
+                font-size: 20px;
+            }
+            
+            .meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="progress">
+                <div class="progress-bar" style="width: {{ stats.progress }}%"></div>
+            </div>
+            <div class="stats">
+                <span>Labeled: {{ stats.labeled }}</span>
+                <span>Remaining: {{ stats.unlabeled }}</span>
+                <span>Total: {{ stats.total }}</span>
+                <span>Progress: {{ "%.1f"|format(stats.progress) }}%</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="paper-item" id="current-item" data-id="{{ item.id }}" data-url="{{ item.link or '' }}">
+                {% if item.predicted_score is not none %}
+                <div>
+                    <span class="score-badge" style="background-color: rgb({{ (149 + (231 - 149) * (item.predicted_score ** 0.5))|int }}, {{ (165 + (116 - 165) * (item.predicted_score ** 0.5))|int }}, {{ (166 + (60 - 166) * (item.predicted_score ** 0.5))|int }});">{{ "%.3f"|format(item.predicted_score) }}</span>
+                </div>
+                {% endif %}
+                <div class="title">{{ item.title }}</div>
+                
+                <div class="meta">
+                    {% if item.author %}
+                    <div class="meta-item">
+                        <div class="meta-label">Authors</div>
+                        <div>{{ item.author }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.origin %}
+                    <div class="meta-item">
+                        <div class="meta-label">Origin</div>
+                        <div>{{ item.origin }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if item.content %}
+                <div class="abstract">{{ item.content }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <div class="buttons">
+            <button class="btn btn-positive" onclick="labelItem(1)">
+                Interesting (Z or .)
+            </button>
+            <button class="btn btn-negative" onclick="labelItem(0)">
+                Not Interesting (X or /)
+            </button>
+            <button class="btn btn-skip" onclick="skipItem()">
+                Skip (Space)
+            </button>
+            <button class="btn btn-visit" onclick="visitArticle()">
+                Visit Article (V)
+            </button>
+        </div>
+        <div class="keyboard-help">
+            Use keyboard shortcuts: Z/. = Interesting, X// = Not Interesting, Space = Skip, V = Visit, Backspace = Previous
+        </div>
+    </div>
+
+    <script>
+        let currentItemId = null;
+        let currentItemUrl = null;
+        let itemHistory = [];
+        
+        function updateCurrentItem() {
+            const item = document.getElementById('current-item');
+            if (item) {
+                currentItemId = item.getAttribute('data-id');
+                currentItemUrl = item.getAttribute('data-url');
+            }
+        }
+        
+        function visitArticle() {
+            if (currentItemUrl) {
+                window.open(currentItemUrl, '_blank');
+            }
+        }
+        
+        function labelItem(label) {
+            if (!currentItemId) return;
+            
+            // Add current item to history before moving to next
+            itemHistory.push({
+                id: currentItemId,
+                item: document.getElementById('current-item').cloneNode(true)
+            });
+            
+            fetch('/label', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: currentItemId,
+                    label: label
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    loadNextItem();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        
+        function skipItem() {
+            // Add current item to history before skipping
+            itemHistory.push({
+                id: currentItemId,
+                item: document.getElementById('current-item').cloneNode(true)
+            });
+            loadNextItem();
+        }
+        
+        function goToPrevious() {
+            if (itemHistory.length === 0) return;
+            
+            const previousItem = itemHistory.pop();
+            const content = document.querySelector('.content');
+            content.innerHTML = '';
+            content.appendChild(previousItem.item);
+            
+            currentItemId = previousItem.id;
+        }
+        
+        function loadNextItem() {
+            // Simply reload the page to get the next item
+            window.location.reload();
+        }
+        
+        function updatePage(item, stats) {
+            // Update progress bar and stats
+            document.querySelector('.progress-bar').style.width = stats.progress + '%';
+            const statsElements = document.querySelectorAll('.stats span');
+            statsElements[0].textContent = `Labeled: ${stats.labeled}`;
+            statsElements[1].textContent = `Remaining: ${stats.unlabeled}`;
+            statsElements[2].textContent = `Total: ${stats.total}`;
+            statsElements[3].textContent = `Progress: ${stats.progress.toFixed(1)}%`;
+            
+            // Update content
+            const content = document.querySelector('.content');
+            let metaHtml = '';
+            
+            if (item.author) {
+                metaHtml += `
+                    <div class="meta-item">
+                        <div class="meta-label">Authors</div>
+                        <div>${item.author}</div>
+                    </div>
+                `;
+            }
+            
+            if (item.origin) {
+                metaHtml += `
+                    <div class="meta-item">
+                        <div class="meta-label">Origin</div>
+                        <div>${item.origin}</div>
+                    </div>
+                `;
+            }
+            
+            
+            const abstractHtml = item.content ? `<div class="abstract">${item.content}</div>` : '';
+            
+            let scoreBadgeHtml = '';
+            if (item.score !== null) {
+                // Apply gamma transformation (square root) to weight towards red
+                const gamma = Math.pow(item.score, 0.5);
+                // Interpolate between gray (149,165,166) and red (231,116,60)
+                const r = Math.round(149 + (231 - 149) * gamma);
+                const g = Math.round(165 + (116 - 165) * gamma);
+                const b = Math.round(166 + (60 - 166) * gamma);
+                scoreBadgeHtml = `<div><span class="score-badge" style="background-color: rgb(${r}, ${g}, ${b});">${item.score.toFixed(3)}</span></div>`;
+            }
+            
+            content.innerHTML = `
+                <div class="paper-item" id="current-item" data-id="${item.id}" data-url="${item.link || ''}">
+                    ${scoreBadgeHtml}
+                    <div class="title">${item.title}</div>
+                    <div class="meta">${metaHtml}</div>
+                    ${abstractHtml}
+                </div>
+            `;
+            
+            updateCurrentItem();
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            switch(event.key.toLowerCase()) {
+                case 'z':
+                case '.':
+                    event.preventDefault();
+                    labelItem(1);
+                    break;
+                case 'x':
+                case '/':
+                    event.preventDefault();
+                    labelItem(0);
+                    break;
+                case ' ':
+                    event.preventDefault();
+                    skipItem();
+                    break;
+                case 'backspace':
+                    event.preventDefault();
+                    goToPrevious();
+                    break;
+                case 'v':
+                    event.preventDefault();
+                    visitArticle();
+                    break;
+            }
+        });
+        
+        // Initialize
+        updateCurrentItem();
+    </script>
+</body>
+</html>

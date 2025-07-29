@@ -53,6 +53,10 @@ setup(
     ],
     packages=['PaperSorter', 'PaperSorter.providers', 'PaperSorter.tasks',
               'PaperSorter.contrib'],
+    package_data={
+        'PaperSorter': ['templates/*.html'],
+    },
+    include_package_data=True,
     entry_points={
         'console_scripts': [
             'papersorter = PaperSorter.__main__:main',
@@ -63,12 +67,17 @@ setup(
         'numpy >= 1.20',
         'openai >= 1.30',
         'pandas >= 2.0',
-        'plyvel >= 1.5',
+        'psycopg2-binary >= 2.9',
+        'pgvector >= 0.2.0',
         'python-dotenv >= 1.0',
+        'PyYAML >= 6.0',
         'requests >= 2.7.0',
         'scikit-learn >= 1.4',
         'scipy >= 1.10',
         'xgboost > 2.0',
         'xlsxwriter >= 3.0',
+        'Flask >= 2.0',
+        'Flask-Login >= 0.6.0',
+        'Authlib >= 1.2.0',
     ],
 )

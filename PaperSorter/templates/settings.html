@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Papersorter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        .nav-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 10px 20px;
+            border: 2px solid #3498db;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            background: #3498db;
+            color: white;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .settings-card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .settings-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .settings-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .settings-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .settings-description {
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+        
+        .channels-icon {
+            color: #3498db;
+        }
+        
+        .users-icon {
+            color: #27ae60;
+        }
+        
+        .models-icon {
+            color: #e74c3c;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Settings</h1>
+            <a href="/" class="nav-link">← Back to Feeds</a>
+        </div>
+        
+        <div class="settings-grid">
+            <a href="/settings/channels" class="settings-card">
+                <div class="settings-icon channels-icon">📡</div>
+                <div class="settings-title">Channels</div>
+                <div class="settings-description">
+                    Manage broadcast channels for notifications
+                </div>
+            </a>
+            
+            <a href="/settings/users" class="settings-card">
+                <div class="settings-icon users-icon">👥</div>
+                <div class="settings-title">Users</div>
+                <div class="settings-description">
+                    Manage users and their preferences
+                </div>
+            </a>
+            
+            <a href="/settings/models" class="settings-card">
+                <div class="settings-icon models-icon">🤖</div>
+                <div class="settings-title">Models</div>
+                <div class="settings-description">
+                    Configure machine learning models
+                </div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

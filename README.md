@@ -133,16 +133,16 @@ papersorter train -o model-temporary.pkl -f feedback.xlsx
 ```
 
 This generates an Excel file, `feedback.xlsx`, containing titles,
-authors, prediction scores, and other details. Review each row and
-fill in the `label` column with `1` (interesting) or `0` (not interesting).
-Leave it blank if unsure. Once you've labeled some articles, update
-the feed database with:
+authors, prediction scores, and other details for manual review.
+
+For labeling articles, you can use the web interface:
 
 ```
-papersorter feedback -i feedback.xlsx
+papersorter serve
 ```
 
-Retrain the predictor with the updated labels using:
+This starts a web server (default: http://localhost:5001) with an interface for labeling articles from the database.
+After labeling, retrain the predictor with the updated labels using:
 
 ```
 papersorter train

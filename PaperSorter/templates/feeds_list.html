@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feeds List - Papersorter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .filter-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .score-filter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .score-filter-label {
+            font-size: 14px;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+        
+        .score-slider {
+            width: 200px;
+            height: 6px;
+            border-radius: 3px;
+            background: #e9ecef;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        .score-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .score-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .score-value {
+            font-size: 12px;
+            color: #2c3e50;
+            font-weight: bold;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        .nav-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 10px 20px;
+            border: 2px solid #3498db;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            background: #3498db;
+            color: white;
+        }
+        
+        .feeds-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .date-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .feed-item {
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .feed-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .feed-item:last-child {
+            border-bottom: none;
+        }
+        
+        .feed-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            min-width: 50px;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .score-icons {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            display: flex;
+            gap: 2px;
+        }
+        
+        .score-icon {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            border: 1px solid white;
+        }
+        
+        .score-icon.starred {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .score-icon.broadcasted {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .feed-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .feed-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+        
+        .feed-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        
+        .feed-meta-item {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .feed-author {
+            max-width: 200px;
+        }
+        
+        .feed-origin {
+            font-weight: bold;
+        }
+        
+        .feed-date {
+            flex-shrink: 0;
+        }
+        
+        .feed-labels {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .label-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .label-starred {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .label-positive {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .label-negative {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .feed-details {
+            display: none;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .feed-details.expanded {
+            display: block;
+        }
+        
+        .feed-abstract {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+        
+        .feed-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #90caf9;
+        }
+        
+        .btn-primary:hover {
+            background: #bbdefb;
+            border-color: #64b5f6;
+        }
+        
+        .btn-star {
+            background: #fff3e0;
+            color: #f57c00;
+            border: 1px solid #ffcc80;
+        }
+        
+        .btn-star:hover {
+            background: #ffe0b2;
+            border-color: #ffb74d;
+        }
+        
+        .btn-star.starred {
+            background: #ffcc80;
+            border-color: #ff9800;
+            color: #e65100;
+        }
+        
+        .btn-thumbs-up {
+            background: #e8f5e9;
+            color: #388e3c;
+            border: 1px solid #a5d6a7;
+        }
+        
+        .btn-thumbs-up:hover {
+            background: #c8e6c9;
+            border-color: #81c784;
+        }
+        
+        .btn-thumbs-up.active {
+            background: #a5d6a7;
+            border-color: #66bb6a;
+            color: #2e7d32;
+        }
+        
+        .btn-thumbs-down {
+            background: #ffebee;
+            color: #d32f2f;
+            border: 1px solid #ef9a9a;
+        }
+        
+        .btn-thumbs-down:hover {
+            background: #ffcdd2;
+            border-color: #e57373;
+        }
+        
+        .btn-thumbs-down.active {
+            background: #ef9a9a;
+            border-color: #ef5350;
+            color: #c62828;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .feed-labels {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+            align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .filter-controls {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .score-slider {
+                width: 150px;
+            }
+            
+            .feed-header {
+                padding: 15px;
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+            
+            .feed-meta {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .feed-meta-item {
+                max-width: none;
+            }
+            
+            .feed-labels {
+                margin-top: 10px;
+                margin-left: 0;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Feeds List</h1>
+            <div class="filter-controls">
+                <div class="score-filter">
+                    <div class="score-filter-label">Min Score</div>
+                    <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
+                    <div class="score-value" id="scoreValue">0.05</div>
+                </div>
+                <a href="/settings" class="nav-link">⚙️ Settings</a>
+                <a href="/logout" class="nav-link">🚪 Logout</a>
+            </div>
+        </div>
+        
+        <div class="feeds-container">
+            <div id="feeds-list">
+                <!-- Feeds will be loaded here -->
+            </div>
+            <div id="loading" class="loading">
+                <div class="loading-spinner"></div>
+                Loading feeds...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let isLoading = false;
+        let hasMore = true;
+        let currentMinScore = 0.05;
+        let lastDateShown = null;
+        
+        // Score threshold values corresponding to slider positions
+        const scoreThresholds = [0, 0.01, 0.05, 0.1, 0.3];
+        const scoreLabels = ['Unlimited', '≥ 0.01', '≥ 0.05', '≥ 0.10', '≥ 0.30'];
+        
+        function calculateScoreColor(score) {
+            if (score === null) return 'rgb(149, 165, 166)';
+            
+            // Apply gamma transformation (square root) to weight towards red
+            const gamma = Math.pow(Math.max(0, Math.min(1, score)), 0.5);
+            // Interpolate between gray (149,165,166) and red (231,116,60)
+            const r = Math.round(149 + (231 - 149) * gamma);
+            const g = Math.round(165 + (116 - 165) * gamma);
+            const b = Math.round(166 + (60 - 166) * gamma);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
+        function formatDate(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        function formatDateHeader(timestamp) {
+            if (!timestamp) return 'Unknown Date';
+            const date = new Date(timestamp * 1000);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            // Check if it's today
+            if (date.toDateString() === today.toDateString()) {
+                return 'Today';
+            }
+            // Check if it's yesterday
+            else if (date.toDateString() === yesterday.toDateString()) {
+                return 'Yesterday';
+            }
+            // Otherwise show the date
+            else {
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            }
+        }
+        
+        function getDateKey(timestamp) {
+            if (!timestamp) return 'unknown';
+            const date = new Date(timestamp * 1000);
+            return date.toDateString();
+        }
+        
+        function createFeedElement(feed) {
+            const scoreColor = calculateScoreColor(feed.score);
+            const scoreText = feed.score !== null ? feed.score.toFixed(3) : 'N/A';
+            
+            // Create icons for score badge
+            let icons = [];
+            if (feed.starred) icons.push('<div class="score-icon starred">★</div>');
+            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted">📡</div>');
+            const iconsHtml = icons.length > 0 ? `<div class="score-icons">${icons.join('')}</div>` : '';
+            
+            let labels = [];
+            if (feed.starred) labels.push('<span class="label-badge label-starred">★ Starred</span>');
+            if (feed.label === 1) labels.push('<span class="label-badge label-positive">Positive</span>');
+            if (feed.label === 0) labels.push('<span class="label-badge label-negative">Negative</span>');
+            
+            return `
+                <div class="feed-item" data-feed-rowid="${feed.rowid}">
+                    <div class="feed-header">
+                        <div class="score-badge" style="background-color: ${scoreColor};">
+                            ${scoreText}
+                            ${iconsHtml}
+                        </div>
+                        <div class="feed-content">
+                            <div class="feed-title">${feed.title}</div>
+                            <div class="feed-meta">
+                                <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
+                                <div class="feed-meta-item feed-author">${feed.author || 'Unknown Author'}</div>
+                                <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
+                            </div>
+                        </div>
+                        ${labels.length > 0 ? `<div class="feed-labels">${labels.join('')}</div>` : ''}
+                    </div>
+                    <div class="feed-details">
+                        <div class="feed-abstract">Loading content...</div>
+                        <div class="feed-actions">
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary">View Article</a>` : ''}
+                            <button class="btn btn-star ${feed.starred ? 'starred' : ''}" onclick="starFeed(${feed.rowid}, this)" data-starred="${feed.starred ? 'true' : 'false'}">
+                                ${feed.starred ? '★ Starred' : '☆ Star'}
+                            </button>
+                            <button class="btn btn-thumbs-up ${feed.label === 1 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 1, this)" data-label="${feed.label}">
+                                👍 Interested
+                            </button>
+                            <button class="btn btn-thumbs-down ${feed.label === 0 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 0, this)" data-label="${feed.label}">
+                                👎 Not Interested
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function loadFeeds() {
+            if (isLoading || !hasMore) return;
+            
+            isLoading = true;
+            document.getElementById('loading').style.display = 'block';
+            
+            fetch(`/api/feeds?page=${currentPage}&limit=20&min_score=${currentMinScore}`)
+                .then(response => response.json())
+                .then(data => {
+                    const feedsList = document.getElementById('feeds-list');
+                    
+                    data.feeds.forEach(feed => {
+                        const feedDateKey = getDateKey(feed.published);
+                        
+                        // Add date header if this is a new date
+                        if (feedDateKey !== lastDateShown) {
+                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.published)}</div>`;
+                            feedsList.insertAdjacentHTML('beforeend', dateHeader);
+                            lastDateShown = feedDateKey;
+                        }
+                        
+                        feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
+                    });
+                    
+                    hasMore = data.has_more;
+                    currentPage++;
+                    
+                    if (!hasMore) {
+                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No more feeds to load</div>';
+                    } else {
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading feeds:', error);
+                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #e74c3c;">Error loading feeds</div>';
+                })
+                .finally(() => {
+                    isLoading = false;
+                });
+        }
+        
+        function loadFeedContent(feedRowid, detailsElement) {
+            console.log('Loading content for feed rowid:', feedRowid);
+            fetch(`/api/feeds/${feedRowid}/content`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Content data:', data);
+                    const abstractElement = detailsElement.querySelector('.feed-abstract');
+                    if (data.content) {
+                        abstractElement.textContent = data.content;
+                    } else if (data.tldr) {
+                        abstractElement.textContent = data.tldr;
+                    } else {
+                        abstractElement.textContent = 'No content available';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading feed content:', error);
+                    const abstractElement = detailsElement.querySelector('.feed-abstract');
+                    abstractElement.textContent = `Error loading content: ${error.message}`;
+                });
+        }
+        
+        function starFeed(feedRowid, buttonElement) {
+            // Prevent event bubbling to avoid triggering row expand/collapse
+            event.stopPropagation();
+            
+            const isCurrentlyStarred = buttonElement.dataset.starred === 'true';
+            
+            // Optimistically update UI
+            buttonElement.disabled = true;
+            buttonElement.textContent = 'Starring...';
+            
+            fetch(`/api/feeds/${feedRowid}/star`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Update button state
+                    buttonElement.dataset.starred = 'true';
+                    buttonElement.textContent = '★ Starred';
+                    buttonElement.classList.add('starred');
+                    
+                    // Update the header label if it exists
+                    const feedItem = buttonElement.closest('.feed-item');
+                    const labelsDiv = feedItem.querySelector('.feed-labels');
+                    if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
+                        labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
+                    } else if (!labelsDiv) {
+                        const feedContent = feedItem.querySelector('.feed-content');
+                        feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                    }
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                console.error('Error starring feed:', error);
+                // Revert UI changes on error
+                buttonElement.textContent = isCurrentlyStarred ? '★ Starred' : '☆ Star';
+                alert('Failed to star the feed. Please try again.');
+            })
+            .finally(() => {
+                buttonElement.disabled = false;
+            });
+        }
+        
+        function feedbackFeed(feedRowid, score, buttonElement) {
+            // Prevent event bubbling to avoid triggering row expand/collapse
+            event.stopPropagation();
+            
+            const currentLabel = parseFloat(buttonElement.dataset.label);
+            const isRemoving = currentLabel === score;
+            
+            // Optimistically update UI
+            buttonElement.disabled = true;
+            const otherButton = score === 1 
+                ? buttonElement.nextElementSibling 
+                : buttonElement.previousElementSibling;
+            if (otherButton && otherButton.classList.contains(score === 1 ? 'btn-thumbs-down' : 'btn-thumbs-up')) {
+                otherButton.disabled = true;
+            }
+            
+            fetch(`/api/feeds/${feedRowid}/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    score: isRemoving ? null : score
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Update button states
+                    if (isRemoving) {
+                        buttonElement.classList.remove('active');
+                        buttonElement.dataset.label = '';
+                    } else {
+                        buttonElement.classList.add('active');
+                        buttonElement.dataset.label = score;
+                        
+                        // Remove active state from other button
+                        if (otherButton && otherButton.classList.contains(score === 1 ? 'btn-thumbs-down' : 'btn-thumbs-up')) {
+                            otherButton.classList.remove('active');
+                            otherButton.dataset.label = '';
+                        }
+                    }
+                    
+                    // Update labels in the header
+                    const feedItem = buttonElement.closest('.feed-item');
+                    let labelsDiv = feedItem.querySelector('.feed-labels');
+                    const existingPositive = labelsDiv ? labelsDiv.querySelector('.label-positive') : null;
+                    const existingNegative = labelsDiv ? labelsDiv.querySelector('.label-negative') : null;
+                    
+                    if (isRemoving) {
+                        // Remove the label
+                        if (score === 1 && existingPositive) {
+                            existingPositive.remove();
+                        } else if (score === 0 && existingNegative) {
+                            existingNegative.remove();
+                        }
+                        
+                        // Remove labels div if empty
+                        if (labelsDiv && labelsDiv.children.length === 0) {
+                            labelsDiv.remove();
+                        }
+                    } else {
+                        // Add or update label
+                        if (!labelsDiv) {
+                            const feedContent = feedItem.querySelector('.feed-content');
+                            feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
+                            labelsDiv = feedContent.querySelector('.feed-labels');
+                        }
+                        
+                        // Remove opposite label if exists
+                        if (score === 1 && existingNegative) {
+                            existingNegative.remove();
+                        } else if (score === 0 && existingPositive) {
+                            existingPositive.remove();
+                        }
+                        
+                        // Add new label if not exists
+                        if (score === 1 && !existingPositive) {
+                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-positive">Positive</span>');
+                        } else if (score === 0 && !existingNegative) {
+                            labelsDiv.insertAdjacentHTML('beforeend', '<span class="label-badge label-negative">Negative</span>');
+                        }
+                    }
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating feedback:', error);
+                alert('Failed to update feedback. Please try again.');
+            })
+            .finally(() => {
+                buttonElement.disabled = false;
+                if (otherButton && otherButton.classList.contains(score === 1 ? 'btn-thumbs-down' : 'btn-thumbs-up')) {
+                    otherButton.disabled = false;
+                }
+            });
+        }
+        
+        // Event delegation for feed item clicks
+        document.addEventListener('click', function(e) {
+            // Don't expand/collapse if clicking on buttons or links
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            
+            const feedItem = e.target.closest('.feed-item');
+            if (!feedItem) return;
+            
+            const detailsElement = feedItem.querySelector('.feed-details');
+            const isExpanded = feedItem.classList.contains('expanded');
+            
+            if (isExpanded) {
+                // Collapse
+                feedItem.classList.remove('expanded');
+                detailsElement.classList.remove('expanded');
+            } else {
+                // Expand
+                feedItem.classList.add('expanded');
+                detailsElement.classList.add('expanded');
+                
+                // Load content if not already loaded
+                const abstractElement = detailsElement.querySelector('.feed-abstract');
+                if (abstractElement.textContent === 'Loading content...') {
+                    loadFeedContent(feedItem.dataset.feedRowid, detailsElement);
+                }
+            }
+        });
+        
+        // Infinite scroll
+        window.addEventListener('scroll', function() {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 1000) {
+                loadFeeds();
+            }
+        });
+        
+        // Score filter functionality
+        function updateScoreFilter() {
+            const slider = document.getElementById('scoreSlider');
+            const scoreValue = document.getElementById('scoreValue');
+            const sliderValue = parseInt(slider.value);
+            
+            currentMinScore = scoreThresholds[sliderValue];
+            scoreValue.textContent = scoreLabels[sliderValue];
+            
+            // Reset pagination and reload feeds
+            currentPage = 1;
+            hasMore = true;
+            lastDateShown = null;
+            document.getElementById('feeds-list').innerHTML = '';
+            loadFeeds();
+        }
+        
+        // Initialize slider
+        function initializeSlider() {
+            const slider = document.getElementById('scoreSlider');
+            const scoreValue = document.getElementById('scoreValue');
+            
+            // Set initial value (0.05 corresponds to index 2)
+            slider.value = 2;
+            scoreValue.textContent = scoreLabels[2];
+            
+            // Add event listener
+            slider.addEventListener('input', updateScoreFilter);
+        }
+        
+        // Initial load
+        initializeSlider();
+        loadFeeds();
+    </script>
+</body>
+</html>
