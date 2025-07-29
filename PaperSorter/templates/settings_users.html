@@ -192,7 +192,8 @@
         }
 
         .form-group input,
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
@@ -316,6 +317,25 @@
                     <label for="userPassword">Password (leave blank to keep current)</label>
                     <input type="password" id="userPassword" placeholder="Password">
                 </div>
+                <div class="form-group">
+                    <label for="userTimezone">Timezone</label>
+                    <select id="userTimezone" required>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="America/Chicago">America/Chicago</option>
+                        <option value="America/Denver">America/Denver</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Europe/Paris">Europe/Paris</option>
+                        <option value="Europe/Berlin">Europe/Berlin</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="Asia/Seoul" selected>Asia/Seoul</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai</option>
+                        <option value="Asia/Singapore">Asia/Singapore</option>
+                        <option value="Australia/Sydney">Australia/Sydney</option>
+                    </select>
+                    <small style="color: #666;">Timezone for date/time display</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save User</button>
@@ -361,6 +381,7 @@
                             <th>Username</th>
                             <th>Created</th>
                             <th>Last Login</th>
+                            <th>Timezone</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -371,6 +392,7 @@
                                 <td><strong>${user.username}</strong></td>
                                 <td>${user.created ? new Date(user.created).toLocaleDateString() : '-'}</td>
                                 <td>${user.lastlogin ? new Date(user.lastlogin).toLocaleDateString() : 'Never'}</td>
+                                <td>${user.timezone || 'Asia/Seoul'}</td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editUser(${user.id})">Edit</button>
@@ -399,6 +421,7 @@
             document.getElementById('userId').value = user.id;
             document.getElementById('userName').value = user.username;
             document.getElementById('userPassword').value = '';
+            document.getElementById('userTimezone').value = user.timezone || 'Asia/Seoul';
             document.getElementById('userModal').style.display = 'block';
         }
 
@@ -411,7 +434,8 @@
 
             const id = document.getElementById('userId').value;
             const data = {
-                username: document.getElementById('userName').value
+                username: document.getElementById('userName').value,
+                timezone: document.getElementById('userTimezone').value
             };
 
             const password = document.getElementById('userPassword').value;

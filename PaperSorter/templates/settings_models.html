@@ -242,6 +242,11 @@
             color: #004085;
         }
 
+        .tag-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
         .file-path {
             font-family: monospace;
             font-size: 14px;
@@ -325,6 +330,13 @@
                     <label for="modelUserId">User ID</label>
                     <input type="number" id="modelUserId" placeholder="1" value="1">
                 </div>
+                <div class="form-group">
+                    <label for="modelIsActive">
+                        <input type="checkbox" id="modelIsActive" checked>
+                        Model is Active
+                    </label>
+                    <small style="color: #666;">Only active models can be used for scoring</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Model</button>
@@ -370,6 +382,7 @@
                             <th>Name</th>
                             <th>User ID</th>
                             <th>Created</th>
+                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -380,6 +393,11 @@
                                 <td><strong>${model.name}</strong></td>
                                 <td>${model.user_id || '-'}</td>
                                 <td>${model.created ? new Date(model.created).toLocaleDateString() : '-'}</td>
+                                <td>
+                                    <span class="tag ${model.is_active !== false ? 'tag-active' : 'tag-inactive'}">
+                                        ${model.is_active !== false ? 'Active' : 'Inactive'}
+                                    </span>
+                                </td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editModel(${model.id})">Edit</button>
@@ -409,6 +427,7 @@
             document.getElementById('modelId').value = model.id;
             document.getElementById('modelName').value = model.name;
             document.getElementById('modelUserId').value = model.user_id || '1';
+            document.getElementById('modelIsActive').checked = model.is_active !== false;
             document.getElementById('modelModal').style.display = 'block';
         }
 
@@ -422,7 +441,8 @@
             const id = document.getElementById('modelId').value;
             const data = {
                 name: document.getElementById('modelName').value,
-                user_id: parseInt(document.getElementById('modelUserId').value) || 1
+                user_id: parseInt(document.getElementById('modelUserId').value) || 1,
+                is_active: document.getElementById('modelIsActive').checked
             };
 
             const url = id ? `/api/settings/models/${id}` : '/api/settings/models';

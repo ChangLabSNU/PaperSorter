@@ -42,7 +42,6 @@ papersorter update     # Fetch new articles and generate embeddings
 papersorter broadcast  # Send Slack notifications for interesting articles
 
 # Model improvement workflow
-papersorter train -o model-temporary.pkl -f feedback.xlsx  # Export for labeling
 papersorter serve                                          # Run web interface for labeling
 papersorter train                                          # Retrain model
 ```
@@ -60,8 +59,8 @@ python -m black PaperSorter/         # Code formatting
 - All tasks support `--config` (default: `qbio/config.yml`), `--log-file` and `-q/--quiet` options
 - `init`: `--batch-size` (default: 100)
 - `update`: `--batch-size`, `--get-full-list`, `--force-reembed`, `--force-rescore`, `--score-threshold` (default: 0.7)
-- `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `-f/--output-feedback` (Excel file)
-- `broadcast`: `--channel-id` (default: 1), `--limit` (max items to process), `--max-content-length`, `--clear-old-days` (default: 30)
+- `train`: `-r/--rounds` (default: 100), `-o/--output` (model file)
+- `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
 - `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`
 
 ## Configuration
@@ -93,6 +92,9 @@ feed_service:
 
 semanticscholar:
   api_key: "your_s2_api_key"
+
+web:
+  base_url: "https://reader.qbio.io"  # Base URL for web interface (used for "More Like This" links in Slack)
 ```
 
 Note: Slack webhook URLs are stored in the database `channels` table per channel.
@@ -130,6 +132,8 @@ The PostgreSQL database includes tables for:
 - Session management with Flask-Login
 - Protected routes require authentication
 - Broadcast queue mechanism: items are queued during update phase based on score threshold and processed during broadcast phase
+- Broadcast task iterates through all active channels (is_active=TRUE) and processes their associated broadcast queue items
+- Each channel can have its own model_id and score_threshold settings
 
 ## Dependencies
 
@@ -145,7 +149,6 @@ Core dependencies (from setup.py):
 - scikit-learn >= 1.4 (machine learning utilities)
 - scipy >= 1.10 (scientific computing)
 - xgboost > 2.0 (gradient boosting model)
-- xlsxwriter >= 3.0 (Excel file generation for training feedback)
 - Flask >= 2.0 (web framework for serve task)
 - Flask-Login >= 0.6.0 (user session management)
 - Authlib >= 1.2.0 (OAuth authentication)

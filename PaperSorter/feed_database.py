@@ -142,7 +142,7 @@ class FeedDatabase:
             if broadcasted is not None:
                 channel_id = 1  # Default channel
                 self.cursor.execute('''
-                    INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                     VALUES (%s, %s, to_timestamp(%s))
                     ON CONFLICT DO NOTHING
                 ''', (feed_id, channel_id, broadcasted))
@@ -194,7 +194,7 @@ class FeedDatabase:
             FROM feeds f
             LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
-            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             WHERE f.external_id IS NOT NULL
         ''')
         return self.build_dataframe_from_results(self.cursor.fetchall())
@@ -261,7 +261,7 @@ class FeedDatabase:
         if result:
             feed_id = result['id']
             self.cursor.execute('''
-                INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                 VALUES (%s, %s, to_timestamp(%s))
                 ON CONFLICT DO NOTHING
             ''', (feed_id, channel_id, timemark))
@@ -301,7 +301,7 @@ class FeedDatabase:
                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
             FROM feeds f
             JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             WHERE pp.score > %s AND bl.broadcasted_time IS NULL AND f.published >= to_timestamp(%s)
                   AND f.external_id IS NOT NULL
         ''', (model_id, threshold, since))
@@ -331,7 +331,7 @@ class FeedDatabase:
                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
             FROM feeds f
             JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.score > 0
-            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             WHERE f.published >= to_timestamp(%s) AND bl.broadcasted_time IS NULL
                   AND f.external_id IS NOT NULL
         ''', (since,))
@@ -348,7 +348,7 @@ class FeedDatabase:
             SELECT COUNT(*) as count
             FROM feeds a
             JOIN feeds b ON a.title = b.title AND a.id != b.id
-            JOIN broadcast_logs bl ON b.id = bl.feed_id
+            JOIN broadcasts bl ON b.id = bl.feed_id
             WHERE {where_clause} AND b.published >= to_timestamp(%s)
                   AND bl.broadcasted_time IS NOT NULL
         ''', (item_id, since))
@@ -365,7 +365,7 @@ class FeedDatabase:
             if result:
                 feed_id = result['id']
                 self.cursor.execute('''
-                    INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                     VALUES (%s, %s, to_timestamp(0))
                     ON CONFLICT DO NOTHING
                 ''', (feed_id, channel_id))
@@ -418,27 +418,38 @@ class FeedDatabase:
                 ''', (feed_id, user_id, score))
 
     def add_to_broadcast_queue(self, feed_id, channel_id=1):
-        """Add an item to the broadcast queue."""
+        """Add an item to the broadcast queue (using merged broadcasts table)."""
         self.cursor.execute('''
-            INSERT INTO broadcast_queue (feed_id, channel_id, processed)
+            INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
             VALUES (%s, %s, NULL)
             ON CONFLICT (feed_id, channel_id) DO NOTHING
         ''', (feed_id, channel_id))
 
-    def get_broadcast_queue_items(self, channel_id=1, limit=None):
-        """Get unprocessed items from the broadcast queue."""
+    def get_broadcast_queue_items(self, channel_id=1, limit=None, model_id=None):
+        """Get unprocessed items from the broadcast queue (using merged broadcasts table)."""
+        # If no model_id provided, get the most recent active model
+        if model_id is None:
+            self.cursor.execute("""
+                SELECT id FROM models 
+                WHERE is_active = TRUE 
+                ORDER BY id DESC 
+                LIMIT 1
+            """)
+            result = self.cursor.fetchone()
+            model_id = result['id'] if result else 1
+        
         query = '''
-            SELECT f.*, pp.score, bq.feed_id as queue_feed_id
-            FROM broadcast_queue bq
-            JOIN feeds f ON bq.feed_id = f.id
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
-            WHERE bq.channel_id = %s AND bq.processed IS NULL
+            SELECT f.*, pp.score, bl.feed_id as queue_feed_id
+            FROM broadcasts bl
+            JOIN feeds f ON bl.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            WHERE bl.channel_id = %s AND bl.broadcasted_time IS NULL
             ORDER BY f.published DESC
         '''
         if limit:
             query += f' LIMIT {limit}'
 
-        self.cursor.execute(query, (channel_id,))
+        self.cursor.execute(query, (model_id, channel_id))
         items = []
         for row in self.cursor.fetchall():
             item = dict(row)
@@ -454,18 +465,18 @@ class FeedDatabase:
             return pd.DataFrame()
 
     def mark_broadcast_queue_processed(self, feed_id, channel_id=1):
-        """Mark an item in the broadcast queue as processed."""
+        """Mark an item in the broadcast queue as processed (using merged broadcasts table)."""
         self.cursor.execute('''
-            UPDATE broadcast_queue
-            SET processed = CURRENT_TIMESTAMP
+            UPDATE broadcasts
+            SET broadcasted_time = CURRENT_TIMESTAMP
             WHERE feed_id = %s AND channel_id = %s
         ''', (feed_id, channel_id))
 
     def clear_old_broadcast_queue(self, days=30):
-        """Clear old processed items from the broadcast queue."""
+        """Clear old processed items from the broadcast queue (using merged broadcasts table)."""
         self.cursor.execute('''
-            DELETE FROM broadcast_queue
-            WHERE processed < CURRENT_TIMESTAMP - INTERVAL '%s days'
+            DELETE FROM broadcasts
+            WHERE broadcasted_time < CURRENT_TIMESTAMP - INTERVAL '%s days'
         ''', (days,))
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):

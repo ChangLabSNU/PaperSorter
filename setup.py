@@ -74,7 +74,6 @@ setup(
         'scikit-learn >= 1.4',
         'scipy >= 1.10',
         'xgboost > 2.0',
-        'xlsxwriter >= 3.0',
         'Flask >= 2.0',
         'Flask-Login >= 0.6.0',
         'Authlib >= 1.2.0',

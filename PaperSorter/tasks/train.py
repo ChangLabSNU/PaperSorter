@@ -28,96 +28,226 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import xgboost as xgb
-import pandas as pd
 import numpy as np
+import pandas as pd
 import click
 import pickle
-
-
-def export_feedback_sheet(output_feedback, feedinfo, fids_test, y_testpred):
-    feeds_test = feedinfo.loc[fids_test].copy()
-    feeds_test['score'] = y_testpred
-    feeds_test = feeds_test[
-        (feeds_test['starred'] == 0) &
-        (feeds_test['label'].isna())].sort_values('score', ascending=False)
-
-    with pd.ExcelWriter(output_feedback, engine='xlsxwriter') as writer:
-        feeds_test[['score', 'title', 'content', 'label', 'author', 'origin'
-                    ]].to_excel(writer, sheet_name='Feedback')
-        worksheet = writer.sheets['Feedback']
-
-        # Adjust title and content column width
-        regular_fmt = writer.book.add_format({'text_wrap' : True, 'valign': 'top'})
-        label_fmt = writer.book.add_format({'valign': 'top', 'bg_color': '#E8E8E8'})
-
-        worksheet.set_column(1, 1, 5, regular_fmt)
-        worksheet.set_column(2, 3, 50, regular_fmt)
-        worksheet.set_column(4, 4, 5, label_fmt)
-        worksheet.set_column(5, 6, 20, regular_fmt)
+import psycopg2
+import psycopg2.extras
+from pgvector.psycopg2 import register_vector
+import yaml
 
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('-o', '--output', default='model.pkl', help='Output file name.')
-@click.option('-r', '--rounds', default=100, help='Number of boosting rounds.')
-@click.option('-f', '--output-feedback', default='feedback.xlsx',
-              help='Output file name for feedback.')
+@click.option('-r', '--rounds', default=1000, help='Number of boosting rounds.')
+@click.option('--user-id', default=1, help='User ID for training preferences.')
+@click.option('--pos-cutoff', default=0.5, help='Predicted score cutoff for positive pseudo-labels.')
+@click.option('--neg-cutoff', default=0.2, help='Predicted score cutoff for negative pseudo-labels.')
+@click.option('--pseudo-weight', default=0.5, help='Weight for pseudo-labeled data.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(config, output, rounds, output_feedback,
-         log_file, quiet):
+def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight, log_file, quiet):
     initialize_logging(task='train', logfile=log_file, quiet=quiet)
 
-    feeddb = FeedDatabase(config)
-    embeddingdb = EmbeddingDatabase(config)
+    # Load database configuration
+    with open(config, 'r') as f:
+        config_data = yaml.safe_load(f)
 
-    feedinfo = feeddb.get_metadata()
-    feed_ids = sorted(set(feedinfo.index.to_list()) & embeddingdb.keys())
-    feedinfo = feedinfo.reindex(feed_ids).copy()
+    db_config = config_data['db']
 
-    log.info('Loading embeddings...')
-    embs = embeddingdb[feed_ids]
+    # Connect to PostgreSQL
+    log.info('Connecting to PostgreSQL database...')
+    db = psycopg2.connect(
+        host=db_config['host'],
+        database=db_config['database'],
+        user=db_config['user'],
+        password=db_config['password']
+    )
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
+    # Register pgvector extension
+    register_vector(db)
+
+    # Query to get all feeds with their embeddings, preferences, and predicted scores
+    log.info(f'Loading training data for user_id={user_id}...')
+    cursor.execute('''
+        WITH latest_preferences AS (
+            SELECT DISTINCT ON (feed_id)
+                feed_id, score, time, source
+            FROM preferences
+            WHERE user_id = %s
+            ORDER BY feed_id, time DESC
+        )
+        SELECT
+            f.id as feed_id,
+            f.external_id,
+            f.title,
+            f.published,
+            lp.score as preference_score,
+            lp.time as preference_time,
+            lp.source as preference_source,
+            pp.score as predicted_score,
+            e.embedding
+        FROM feeds f
+        JOIN embeddings e ON f.id = e.feed_id
+        LEFT JOIN latest_preferences lp ON f.id = lp.feed_id
+        LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+        ORDER BY f.id
+    ''', (user_id,))
+
+    results = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    if not results:
+        log.error("No feeds with embeddings found")
+        return
+
+    log.info(f'Found {len(results)} feeds with embeddings')
+
+    # Prepare data
+    feed_ids = []
+    embeddings = []
+    preference_scores = []
+    predicted_scores = []
+
+    for row in results:
+        feed_ids.append(row['feed_id'])
+        embeddings.append(np.array(row['embedding'], dtype=np.float64))
+        preference_scores.append(row['preference_score'])
+        predicted_scores.append(row['predicted_score'])
+
+    embeddings = np.array(embeddings, dtype=np.float64)
+
+    # Create masks for different data categories
+    pref_available = np.array([p is not None for p in preference_scores])
+    pref_notavail_pos = np.array([
+        (p is not None and p >= pos_cutoff) and not avail
+        for p, avail in zip(predicted_scores, pref_available)
+    ])
+    pref_notavail_neg = np.array([
+        (p is not None and p < neg_cutoff) and not avail
+        for p, avail in zip(predicted_scores, pref_available)
+    ])
+
+    # Extract data for each category
+    embs_with_pref = embeddings[pref_available]
+    labels_with_pref = np.array([p for p, avail in zip(preference_scores, pref_available) if avail])
+    fids_with_pref = np.array([fid for fid, avail in zip(feed_ids, pref_available) if avail])
+
+    embs_wopref_pos = embeddings[pref_notavail_pos]
+    fids_wopref_pos = np.array([fid for fid, pos in zip(feed_ids, pref_notavail_pos) if pos])
+
+    embs_wopref_neg = embeddings[pref_notavail_neg]
+    fids_wopref_neg = np.array([fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg])
+
+    cnt_with_pref = len(embs_with_pref)
+    cnt_wopref_pos = len(embs_wopref_pos)
+    cnt_wopref_neg = len(embs_wopref_neg)
+
+    log.info(f'Data distribution: {cnt_with_pref} labeled, {cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative')
+
+    # Calculate weights for pseudo-labeled data
+    wopref_pos_weight = cnt_with_pref / cnt_wopref_pos * pseudo_weight if cnt_wopref_pos > 0 else 0
+    wopref_neg_weight = cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
+
+    log.info(f'Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}')
+
+    # Combine all data
+    X_all = []
+    Y_all = []
+    weights_all = []
+    fids_all = []
+
+    # Data with preference scores
+    if cnt_with_pref > 0:
+        X_all.append(embs_with_pref)
+        Y_all.append(labels_with_pref)
+        weights_all.append(np.ones(cnt_with_pref))
+        fids_all.append(fids_with_pref)
+
+    # Data without preference scores (positive)
+    if cnt_wopref_pos > 0:
+        X_all.append(embs_wopref_pos)
+        Y_all.append(np.ones(cnt_wopref_pos))
+        weights_all.append(np.full(cnt_wopref_pos, wopref_pos_weight))
+        fids_all.append(fids_wopref_pos)
+
+    # Data without preference scores (negative)
+    if cnt_wopref_neg > 0:
+        X_all.append(embs_wopref_neg)
+        Y_all.append(np.zeros(cnt_wopref_neg))
+        weights_all.append(np.full(cnt_wopref_neg, wopref_neg_weight))
+        fids_all.append(fids_wopref_neg)
+
+    # Combine all data
+    X_all = np.vstack(X_all) if X_all else np.array([])
+    Y_all = np.hstack(Y_all) if Y_all else np.array([])
+    weights_all = np.hstack(weights_all) if weights_all else np.array([])
+    fids_all = np.hstack(fids_all) if fids_all else np.array([])
+
+    if len(X_all) == 0:
+        log.error("No training data available")
+        return
+
+    log.info(f'Total training samples: {len(X_all)}')
+
+    # Shuffle the data
+    indices = np.arange(len(X_all))
+    np.random.seed(42)  # For reproducibility
+    np.random.shuffle(indices)
+
+    X_all = X_all[indices]
+    Y_all = Y_all[indices]
+    weights_all = weights_all[indices]
+    fids_all = fids_all[indices]
+
+    # Scale embeddings
     log.info('Scaling embeddings...')
     scaler = StandardScaler()
-    embs_scaled = scaler.fit_transform(embs)
+    X_scaled = scaler.fit_transform(X_all)
 
-    log.info('Loading labels...')
-    dataY = feedinfo['starred'].copy()
-    dataY.update(feedinfo['label'].dropna())
-    dataY = dataY.values[:, None]
-
+    # Split data
     log.info('Splitting data...')
-    X_train, X_test, y_train, y_test, fids_train, fids_test = \
-        train_test_split(embs_scaled, dataY, feed_ids)
+    X_train, X_test, y_train, y_test, fids_train, fids_test, weights_train, weights_test = \
+        train_test_split(X_scaled, Y_all, fids_all, weights_all, test_size=0.25, random_state=42)
 
-    dtrain_reg = xgb.DMatrix(X_train, y_train)
-    dtest_reg = xgb.DMatrix(X_test, y_test)
+    # Create XGBoost datasets
+    dtrain = xgb.DMatrix(X_train, y_train, weight=weights_train)
+    dtest = xgb.DMatrix(X_test, y_test, weight=weights_test)
 
-    log.info('Training regression model...')
-    evals = [(dtrain_reg, 'train'), (dtest_reg, 'validation')]
-    params = {'objective': 'binary:logistic', 'device': 'cuda'}
+    # Training parameters
+    evals = [(dtrain, 'train'), (dtest, 'validation')]
+    params = {
+        'objective': 'binary:logistic',
+        #'device': 'cuda',
+        'max_depth': 3,
+        'eta': 0.1,  # learning rate
+        'eval_metric': ['logloss', 'auc'],
+        'seed': 42
+    }
+
+    # Train model
+    log.info('Training XGBoost model...')
     model = xgb.train(
         params=params,
-        dtrain=dtrain_reg,
+        dtrain=dtrain,
         num_boost_round=rounds,
         evals=evals,
-        verbose_eval=5,
-        early_stopping_rounds=10,
+        verbose_eval=10,
+        early_stopping_rounds=15
     )
 
+    # Save model
     log.info('Saving model...')
     pickle.dump({
         'model': model,
         'scaler': scaler,
     }, open(output, 'wb'))
 
-    log.info('Evaluating regression model...')
-    y_testpred = model.predict(dtest_reg)
-    rocauc = roc_auc_score(y_test, y_testpred)
-    log.info(f'-> ROCAUC of the base model: {rocauc:.3f}')
-
-    log.info('Saving spreadsheet for feedback...')
-    y_trainpred = model.predict(dtrain_reg)
-    fids_all = fids_train + fids_test
-    y_allpred = np.hstack([y_trainpred, y_testpred])
-    export_feedback_sheet(output_feedback, feedinfo, fids_all, y_allpred)
+    # Evaluate model
+    log.info('Evaluating model...')
+    y_testpred = model.predict(dtest)
+    rocauc = roc_auc_score(y_test, y_testpred, sample_weight=weights_test)
+    log.info(f'-> ROCAUC of the model: {rocauc:.3f}')

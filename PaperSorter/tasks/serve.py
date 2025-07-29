@@ -94,6 +94,21 @@ def create_app(config_path):
             user=db_config['user'],
             password=db_config['password']
         )
+    
+    def get_default_model_id():
+        """Get the most recent active model ID"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM models 
+            WHERE is_active = TRUE 
+            ORDER BY id DESC 
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return result[0] if result else 1  # Fallback to 1 if no active models
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -116,16 +131,17 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
+        default_model_id = get_default_model_id()
         cursor.execute("""
             SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
                    pp.score as predicted_score
             FROM labeling_sessions ls
             JOIN feeds f ON ls.feed_id = f.id
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
             WHERE ls.score IS NULL
             ORDER BY RANDOM()
             LIMIT 1
-        """)
+        """, (default_model_id,))
 
         item = cursor.fetchone()
         cursor.close()
@@ -329,6 +345,7 @@ def create_app(config_path):
         # Get feeds with all the necessary information
         # Filter preferences by current user
         user_id = current_user.id
+        default_model_id = get_default_model_id()
         cursor.execute("""
             SELECT
                 f.id as rowid,
@@ -346,9 +363,9 @@ def create_app(config_path):
                 COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                 COALESCE(vote_counts.negative_votes, 0) as negative_votes
             FROM feeds f
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
             LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
             LEFT JOIN (
                 SELECT 
@@ -362,7 +379,7 @@ def create_app(config_path):
             WHERE pp.score >= %s OR pp.score IS NULL
             ORDER BY f.added DESC
             LIMIT %s OFFSET %s
-        """, (user_id, user_id, min_score, limit + 1, offset))
+        """, (default_model_id, user_id, user_id, min_score, limit + 1, offset))
 
         results = cursor.fetchall()
         cursor.close()
@@ -545,7 +562,7 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("""
-            SELECT id, name, endpoint_url, score_threshold, model_id
+            SELECT id, name, endpoint_url, score_threshold, model_id, is_active
             FROM channels
             ORDER BY id
         """)
@@ -567,11 +584,12 @@ def create_app(config_path):
 
         try:
             cursor.execute("""
-                INSERT INTO channels (name, endpoint_url, score_threshold, model_id)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             """, (data['name'], data['endpoint_url'],
-                  data.get('score_threshold', 0.7), data.get('model_id', 1)))
+                  data.get('score_threshold', 0.7), data.get('model_id', 1),
+                  data.get('is_active', True)))
 
             channel_id = cursor.fetchone()[0]
             conn.commit()
@@ -597,11 +615,11 @@ def create_app(config_path):
         try:
             cursor.execute("""
                 UPDATE channels
-                SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s
+                SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s
                 WHERE id = %s
             """, (data['name'], data['endpoint_url'],
                   data.get('score_threshold', 0.7), data.get('model_id', 1),
-                  channel_id))
+                  data.get('is_active', True), channel_id))
 
             conn.commit()
             cursor.close()
@@ -643,7 +661,7 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("""
-            SELECT id, username, created, lastlogin
+            SELECT id, username, created, lastlogin, timezone
             FROM users
             ORDER BY id
         """)
@@ -665,10 +683,11 @@ def create_app(config_path):
 
         try:
             cursor.execute("""
-                INSERT INTO users (username, password, created)
-                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO users (username, password, created, timezone)
+                VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
                 RETURNING id
-            """, (data['username'], data.get('password', 'default')))
+            """, (data['username'], data.get('password', 'default'),
+                  data.get('timezone', 'Asia/Seoul')))
 
             user_id = cursor.fetchone()[0]
             conn.commit()
@@ -692,11 +711,22 @@ def create_app(config_path):
         cursor = conn.cursor()
 
         try:
-            cursor.execute("""
+            # Update query parts
+            update_parts = ['username = %s']
+            update_values = [data['username']]
+            
+            if 'timezone' in data:
+                update_parts.append('timezone = %s')
+                update_values.append(data['timezone'])
+            
+            # Add user_id at the end
+            update_values.append(user_id)
+            
+            cursor.execute(f"""
                 UPDATE users
-                SET username = %s
+                SET {', '.join(update_parts)}
                 WHERE id = %s
-            """, (data['username'], user_id))
+            """, update_values)
 
             conn.commit()
             cursor.close()
@@ -747,8 +777,9 @@ def create_app(config_path):
             # Load embedding database with config
             edb = EmbeddingDatabase(config_path)
 
-            # Get similar articles filtered by current user
-            similar_feeds = edb.find_similar(feed_id, limit=30, user_id=current_user.id)
+            # Get similar articles filtered by current user with default model
+            default_model_id = get_default_model_id()
+            similar_feeds = edb.find_similar(feed_id, limit=30, user_id=current_user.id, model_id=default_model_id)
 
             # Convert to format compatible with feeds list
             feeds = []
@@ -800,7 +831,7 @@ def create_app(config_path):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("""
-            SELECT id, name, user_id, created
+            SELECT id, name, user_id, created, is_active
             FROM models
             ORDER BY id
         """)
@@ -822,10 +853,11 @@ def create_app(config_path):
 
         try:
             cursor.execute("""
-                INSERT INTO models (name, user_id, created)
-                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO models (name, user_id, created, is_active)
+                VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
                 RETURNING id
-            """, (data['name'], data.get('user_id', 1)))
+            """, (data['name'], data.get('user_id', 1),
+                  data.get('is_active', True)))
 
             model_id = cursor.fetchone()[0]
             conn.commit()
@@ -849,11 +881,22 @@ def create_app(config_path):
         cursor = conn.cursor()
 
         try:
-            cursor.execute("""
+            # Update query parts
+            update_parts = ['name = %s']
+            update_values = [data['name']]
+            
+            if 'is_active' in data:
+                update_parts.append('is_active = %s')
+                update_values.append(data['is_active'])
+            
+            # Add model_id at the end
+            update_values.append(model_id)
+            
+            cursor.execute(f"""
                 UPDATE models
-                SET name = %s
+                SET {', '.join(update_parts)}
                 WHERE id = %s
-            """, (data['name'], model_id))
+            """, update_values)
 
             conn.commit()
             cursor.close()
