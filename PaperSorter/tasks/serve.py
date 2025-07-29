@@ -387,6 +387,8 @@ def create_app(config_path):
     def api_star_feed(feed_id):
         """API endpoint to star/unstar a feed"""
         user_id = current_user.id
+        data = request.get_json() or {}
+        action = data.get('action', 'toggle')  # 'star', 'unstar', or 'toggle'
 
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -399,26 +401,41 @@ def create_app(config_path):
             """, (feed_id, user_id))
 
             existing = cursor.fetchone()
+            
+            if action == 'toggle':
+                # Toggle based on current state
+                if existing and existing['score'] > 0:
+                    action = 'unstar'
+                else:
+                    action = 'star'
 
-            if existing:
-                # Update existing preference to starred
-                cursor.execute("""
-                    UPDATE preferences
-                    SET score = 1.0, time = CURRENT_TIMESTAMP
-                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """, (feed_id, user_id))
-            else:
-                # Insert new preference
-                cursor.execute("""
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
-                """, (feed_id, user_id))
+            if action == 'unstar':
+                if existing:
+                    # Remove the star preference
+                    cursor.execute("""
+                        DELETE FROM preferences
+                        WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+                    """, (feed_id, user_id))
+            else:  # action == 'star'
+                if existing:
+                    # Update existing preference to starred
+                    cursor.execute("""
+                        UPDATE preferences
+                        SET score = 1.0, time = CURRENT_TIMESTAMP
+                        WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+                    """, (feed_id, user_id))
+                else:
+                    # Insert new preference
+                    cursor.execute("""
+                        INSERT INTO preferences (feed_id, user_id, time, score, source)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
+                    """, (feed_id, user_id))
 
             conn.commit()
             cursor.close()
             conn.close()
 
-            return jsonify({'success': True})
+            return jsonify({'success': True, 'action': action})
         except Exception as e:
             conn.rollback()
             cursor.close()

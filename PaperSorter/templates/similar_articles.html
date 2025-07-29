@@ -555,37 +555,62 @@
             const isCurrentlyStarred = buttonElement.dataset.starred === 'true';
             
             buttonElement.disabled = true;
-            buttonElement.textContent = 'Starring...';
+            buttonElement.textContent = isCurrentlyStarred ? 'Unstarring...' : 'Starring...';
             
             fetch(`/api/feeds/${feedRowid}/star`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify({
+                    action: 'toggle'
+                })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    buttonElement.dataset.starred = 'true';
-                    buttonElement.textContent = '★ Starred';
-                    buttonElement.classList.add('starred');
-                    
                     const feedItem = buttonElement.closest('.feed-item');
                     const labelsDiv = feedItem.querySelector('.feed-labels');
-                    if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
-                        labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
-                    } else if (!labelsDiv) {
-                        const feedContent = feedItem.querySelector('.feed-content');
-                        feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                    
+                    if (data.action === 'star') {
+                        // Update button state to starred
+                        buttonElement.dataset.starred = 'true';
+                        buttonElement.textContent = '★ Starred';
+                        buttonElement.classList.add('starred');
+                        
+                        // Add star label if not exists
+                        if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
+                            labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
+                        } else if (!labelsDiv) {
+                            const feedHeader = feedItem.querySelector('.feed-header');
+                            feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                        }
+                    } else {  // unstar
+                        // Update button state to unstarred
+                        buttonElement.dataset.starred = 'false';
+                        buttonElement.textContent = '☆ Star';
+                        buttonElement.classList.remove('starred');
+                        
+                        // Remove star label
+                        if (labelsDiv) {
+                            const starLabel = labelsDiv.querySelector('.label-starred');
+                            if (starLabel) {
+                                starLabel.remove();
+                                // Remove labels div if empty
+                                if (labelsDiv.children.length === 0) {
+                                    labelsDiv.remove();
+                                }
+                            }
+                        }
                     }
                 } else {
                     throw new Error(data.error || 'Unknown error');
                 }
             })
             .catch(error => {
-                console.error('Error starring feed:', error);
+                console.error('Error toggling star:', error);
                 buttonElement.textContent = isCurrentlyStarred ? '★ Starred' : '☆ Star';
-                alert('Failed to star the feed. Please try again.');
+                alert('Failed to update star. Please try again.');
             })
             .finally(() => {
                 buttonElement.disabled = false;

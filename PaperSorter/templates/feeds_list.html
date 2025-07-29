@@ -536,7 +536,7 @@
             const iconsHtml = icons.length > 0 ? `<div class="score-icons">${icons.join('')}</div>` : '';
             
             let labels = [];
-            if (feed.starred) labels.push('<span class="label-badge label-starred">★ Starred</span>');
+            if (feed.starred) labels.push('<span class="label-badge label-starred">★</span>');
             if (feed.label === 1) labels.push('<span class="label-badge label-positive">+1</span>');
             if (feed.label === 0) labels.push('<span class="label-badge label-negative">−1</span>');
             
@@ -657,13 +657,16 @@
             
             // Optimistically update UI
             buttonElement.disabled = true;
-            buttonElement.textContent = 'Starring...';
+            buttonElement.textContent = isCurrentlyStarred ? 'Unstarring...' : 'Starring...';
             
             fetch(`/api/feeds/${feedRowid}/star`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify({
+                    action: 'toggle'
+                })
             })
             .then(response => {
                 if (!response.ok) {
@@ -673,29 +676,49 @@
             })
             .then(data => {
                 if (data.success) {
-                    // Update button state
-                    buttonElement.dataset.starred = 'true';
-                    buttonElement.textContent = '★ Starred';
-                    buttonElement.classList.add('starred');
-                    
-                    // Update the header label if it exists
                     const feedItem = buttonElement.closest('.feed-item');
                     const labelsDiv = feedItem.querySelector('.feed-labels');
-                    if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
-                        labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
-                    } else if (!labelsDiv) {
-                        const feedHeader = feedItem.querySelector('.feed-header');
-                        feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                    
+                    if (data.action === 'star') {
+                        // Update button state to starred
+                        buttonElement.dataset.starred = 'true';
+                        buttonElement.textContent = '★ Starred';
+                        buttonElement.classList.add('starred');
+                        
+                        // Add star label if not exists
+                        if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
+                            labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★</span>');
+                        } else if (!labelsDiv) {
+                            const feedHeader = feedItem.querySelector('.feed-header');
+                            feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★</span></div>');
+                        }
+                    } else {  // unstar
+                        // Update button state to unstarred
+                        buttonElement.dataset.starred = 'false';
+                        buttonElement.textContent = '☆ Star';
+                        buttonElement.classList.remove('starred');
+                        
+                        // Remove star label
+                        if (labelsDiv) {
+                            const starLabel = labelsDiv.querySelector('.label-starred');
+                            if (starLabel) {
+                                starLabel.remove();
+                                // Remove labels div if empty
+                                if (labelsDiv.children.length === 0) {
+                                    labelsDiv.remove();
+                                }
+                            }
+                        }
                     }
                 } else {
                     throw new Error(data.error || 'Unknown error');
                 }
             })
             .catch(error => {
-                console.error('Error starring feed:', error);
+                console.error('Error toggling star:', error);
                 // Revert UI changes on error
                 buttonElement.textContent = isCurrentlyStarred ? '★ Starred' : '☆ Star';
-                alert('Failed to star the feed. Please try again.');
+                alert('Failed to update star. Please try again.');
             })
             .finally(() => {
                 buttonElement.disabled = false;
