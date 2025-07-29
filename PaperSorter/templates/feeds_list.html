@@ -575,15 +575,15 @@
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;
-        let currentMinScore = 0.05;
+        let currentMinScore = 0.25;
         let lastDateShown = null;
         let bookmarkId = null;
         let bookmarkInserted = false;
         const userTimezone = '{{ current_user.timezone }}';
 
         // Score threshold values corresponding to slider positions
-        const scoreThresholds = [0, 0.01, 0.05, 0.1, 0.3];
-        const scoreLabels = ['Unlimited', '≥ 1', '≥ 5', '≥ 10', '≥ 30'];
+        const scoreThresholds = [0, 0.05, 0.1, 0.25, 0.5];
+        const scoreLabels = ['Unlimited', '≥ 5', '≥ 10', '≥ 25', '≥ 50'];
 
         function calculateScoreColor(score) {
             if (score === null) return 'rgb(149, 165, 166)';
@@ -1095,9 +1095,9 @@
             const slider = document.getElementById('scoreSlider');
             const scoreValue = document.getElementById('scoreValue');
 
-            // Set initial value (0.05 corresponds to index 2)
-            slider.value = 2;
-            scoreValue.textContent = scoreLabels[2];
+            // Set initial value (0.25 corresponds to index 3)
+            slider.value = 3;
+            scoreValue.textContent = scoreLabels[3];
 
             // Add event listener
             slider.addEventListener('input', updateScoreFilter);
