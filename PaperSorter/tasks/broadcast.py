@@ -149,14 +149,14 @@ def send_slack_notification(endpoint_url, item, msgopts):
 def normalize_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
-@click.option('--feed-database', default='feeds.db', help='Feed database file.')
+@click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--days', default=7, help='Number of days to look back.')
 @click.option('--score-threshold', default=0.7, help='Threshold for the score.')
 @click.option('--score-model-name', default='QBio', help='Name of the scoring model.')
 @click.option('--max-content-length', default=400, help='Maximum length of the content.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(feed_database, days, score_threshold, score_model_name,
+def main(config, days, score_threshold, score_model_name,
          max_content_length, log_file, quiet):
 
     initialize_logging(task='broadcast', logfile=log_file, quiet=quiet)
@@ -170,7 +170,7 @@ def main(feed_database, days, score_threshold, score_model_name,
     }
 
     endpoint = os.environ[SLACK_ENDPOINT_KEY]
-    feeddb = FeedDatabase(feed_database)
+    feeddb = FeedDatabase(config)
 
     newitems = feeddb.get_new_interesting_items(score_threshold, since,
                                                 remove_duplicated=since)

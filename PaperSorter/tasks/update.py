@@ -243,8 +243,7 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
 
         feeddb.commit()
 
-@click.option('--feed-database', default='feeds.db', help='Feed database file.')
-@click.option('--embedding-database', default='embeddings.db', help='Embedding database file.')
+@click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
 @click.option('--get-full-list', is_flag=True, help='Retrieve all items from feeds.')
 @click.option('--prediction-model', default='model.pkl', help='Predictor model for scoring.')
@@ -252,7 +251,7 @@ def score_new_feeds(feeddb, embeddingdb, prediction_model, force_rescore=False):
 @click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(feed_database, embedding_database, batch_size, get_full_list,
+def main(config, batch_size, get_full_list,
          prediction_model, force_reembed, force_rescore, log_file, quiet):
     initialize_logging(task='update', logfile=log_file, quiet=quiet)
 
@@ -260,8 +259,8 @@ def main(feed_database, embedding_database, batch_size, get_full_list,
     load_dotenv()
 
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
-    feeddb = FeedDatabase(feed_database)
-    embeddingdb = EmbeddingDatabase(embedding_database)
+    feeddb = FeedDatabase(config)
+    embeddingdb = EmbeddingDatabase(config)
 
     tor_config = {
         'TOR_EMAIL': os.environ['TOR_EMAIL'],

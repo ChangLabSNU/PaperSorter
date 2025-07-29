@@ -21,114 +21,268 @@
 # THE SOFTWARE.
 #
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import pandas as pd
 import re
+import yaml
+import os
 
 class FeedDatabase:
 
     llm_input_format = (
-        'Title: {item[2]}.\n'
-        'Authors: {item[4]}.\n'
-        'Source: {item[5]}.\n'
-        'Abstract: {item[3]}.')
+        'Title: {item[title]}.\n'
+        'Authors: {item[author]}.\n'
+        'Source: {item[origin]}.\n'
+        'Abstract: {item[content]}.')
 
     dbfields = ['id', 'starred', 'title', 'content', 'author', 'origin',
                 'published', 'link', 'mediaUrl', 'label', 'score', 'broadcasted',
                 'tldr']
 
-    def __init__(self, filename):
-        self.db = sqlite3.connect(filename)
-        self.cursor = self.db.cursor()
-        self.create_table_if_not_exists()
+    def __init__(self, config_path='qbio/config.yml'):
+        # Load database configuration
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        db_config = config['db']
+
+        # Connect to PostgreSQL
+        self.db = psycopg2.connect(
+            host=db_config['host'],
+            database=db_config['database'],
+            user=db_config['user'],
+            password=db_config['password']
+        )
+        self.db.autocommit = False
+        self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.update_idcache()
 
     def __del__(self):
-        self.db.close()
+        if hasattr(self, 'db'):
+            self.db.close()
 
     def __contains__(self, item):
         return item.item_id in self.idcache
 
     def __len__(self):
         self.cursor.execute('SELECT COUNT(*) FROM feeds')
-        return self.cursor.fetchone()[0]
+        return self.cursor.fetchone()['count']
 
     def __getitem__(self, item_id):
-        self.cursor.execute('SELECT * FROM feeds WHERE id = ?', (item_id,))
-        return dict(zip(self.dbfields, self.cursor.fetchone()))
+        self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+        result = self.cursor.fetchone()
+        if result:
+            # Map to old field names for compatibility
+            return {
+                'id': result['external_id'],
+                'starred': result.get('starred', 0),
+                'title': result['title'],
+                'content': result['content'],
+                'author': result['author'],
+                'origin': result['origin'],
+                'published': int(result['published'].timestamp()) if result['published'] else None,
+                'link': result['link'],
+                'mediaUrl': result['mediaurl'],
+                'label': result.get('label'),
+                'score': result.get('score'),
+                'broadcasted': result.get('broadcasted'),
+                'tldr': result['tldr']
+            }
+        return None
 
     def keys(self):
         return self.idcache
 
-    def create_table_if_not_exists(self):
-        self.cursor.execute('CREATE TABLE IF NOT EXISTS feeds (id TEXT UNIQUE, starred INTEGER, '
-                            'title TEXT COLLATE NOCASE, content TEXT, '
-                            'author TEXT COLLATE NOCASE, origin TEXT, '
-                            'published INTEGER, link TEXT, mediaUrl TEXT, '
-                            'label INTEGER, score REAL, broadcasted INTEGER, '
-                            'tldr TEXT)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_id ON feeds(id)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_published ON feeds(published)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_starred ON feeds(starred)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_label ON feeds(label)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_score ON feeds(score)')
-        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_feeds_broadcasted ON feeds(broadcasted)')
-
     def update_idcache(self):
-        self.cursor.execute('SELECT id FROM feeds')
-        self.idcache = set([row[0] for row in self.cursor.fetchall()])
+        self.cursor.execute('SELECT external_id FROM feeds WHERE external_id IS NOT NULL')
+        self.idcache = set([row['external_id'] for row in self.cursor.fetchall()])
 
     def commit(self):
         self.db.commit()
 
     def insert_item(self, item, starred=0, broadcasted=None, tldr=None):
         content = remove_html_tags(item.content)
-        self.cursor.execute('INSERT INTO feeds VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            (item.item_id, starred, item.title, content, item.author,
-                             item.origin, item.published, item.href, item.mediaUrl,
-                             None, None, broadcasted, tldr))
-        self.idcache.add(item.item_id)
+
+        # Get user_id and model_id from preferences/models tables or use defaults
+        user_id = 1  # Default user
+        model_id = 1  # Default model
+
+        # Insert into feeds table
+        self.cursor.execute('''
+            INSERT INTO feeds (external_id, title, content, author, origin, published, link, mediaurl, tldr)
+            VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s, %s)
+            ON CONFLICT (external_id) DO NOTHING
+            RETURNING id
+        ''', (item.item_id, item.title, content, item.author,
+              item.origin, item.published, item.href, item.mediaUrl, tldr))
+
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+
+            # Insert starred status as preference if starred
+            if starred:
+                # Check if preference already exists before inserting
+                self.cursor.execute('''
+                    SELECT id FROM preferences 
+                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+                ''', (feed_id, user_id))
+                
+                if not self.cursor.fetchone():
+                    self.cursor.execute('''
+                        INSERT INTO preferences (feed_id, user_id, time, score, source)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
+                    ''', (feed_id, user_id))
+
+            # Insert broadcast log if broadcasted
+            if broadcasted is not None:
+                channel_id = 1  # Default channel
+                self.cursor.execute('''
+                    INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                    VALUES (%s, %s, to_timestamp(%s))
+                    ON CONFLICT DO NOTHING
+                ''', (feed_id, channel_id, broadcasted))
+
+            self.idcache.add(item.item_id)
 
     def get_formatted_item(self, item_id):
-        self.cursor.execute('SELECT * FROM feeds WHERE id = ?', (item_id,))
+        self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
         item = self.cursor.fetchone()
-        return self.llm_input_format.format(item=item)
+        if item:
+            return self.llm_input_format.format(item=item)
+        return None
 
-    def build_dataframe_from_results(self):
-        return pd.DataFrame(self.cursor.fetchall(), columns=self.dbfields).set_index('id')
+    def build_dataframe_from_results(self, results):
+        if not results:
+            return pd.DataFrame(columns=self.dbfields).set_index('id')
+
+        # Convert results to DataFrame with old field names for compatibility
+        data = []
+        for row in results:
+            data.append({
+                'id': row['external_id'],
+                'starred': row.get('starred', 0),
+                'title': row['title'],
+                'content': row['content'],
+                'author': row['author'],
+                'origin': row['origin'],
+                'published': int(row['published'].timestamp()) if row['published'] else None,
+                'link': row['link'],
+                'mediaUrl': row['mediaurl'],
+                'label': row.get('label'),
+                'score': row.get('score'),
+                'broadcasted': row.get('broadcasted'),
+                'tldr': row['tldr']
+            })
+
+        return pd.DataFrame(data).set_index('id')
 
     def get_metadata(self):
-        self.cursor.execute('SELECT * FROM feeds')
-        return self.build_dataframe_from_results()
+        self.cursor.execute('''
+            SELECT f.*,
+                   CASE WHEN p.score > 0 THEN 1 ELSE 0 END as starred,
+                   p.score as label,
+                   pp.score as score,
+                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
+            FROM feeds f
+            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
+            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            WHERE f.external_id IS NOT NULL
+        ''')
+        return self.build_dataframe_from_results(self.cursor.fetchall())
 
     def update_label(self, item_id, label):
-        self.cursor.execute('UPDATE feeds SET label = ? WHERE id = ?', (label, item_id))
+        user_id = 1  # Default user
+
+        # Get feed_id from external_id
+        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+            # First check if a preference already exists
+            self.cursor.execute('''
+                SELECT id FROM preferences 
+                WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+            ''', (feed_id, user_id))
+            
+            existing = self.cursor.fetchone()
+            
+            if existing:
+                # Update existing preference
+                self.cursor.execute('''
+                    UPDATE preferences 
+                    SET score = %s, time = CURRENT_TIMESTAMP 
+                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                ''', (float(label), feed_id, user_id))
+            else:
+                # Insert new preference
+                self.cursor.execute('''
+                    INSERT INTO preferences (feed_id, user_id, time, score, source)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
+                ''', (feed_id, user_id, float(label)))
 
     def update_score(self, item_id, score):
-        self.cursor.execute('UPDATE feeds SET score = ? WHERE id = ?', (float(score), item_id))
+        model_id = 1  # Default model
+
+        # Get feed_id from external_id
+        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+            self.cursor.execute('''
+                INSERT INTO predicted_preferences (feed_id, model_id, score)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (feed_id, model_id) DO UPDATE SET score = %s
+            ''', (feed_id, model_id, float(score), float(score)))
 
     def update_broadcasted(self, item_id, timemark):
-        self.cursor.execute('UPDATE feeds SET broadcasted = ? WHERE id = ?', (timemark, item_id))
+        channel_id = 1  # Default channel
+
+        # Get feed_id from external_id
+        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+            self.cursor.execute('''
+                INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                VALUES (%s, %s, to_timestamp(%s))
+                ON CONFLICT DO NOTHING
+            ''', (feed_id, channel_id, timemark))
 
     def update_tldr(self, item_id, tldr):
-        self.cursor.execute('UPDATE feeds SET tldr = ? WHERE id = ?', (tldr, item_id))
+        self.cursor.execute('UPDATE feeds SET tldr = %s WHERE external_id = %s', (tldr, item_id))
 
     def update_author(self, item_id, author):
-        self.cursor.execute('UPDATE feeds SET author = ? WHERE id = ?', (author, item_id))
+        self.cursor.execute('UPDATE feeds SET author = %s WHERE external_id = %s', (author, item_id))
 
     def update_origin(self, item_id, origin):
-        self.cursor.execute('UPDATE feeds SET origin = ? WHERE id = ?', (origin, item_id))
+        self.cursor.execute('UPDATE feeds SET origin = %s WHERE external_id = %s', (origin, item_id))
 
     def get_unscored_items(self):
-        self.cursor.execute('SELECT id FROM feeds WHERE score IS NULL')
-        return [row[0] for row in self.cursor.fetchall()]
+        model_id = 1  # Default model
+        self.cursor.execute('''
+            SELECT f.external_id
+            FROM feeds f
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            WHERE pp.score IS NULL AND f.external_id IS NOT NULL
+        ''', (model_id,))
+        return [row['external_id'] for row in self.cursor.fetchall()]
 
     def get_new_interesting_items(self, threshold, since, remove_duplicated=None):
-        self.cursor.execute('SELECT * FROM feeds WHERE score > ? AND '
-                            'broadcasted IS NULL AND published >= ?',
-                            (threshold, since))
+        model_id = 1  # Default model
+        self.cursor.execute('''
+            SELECT f.*, pp.score as score,
+                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
+            FROM feeds f
+            JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            WHERE pp.score > %s AND bl.broadcasted_time IS NULL AND f.published >= to_timestamp(%s)
+                  AND f.external_id IS NOT NULL
+        ''', (model_id, threshold, since))
 
-        matches = self.build_dataframe_from_results()
+        matches = self.build_dataframe_from_results(self.cursor.fetchall())
         return self.filter_duplicates(matches, remove_duplicated)
 
     def filter_duplicates(self, matches, remove_duplicated):
@@ -147,32 +301,86 @@ class FeedDatabase:
         return matches
 
     def get_newly_starred_items(self, since, remove_duplicated=None):
-        self.cursor.execute('SELECT * FROM feeds WHERE starred > 0 AND '
-                            'published >= ? AND broadcasted IS NULL', (since,))
-        matches = self.build_dataframe_from_results()
+        self.cursor.execute('''
+            SELECT f.*,
+                   1 as starred,
+                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
+            FROM feeds f
+            JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.score > 0
+            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            WHERE f.published >= to_timestamp(%s) AND bl.broadcasted_time IS NULL
+                  AND f.external_id IS NOT NULL
+        ''', (since,))
+        matches = self.build_dataframe_from_results(self.cursor.fetchall())
         return self.filter_duplicates(matches, remove_duplicated)
 
     def check_broadcasted(self, item_id, since):
-        self.cursor.execute('SELECT COUNT(b.broadcasted) FROM feeds a, feeds b '
-                            'WHERE a.id = ? AND b.published >= ? AND '
-                            'a.id != b.id AND a.title = b.title AND '
-                            'b.broadcasted > 0', (item_id, since))
-        dup_broadcasted = self.cursor.fetchone()[0]
+        self.cursor.execute('''
+            SELECT COUNT(*) as count
+            FROM feeds a
+            JOIN feeds b ON a.title = b.title AND a.id != b.id
+            JOIN broadcast_logs bl ON b.id = bl.feed_id
+            WHERE a.external_id = %s AND b.published >= to_timestamp(%s)
+                  AND bl.broadcasted_time IS NOT NULL
+        ''', (item_id, since))
+        dup_broadcasted = self.cursor.fetchone()['count']
+
         if dup_broadcasted > 0:
             # Mark duplicates as blacklisted
-            self.cursor.execute('UPDATE feeds SET broadcasted = 0 WHERE id = ?', (item_id,))
-            self.commit()
+            channel_id = 1  # Default channel
+            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            result = self.cursor.fetchone()
+            if result:
+                feed_id = result['id']
+                self.cursor.execute('''
+                    INSERT INTO broadcast_logs (feed_id, channel_id, broadcasted_time)
+                    VALUES (%s, %s, to_timestamp(0))
+                    ON CONFLICT DO NOTHING
+                ''', (feed_id, channel_id))
+                self.commit()
 
         return dup_broadcasted > 0
 
     def get_star_status(self, since, till):
-        self.cursor.execute('SELECT id, starred FROM feeds WHERE published >= ? '
-                            'AND published <= ?', (since, till))
-        return {item_id: bool(starred) for item_id, starred in self.cursor.fetchall()}
+        self.cursor.execute('''
+            SELECT f.external_id, CASE WHEN p.score > 0 THEN true ELSE false END as starred
+            FROM feeds f
+            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+            WHERE f.published >= to_timestamp(%s) AND f.published <= to_timestamp(%s)
+                  AND f.external_id IS NOT NULL
+        ''', (since, till))
+        return {row['external_id']: row['starred'] for row in self.cursor.fetchall()}
 
     def update_star_status(self, item_id, starred):
-        self.cursor.execute('UPDATE feeds SET starred = ? WHERE id = ?',
-                            (int(starred), item_id))
+        user_id = 1  # Default user
+
+        # Get feed_id from external_id
+        self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+            score = 1.0 if starred else 0.0
+            # First check if a preference already exists
+            self.cursor.execute('''
+                SELECT id FROM preferences 
+                WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+            ''', (feed_id, user_id))
+            
+            existing = self.cursor.fetchone()
+            
+            if existing:
+                # Update existing preference
+                self.cursor.execute('''
+                    UPDATE preferences 
+                    SET score = %s, time = CURRENT_TIMESTAMP 
+                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+                ''', (score, feed_id, user_id))
+            else:
+                # Insert new preference
+                self.cursor.execute('''
+                    INSERT INTO preferences (feed_id, user_id, time, score, source)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'feed-star')
+                ''', (feed_id, user_id, score))
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):
     return pattern.sub(' ', text)
