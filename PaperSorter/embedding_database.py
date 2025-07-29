@@ -146,6 +146,49 @@ class EmbeddingDatabase:
     def write_batch(self):
         return EmbeddingDatabaseWriteBatch(self)
 
+    def find_similar(self, feed_id, limit=30):
+        """Find similar articles using pgvector similarity search"""
+        # Use WITH statement to avoid transferring embedding vectors
+        self.cursor.execute('''
+            WITH source_embedding AS (
+                SELECT embedding
+                FROM embeddings
+                WHERE feed_id = %s
+            )
+            SELECT 
+                e.feed_id,
+                f.external_id,
+                f.title,
+                f.author,
+                f.origin,
+                f.link,
+                EXTRACT(EPOCH FROM f.published)::integer as published,
+                1 - (e.embedding <=> se.embedding) as similarity,
+                pp.score as predicted_score,
+                CASE WHEN p.score > 0 THEN true ELSE false END as starred,
+                CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                pf.score as label
+            FROM embeddings e
+            CROSS JOIN source_embedding se
+            JOIN feeds f ON e.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+            LEFT JOIN broadcast_logs bl ON f.id = bl.feed_id
+            LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
+            WHERE e.feed_id != %s
+            ORDER BY e.embedding <=> se.embedding
+            LIMIT %s
+        ''', (feed_id, feed_id, limit))
+        
+        results = self.cursor.fetchall()
+        if not results:
+            # Check if the source feed_id exists
+            self.cursor.execute('SELECT 1 FROM embeddings WHERE feed_id = %s', (feed_id,))
+            if not self.cursor.fetchone():
+                raise KeyError(f"No embedding found for feed_id: {feed_id}")
+        
+        return results
+
 
 class EmbeddingDatabaseWriteBatch:
 
