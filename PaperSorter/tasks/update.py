@@ -144,7 +144,8 @@ def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
         return
 
     api_headers = {'X-API-KEY': s2_config['S2_API_KEY']}
-    api_url = s2_config.get('S2_API_URL', 'http://api.semanticscholar.org/graph/v1/paper/search/match')
+    api_base_url = s2_config.get('S2_API_URL', 'https://api.semanticscholar.org/graph/v1/paper')
+    api_url = f"{api_base_url}/search/match"
 
     log.info(f'Retrieving Semantic Scholar information for {len(new_item_ids)} new items...')
 
