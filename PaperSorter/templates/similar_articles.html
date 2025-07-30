@@ -830,10 +830,10 @@
                     }
 
                     // Update or remove labels based on new counts
-                    if (!labelsDiv && (positiveCount > 0 || negativeCount > 0 || labelsDiv?.querySelector('.label-starred'))) {
-                        const feedContent = feedItem.querySelector('.feed-content');
-                        feedContent.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
-                        labelsDiv = feedContent.querySelector('.feed-labels');
+                    if (!labelsDiv && (positiveCount > 0 || negativeCount > 0)) {
+                        const feedHeader = feedItem.querySelector('.feed-header');
+                        feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"></div>');
+                        labelsDiv = feedItem.querySelector('.feed-labels');
                     }
 
                     // Update positive votes badge
