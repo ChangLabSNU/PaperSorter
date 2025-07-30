@@ -23,6 +23,7 @@
 
 import os
 import yaml
+import json
 import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort, make_response
@@ -725,6 +726,12 @@ def create_app(config_path):
         """Models settings page"""
         return render_template('settings_models.html')
 
+    @app.route('/settings/events')
+    @admin_required
+    def settings_events():
+        """Event logs viewer page"""
+        return render_template('settings_events.html')
+
     # Channels API endpoints
     @app.route('/api/settings/channels')
     @admin_required
@@ -1104,6 +1111,53 @@ def create_app(config_path):
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    # Event logs API endpoints
+    @app.route('/api/settings/events')
+    @admin_required
+    def api_get_events():
+        """Get event logs with pagination"""
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+        offset = (page - 1) * per_page
+
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            # Get total count
+            cursor.execute("SELECT COUNT(*) as total FROM events")
+            total = cursor.fetchone()['total']
+
+            # Get events with feed information
+            cursor.execute("""
+                SELECT e.*, f.title as feed_title
+                FROM events e
+                LEFT JOIN feeds f ON e.feed_id = f.id
+                ORDER BY e.occurred DESC
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+            events = cursor.fetchall()
+
+            cursor.close()
+            conn.close()
+
+            # Convert datetime to ISO format for JSON
+            for event in events:
+                if event['occurred']:
+                    event['occurred'] = event['occurred'].isoformat()
+
+            return jsonify({
+                'events': events,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'has_more': offset + per_page < total
+            })
+        except Exception as e:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': str(e)}), 500
+
     # Slack feedback routes
     @app.route('/feedback/<int:feed_id>/interested')
     def slack_feedback_interested(feed_id):
@@ -1179,6 +1233,53 @@ def create_app(config_path):
             log.error(f"Error recording Slack feedback: {e}")
             return render_template('feedback_error.html',
                                  message="Error recording feedback. Please try again."), 500
+
+    # Slack interactivity endpoint
+    @app.route('/slack-interactivity', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+    def slack_interactivity():
+        """Handle Slack interactivity requests"""
+        # Log request information
+        log.info(f"Slack interactivity request received")
+
+        if request.is_json:
+            log.info(f"JSON data: {request.get_json()}")
+        elif request.form:
+            log.info(f"Form data: {dict(request.form)}")
+        else:
+            log.info(f"Raw data: {request.get_data(as_text=True)}")
+
+        payload = json.loads(dict(request.form)['payload'])
+        if 'user' in payload and 'actions' in payload:
+            user_id = payload['user']['id']
+            user_name = payload['user']['name']
+            action, related_feed_id = payload['actions'][0]['value'].split('_', 1)
+            related_feed_id = int(related_feed_id)
+            log.info(f"User {user_name} ({user_id}) performed action: {action} on feed ID {related_feed_id}")
+
+            # Insert event into database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                # Check if feed exists
+                cursor.execute("SELECT id FROM feeds WHERE id = %s", (related_feed_id,))
+                if cursor.fetchone():
+                    cursor.execute("""
+                        INSERT INTO events (event_type, user_id, user_name, feed_id)
+                        VALUES (%s, %s, %s, %s)
+                    """, (action, user_id, user_name, related_feed_id))
+                    conn.commit()
+                    log.info(f"Event logged to database: {action} by {user_name} on feed {related_feed_id}")
+                else:
+                    log.warning(f"Feed ID {related_feed_id} not found, skipping event logging")
+            except Exception as e:
+                log.error(f"Failed to log event to database: {e}")
+                conn.rollback()
+            finally:
+                cursor.close()
+                conn.close()
+
+        # Return 200 OK
+        return '', 200
 
     # Semantic Scholar search endpoints
     @app.route('/api/semantic-scholar/search', methods=['POST'])
