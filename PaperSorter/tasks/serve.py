@@ -1187,23 +1187,23 @@ def create_app(config_path):
         """Search for papers on Semantic Scholar (admin only)"""
         data = request.get_json()
         query = data.get('query', '').strip()
-        
+
         if not query:
             return jsonify({'error': 'Query is required'}), 400
-            
+
         try:
             # Load Semantic Scholar configuration
             with open(config_path, 'r') as f:
                 config_yaml = yaml.safe_load(f)
-            
+
             s2_config = config_yaml.get('semanticscholar', {})
             api_key = s2_config.get('api_key')
             api_base_url = s2_config.get('api_url', 'https://api.semanticscholar.org/graph/v1/paper')
             api_url = f"{api_base_url}/search"
-            
+
             if not api_key:
                 return jsonify({'error': 'Semantic Scholar API key not configured'}), 500
-                
+
             # Search Semantic Scholar
             fields = 'title,year,url,authors,abstract,venue,journal,publicationDate,externalIds,tldr'
             api_headers = {'X-API-KEY': api_key}
@@ -1213,39 +1213,39 @@ def create_app(config_path):
                 'year': '2023-',  # Only recent papers
                 'limit': 20
             }
-            
+
             response = requests.get(api_url, headers=api_headers, params=params)
             response.raise_for_status()
-            
+
             result = response.json()
             papers = result.get('data', [])
-            
+
             # Check which papers already exist in our database
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
+
             for paper in papers:
                 # Generate the same ID that SemanticScholarItem would generate
                 article_id = str(uuid.uuid3(uuid.NAMESPACE_URL, paper['url']))
-                
+
                 # Check if this paper already exists
                 cursor.execute("""
                     SELECT id FROM feeds WHERE external_id = %s
                 """, (article_id,))
-                
+
                 existing = cursor.fetchone()
                 paper['already_added'] = existing is not None
                 paper['article_id'] = article_id
-                
+
             cursor.close()
             conn.close()
-            
+
             return jsonify({
                 'success': True,
                 'papers': papers,
                 'total': len(papers)
             })
-            
+
         except requests.RequestException as e:
             log.error(f"Semantic Scholar API error: {e}")
             return jsonify({'error': 'Failed to search Semantic Scholar'}), 500
@@ -1259,39 +1259,39 @@ def create_app(config_path):
         """Add a paper from Semantic Scholar to the database (admin only)"""
         data = request.get_json()
         paper_data = data.get('paper')
-        
+
         if not paper_data:
             return jsonify({'error': 'Paper data is required'}), 400
-            
+
         try:
             # Create SemanticScholarItem
             item = SemanticScholarItem(paper_data)
-            
+
             # Load database configuration
             with open(config_path, 'r') as f:
                 config_yaml = yaml.safe_load(f)
-            
+
             # Create database connection
             db = FeedDatabase(config_path)
-            
+
             # Check if item already exists
             if item not in db:
                 # Add the item as starred by default
                 feed_id = db.insert_item(item, starred=1)
                 db.commit()
-                
+
                 # Generate embeddings and predict preferences
                 embeddingdb = EmbeddingDatabase(config_path)
                 predictor = FeedPredictor(db, embeddingdb, config_path)
                 model_dir = config_yaml.get('models', {}).get('path', '.')
-                
+
                 try:
                     # This will generate embeddings and add to broadcast queues if eligible
                     predictor.predict_and_queue_feeds([feed_id], model_dir)
                 except Exception as e:
                     log.error(f"Failed to process feed {feed_id}: {e}")
                     # Continue anyway - the item is already added
-                
+
                 return jsonify({
                     'success': True,
                     'message': 'Paper added successfully',
@@ -1302,7 +1302,7 @@ def create_app(config_path):
                     'success': False,
                     'message': 'Paper already exists in database'
                 }), 409
-                
+
         except Exception as e:
             log.error(f"Error adding Semantic Scholar paper: {e}")
             return jsonify({'error': 'Failed to add paper'}), 500
