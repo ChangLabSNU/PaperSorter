@@ -148,6 +148,7 @@ class FeedDatabase:
                 ''', (feed_id, channel_id, broadcasted))
 
             self.idcache.add(item.item_id)
+            return feed_id
 
     def get_formatted_item(self, item_id):
         if isinstance(item_id, str):

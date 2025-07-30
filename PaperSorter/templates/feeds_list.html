@@ -132,6 +132,11 @@
             font-weight: bold;
         }
 
+        button.user-info:hover {
+            background: #bbdefb !important;
+            transition: background 0.2s ease;
+        }
+
         .feeds-container {
             background: white;
             border-radius: 8px;
@@ -412,6 +417,128 @@
             border-color: #ba68c8;
         }
 
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #34495e;
+            border: 1px solid #bdc3c7;
+        }
+
+        .btn-secondary:hover {
+            background: #d5dbdb;
+            border-color: #95a5a6;
+        }
+
+        .search-interface {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #3498db;
+        }
+
+        .search-results-header {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-results-header h2 {
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .search-result-item {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-item:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+
+        .search-result-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .search-result-meta {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+
+        .search-result-abstract {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #34495e;
+            margin-bottom: 15px;
+            max-height: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-result-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-add {
+            background: #27ae60;
+            color: white;
+            border: 1px solid #229954;
+        }
+
+        .btn-add:hover {
+            background: #2ecc71;
+            border-color: #27ae60;
+        }
+
+        .btn-add:disabled {
+            background: #95a5a6;
+            border-color: #7f8c8d;
+            cursor: not-allowed;
+        }
+
+        .already-added-badge {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -453,6 +580,25 @@
             .filter-controls {
                 flex-direction: column;
                 gap: 15px;
+            }
+
+            .search-interface {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+
+            .search-results-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .search-result-actions {
+                flex-wrap: wrap;
             }
 
             .score-slider {
@@ -554,13 +700,37 @@
                     <span>{{ current_user.username }}</span>
                 </div>
                 {% if current_user.is_admin %}
+                <button id="searchToggleBtn" class="user-info" onclick="toggleSemanticSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
+                    <span style="margin-left: 0;">🔬 S2 Search</span>
+                </button>
                 <a href="/settings" class="nav-link">⚙️ Settings</a>
                 {% endif %}
                 <a href="/logout" class="nav-link">🚪 Logout</a>
             </div>
         </div>
 
-        <div class="feeds-container">
+        <!-- Semantic Scholar Search Interface -->
+        <div id="semanticSearchContainer" style="display: none;">
+            <div class="search-interface">
+                <input type="text" id="semanticSearchInput" placeholder="Search for papers on Semantic Scholar..." class="search-input">
+                <button onclick="performSemanticSearch()" class="btn btn-primary">🔍 Search</button>
+                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+            </div>
+        </div>
+
+        <!-- Search Results Container -->
+        <div id="searchResultsContainer" style="display: none;">
+            <div class="search-results-header">
+                <h2>Semantic Scholar Search Results</h2>
+                <button onclick="backToSearchInput()" class="btn btn-secondary">← Back to Search</button>
+                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+            </div>
+            <div id="searchResults">
+                <!-- Search results will be loaded here -->
+            </div>
+        </div>
+
+        <div class="feeds-container" id="feedsContainer">
             <div id="feeds-list">
                 <!-- Feeds will be loaded here -->
             </div>
@@ -1136,6 +1306,165 @@
             // Add event listener
             slider.addEventListener('input', updateScoreFilter);
         }
+
+        // Semantic Scholar search functions
+        function toggleSemanticSearch() {
+            const searchContainer = document.getElementById('semanticSearchContainer');
+            const feedsContainer = document.getElementById('feedsContainer');
+            const searchResultsContainer = document.getElementById('searchResultsContainer');
+            const isHidden = searchContainer.style.display === 'none';
+            
+            if (isHidden) {
+                searchContainer.style.display = 'block';
+                feedsContainer.style.display = 'none';
+                searchResultsContainer.style.display = 'none';
+                document.getElementById('semanticSearchInput').focus();
+            } else {
+                backToFeedList();
+            }
+        }
+
+        function backToFeedList() {
+            document.getElementById('semanticSearchContainer').style.display = 'none';
+            document.getElementById('searchResultsContainer').style.display = 'none';
+            document.getElementById('feedsContainer').style.display = 'block';
+        }
+
+        function backToSearchInput() {
+            document.getElementById('searchResultsContainer').style.display = 'none';
+            document.getElementById('semanticSearchContainer').style.display = 'block';
+            document.getElementById('semanticSearchInput').focus();
+        }
+
+        function performSemanticSearch() {
+            const query = document.getElementById('semanticSearchInput').value.trim();
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+
+            // Show results container
+            document.getElementById('semanticSearchContainer').style.display = 'none';
+            document.getElementById('searchResultsContainer').style.display = 'block';
+            
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching Semantic Scholar...</div>';
+
+            fetch('/api/semantic-scholar/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        throw new Error('Admin access required');
+                    }
+                    throw new Error('Search failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.papers) {
+                    displaySearchResults(data.papers);
+                } else {
+                    resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<div class="loading" style="color: #e74c3c;">Error: ${error.message}</div>`;
+            });
+        }
+
+        function displaySearchResults(papers) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (papers.length === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No papers found</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = papers.map(paper => {
+                const authors = paper.authors ? paper.authors.map(a => a.name).join(', ') : 'Unknown Authors';
+                const year = paper.year || 'Unknown Year';
+                const venue = paper.venue || paper.journal?.name || 'Unknown Venue';
+                const abstract = paper.abstract || (paper.tldr ? `(tl;dr) ${paper.tldr.text}` : 'No abstract available');
+                
+                return `
+                    <div class="search-result-item">
+                        <div class="search-result-title">${paper.title}</div>
+                        <div class="search-result-meta">
+                            <strong>${venue}</strong> • ${year} • ${authors}
+                        </div>
+                        <div class="search-result-abstract">${abstract}</div>
+                        <div class="search-result-actions">
+                            ${paper.already_added 
+                                ? '<span class="already-added-badge">✓ Already in database</span>'
+                                : `<button class="btn btn-add" onclick="addPaperToDatabase('${encodeURIComponent(JSON.stringify(paper))}', this)">+ Add to Database</button>`
+                            }
+                            ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-primary">📄 View Paper</a>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addPaperToDatabase(encodedPaper, buttonElement) {
+            const paper = JSON.parse(decodeURIComponent(encodedPaper));
+            
+            buttonElement.disabled = true;
+            buttonElement.textContent = 'Adding...';
+
+            fetch('/api/semantic-scholar/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ paper: paper })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 409) {
+                        throw new Error('Paper already exists in database');
+                    }
+                    throw new Error('Failed to add paper');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    buttonElement.textContent = '✓ Added';
+                    buttonElement.className = 'btn btn-add';
+                    buttonElement.disabled = true;
+                    
+                    // Replace button with already added badge
+                    setTimeout(() => {
+                        buttonElement.parentElement.innerHTML = '<span class="already-added-badge">✓ Already in database</span>';
+                    }, 1000);
+                } else {
+                    throw new Error(data.message || 'Failed to add paper');
+                }
+            })
+            .catch(error => {
+                buttonElement.disabled = false;
+                buttonElement.textContent = '+ Add to Database';
+                alert(`Error: ${error.message}`);
+            });
+        }
+
+        // Handle Enter key in search input
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('semanticSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        performSemanticSearch();
+                    }
+                });
+            }
+        });
 
         // Initial load
         initializeSlider();
