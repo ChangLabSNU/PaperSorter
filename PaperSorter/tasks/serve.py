@@ -38,7 +38,7 @@ import click
 import secrets
 import requests
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..providers.theoldreader import Item
 from ..feed_database import FeedDatabase
 
@@ -114,6 +114,9 @@ def create_app(config_path):
 
     # Set up Flask secret key
     app.secret_key = google_config.get('flask_secret_key', secrets.token_hex(32))
+
+    # Set session lifetime to 30 days
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
     # Set up Flask-Login
     login_manager = LoginManager()
@@ -244,12 +247,6 @@ def create_app(config_path):
                 return redirect(next_page)
             return redirect(url_for('index'))
 
-        # Check if this is a returning user (has visited before)
-        if request.cookies.get('returning_user') == 'true':
-            # Auto-redirect to Google OAuth for returning users
-            next_page = request.args.get('next')
-            return redirect(url_for('google_login', next=next_page))
-
         # Get the next parameter from the request
         next_page = request.args.get('next')
         return render_template('login.html', next=next_page)
@@ -310,18 +307,16 @@ def create_app(config_path):
                            feedlist_minscore=user_data.get('feedlist_minscore'))
                 login_user(user)
 
+                # Make the session permanent
+                session.permanent = True
+
                 # Redirect to the original requested page or home
                 # First check session, then request args
                 next_page = session.pop('next_page', None) or request.args.get('next')
                 if next_page and next_page.startswith('/'):
-                    response = make_response(redirect(next_page))
+                    return redirect(next_page)
                 else:
-                    response = make_response(redirect(url_for('index')))
-
-                # Set a cookie to mark this as a returning user
-                # Cookie expires in 1 month
-                response.set_cookie('returning_user', 'true', max_age=30*24*60*60, httponly=True, samesite='Lax')
-                return response
+                    return redirect(url_for('index'))
 
         except Exception as e:
             log.error(f"OAuth callback error: {e}")
