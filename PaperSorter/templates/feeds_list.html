@@ -1474,6 +1474,59 @@
             }
         });
 
+        // Track the highest visible feed ID for bookmark updates
+        let highestVisibleFeedId = null;
+        let bookmarkUpdateTimer = null;
+
+        function updateBookmarkPosition() {
+            // Find the topmost visible feed item
+            const feedItems = document.querySelectorAll('.feed-item');
+            let topVisibleFeed = null;
+
+            for (const feedItem of feedItems) {
+                const rect = feedItem.getBoundingClientRect();
+                if (rect.top >= 0 && rect.top < window.innerHeight / 2) {
+                    topVisibleFeed = feedItem;
+                    break;
+                }
+            }
+
+            if (topVisibleFeed) {
+                const feedId = parseInt(topVisibleFeed.dataset.feedRowid);
+                if (feedId && feedId !== highestVisibleFeedId) {
+                    highestVisibleFeedId = feedId;
+                    
+                    // Debounce bookmark updates
+                    clearTimeout(bookmarkUpdateTimer);
+                    bookmarkUpdateTimer = setTimeout(() => {
+                        fetch('/api/user/bookmark', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                feed_id: highestVisibleFeedId
+                            })
+                        }).catch(error => {
+                            console.error('Failed to update bookmark:', error);
+                        });
+                    }, 2000); // Wait 2 seconds before updating
+                }
+            }
+        }
+
+        // Update bookmark on scroll
+        window.addEventListener('scroll', updateBookmarkPosition);
+
+        // Update bookmark when leaving the page
+        window.addEventListener('beforeunload', function() {
+            if (highestVisibleFeedId) {
+                // Use sendBeacon for reliable updates when leaving
+                const data = JSON.stringify({ feed_id: highestVisibleFeedId });
+                navigator.sendBeacon('/api/user/bookmark', new Blob([data], { type: 'application/json' }));
+            }
+        });
+
         // Initial load
         initializeSlider();
         loadFeeds();

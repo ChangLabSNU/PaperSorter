@@ -418,33 +418,6 @@ def create_app(config_path):
         user_id = current_user.id
         default_model_id = get_default_model_id()
 
-        # Update bookmark if on first page
-        if page == 1:
-            # Build WHERE clause based on min_score
-            if min_score <= 0:
-                where_clause = "1=1"  # Show all feeds
-                params = (default_model_id,)
-            else:
-                where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
-                params = (default_model_id, min_score)
-
-            cursor.execute(f"""
-                SELECT f.id
-                FROM feeds f
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                WHERE {where_clause}
-                ORDER BY f.added DESC
-                LIMIT 1
-            """, params)
-
-            top_feed = cursor.fetchone()
-            if top_feed:
-                cursor.execute("""
-                    UPDATE users
-                    SET bookmark = %s
-                    WHERE id = %s
-                """, (top_feed['id'], user_id))
-                conn.commit()
 
         # Get user's bookmark
         cursor.execute("SELECT bookmark FROM users WHERE id = %s", (user_id,))
@@ -684,6 +657,37 @@ def create_app(config_path):
                 # Update the current user object
                 current_user.feedlist_minscore_int = min_score_int
                 current_user.feedlist_minscore = min_score_decimal
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return jsonify({'success': True})
+        except Exception as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/user/bookmark', methods=['PUT'])
+    @login_required
+    def api_update_bookmark():
+        """Update user's reading position bookmark"""
+        data = request.get_json()
+        feed_id = data.get('feed_id')
+
+        if not feed_id:
+            return jsonify({'success': False, 'error': 'feed_id is required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                UPDATE users
+                SET bookmark = %s
+                WHERE id = %s
+            """, (feed_id, current_user.id))
 
             conn.commit()
             cursor.close()
