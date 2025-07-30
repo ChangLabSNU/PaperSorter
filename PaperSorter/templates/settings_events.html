@@ -231,7 +231,7 @@
         function renderEvent(event) {
             const eventClass = getEventTypeClass(event.event_type);
             const feedLink = event.feed_id ?
-                `<a href="/item/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown feed'}</a>` :
+                `<a href="/similar/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown feed'}</a>` :
                 'No feed associated';
 
             return `
@@ -239,7 +239,7 @@
                     <div class="event-header">
                         <div class="event-details">
                             <div class="event-user">${event.user_name || event.user_id}</div>
-                            <div class="event-feed">Feed: ${feedLink}</div>
+                            <div class="event-feed">${feedLink}</div>
                         </div>
                         <div class="event-meta">
                             <span class="event-type ${eventClass}">${event.event_type}</span>
