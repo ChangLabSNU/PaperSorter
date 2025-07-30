@@ -201,13 +201,13 @@ def create_app(config_path):
             if next_page and next_page.startswith('/'):
                 return redirect(next_page)
             return redirect(url_for('index'))
-        
+
         # Check if this is a returning user (has visited before)
         if request.cookies.get('returning_user') == 'true':
             # Auto-redirect to Google OAuth for returning users
             next_page = request.args.get('next')
             return redirect(url_for('google_login', next=next_page))
-        
+
         # Get the next parameter from the request
         next_page = request.args.get('next')
         return render_template('login.html', next=next_page)
@@ -275,7 +275,7 @@ def create_app(config_path):
                     response = make_response(redirect(next_page))
                 else:
                     response = make_response(redirect(url_for('index')))
-                
+
                 # Set a cookie to mark this as a returning user
                 # Cookie expires in 1 month
                 response.set_cookie('returning_user', 'true', max_age=30*24*60*60, httponly=True, samesite='Lax')
@@ -383,14 +383,22 @@ def create_app(config_path):
 
         # Update bookmark if on first page
         if page == 1:
-            cursor.execute("""
+            # Build WHERE clause based on min_score
+            if min_score <= 0:
+                where_clause = "1=1"  # Show all feeds
+                params = (default_model_id,)
+            else:
+                where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
+                params = (default_model_id, min_score)
+
+            cursor.execute(f"""
                 SELECT f.id
                 FROM feeds f
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                WHERE pp.score >= %s OR pp.score IS NULL
+                WHERE {where_clause}
                 ORDER BY f.added DESC
                 LIMIT 1
-            """, (default_model_id, min_score))
+            """, params)
 
             top_feed = cursor.fetchone()
             if top_feed:
@@ -406,7 +414,35 @@ def create_app(config_path):
         bookmark_result = cursor.fetchone()
         bookmark_id = bookmark_result['bookmark'] if bookmark_result else None
 
-        cursor.execute("""
+        # Build WHERE clause based on min_score
+        if min_score <= 0:
+            where_clause = "1=1"  # Show all feeds
+            query_params = (user_id, default_model_id, limit + 1, offset)
+        else:
+            where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
+            query_params = (user_id, default_model_id, min_score, limit + 1, offset)
+
+        cursor.execute(f"""
+            WITH latest_prefs AS (
+                SELECT DISTINCT ON (feed_id, user_id, source)
+                    feed_id, user_id, source, score, time
+                FROM preferences
+                WHERE user_id = %s
+                ORDER BY feed_id, user_id, source, time DESC NULLS LAST
+            ),
+            vote_counts AS (
+                SELECT
+                    feed_id,
+                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                FROM preferences
+                WHERE source = 'interactive'
+                GROUP BY feed_id
+            ),
+            broadcast_status AS (
+                SELECT DISTINCT feed_id, TRUE as has_broadcast
+                FROM broadcasts
+            )
             SELECT
                 f.id as rowid,
                 f.external_id,
@@ -417,29 +453,21 @@ def create_app(config_path):
                 EXTRACT(EPOCH FROM f.published)::integer as published,
                 EXTRACT(EPOCH FROM f.added)::integer as added,
                 pp.score as score,
-                CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
-                pf.score as label,
-                COALESCE(vote_counts.positive_votes, 0) as positive_votes,
-                COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                COALESCE(star_p.score > 0, FALSE) as starred,
+                COALESCE(b.has_broadcast, FALSE) as broadcasted,
+                inter_p.score as label,
+                COALESCE(vc.positive_votes, 0) as positive_votes,
+                COALESCE(vc.negative_votes, 0) as negative_votes
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-            LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
-            LEFT JOIN (
-                SELECT
-                    feed_id,
-                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-                FROM preferences
-                WHERE source = 'interactive'
-                GROUP BY feed_id
-            ) vote_counts ON f.id = vote_counts.feed_id
-            WHERE pp.score >= %s OR pp.score IS NULL
+            LEFT JOIN latest_prefs star_p ON f.id = star_p.feed_id AND star_p.source = 'feed-star'
+            LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source = 'interactive'
+            LEFT JOIN broadcast_status b ON f.id = b.feed_id
+            LEFT JOIN vote_counts vc ON f.id = vc.feed_id
+            WHERE {where_clause}
             ORDER BY f.added DESC
             LIMIT %s OFFSET %s
-        """, (default_model_id, user_id, user_id, min_score, limit + 1, offset))
+        """, query_params)
 
         results = cursor.fetchall()
         cursor.close()
@@ -449,15 +477,12 @@ def create_app(config_path):
         has_more = len(results) > limit
         feeds = results[:limit] if has_more else results
 
-        # Include user's saved min score preference on first page
+        # Include bookmark ID on first page
         response_data = {
             'feeds': feeds,
             'has_more': has_more,
             'bookmark_id': bookmark_id
         }
-
-        if page == 1:
-            response_data['user_min_score'] = current_user.feedlist_minscore
 
         return jsonify(response_data)
 

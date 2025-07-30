@@ -575,11 +575,10 @@
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;
-        let currentMinScore = 0.25;
+        let currentMinScore = {{ current_user.feedlist_minscore or 0.25 }};
         let lastDateShown = null;
         let bookmarkId = null;
         let bookmarkInserted = false;
-        let userInitialized = false;
         const userTimezone = '{{ current_user.timezone }}';
 
         // Score threshold values corresponding to slider positions
@@ -738,28 +737,29 @@
                             bookmarkId = data.bookmark_id;
                         }
                         bookmarkInserted = false;
+                    }
 
-                        // Update min score if user preference is provided
-                        if (data.user_min_score !== undefined && !userInitialized) {
-                            initializeFromUserPreference(data.user_min_score);
-                            userInitialized = true;
+                    // Find the best position for bookmark
+                    let bookmarkPosition = -1;
+                    if (bookmarkId && !bookmarkInserted) {
+                        // First, check if the exact bookmark exists in this batch
+                        const exactIndex = data.feeds.findIndex(feed => feed.rowid === bookmarkId);
+
+                        if (exactIndex !== -1) {
+                            // Exact bookmark found
+                            bookmarkPosition = exactIndex;
+                        } else {
+                            // Find the most recent feed that's older than the bookmark
+                            for (let i = 0; i < data.feeds.length; i++) {
+                                if (data.feeds[i].rowid < bookmarkId) {
+                                    bookmarkPosition = i - 1; // Insert before this feed (after the previous one)
+                                    break;
+                                }
+                            }
                         }
                     }
 
-                    // Check if we should insert bookmark at the beginning of this page
-                    // This handles the case where bookmark is not in the current result set
-                    if (bookmarkId && !bookmarkInserted && currentPage > 1 && data.feeds.length > 0) {
-                        // Check if all feeds on this page are older than the bookmark
-                        // by checking if the first feed's ID is less than bookmark ID
-                        const firstFeedId = data.feeds[0].rowid;
-                        if (firstFeedId < bookmarkId) {
-                            const bookmarkDivider = `<div class="bookmark-divider">You were here</div>`;
-                            feedsList.insertAdjacentHTML('beforeend', bookmarkDivider);
-                            bookmarkInserted = true;
-                        }
-                    }
-
-                    // Process feeds and check for bookmark position
+                    // Process feeds and insert bookmark at the right position
                     data.feeds.forEach((feed, index) => {
                         const feedDateKey = getDateKey(feed.added);
 
@@ -772,8 +772,8 @@
 
                         feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
 
-                        // Insert bookmark divider after the bookmarked item
-                        if (bookmarkId && !bookmarkInserted && feed.rowid === bookmarkId) {
+                        // Insert bookmark divider at the calculated position
+                        if (bookmarkId && !bookmarkInserted && index === bookmarkPosition) {
                             // Only show divider if this isn't the very first item shown
                             const totalItemsShown = (currentPage - 1) * 20 + index;
                             if (totalItemsShown > 0) {
@@ -1088,19 +1088,17 @@
             scoreValue.textContent = scoreLabels[sliderValue];
 
             // Save preference to server
-            if (userInitialized) {
-                fetch('/api/user/preferences', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        feedlist_minscore: currentMinScore
-                    })
-                }).catch(error => {
-                    console.error('Failed to save preference:', error);
-                });
-            }
+            fetch('/api/user/preferences', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    feedlist_minscore: currentMinScore
+                })
+            }).catch(error => {
+                console.error('Failed to save preference:', error);
+            });
 
             // Reset pagination and reload feeds
             currentPage = 1;
@@ -1117,34 +1115,26 @@
             const slider = document.getElementById('scoreSlider');
             const scoreValue = document.getElementById('scoreValue');
 
-            // Set initial value (0.25 corresponds to index 3)
-            slider.value = 3;
-            scoreValue.textContent = scoreLabels[3];
-
-            // Add event listener
-            slider.addEventListener('input', updateScoreFilter);
-        }
-
-        // Initialize from user preference
-        function initializeFromUserPreference(userMinScore) {
-            // Find the closest threshold index
-            let closestIndex = 0;
-            let minDiff = Math.abs(scoreThresholds[0] - userMinScore);
-
-            for (let i = 1; i < scoreThresholds.length; i++) {
-                const diff = Math.abs(scoreThresholds[i] - userMinScore);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    closestIndex = i;
+            // Find the index that matches currentMinScore
+            let initialIndex = scoreThresholds.indexOf(currentMinScore);
+            if (initialIndex === -1) {
+                // If exact match not found, find closest
+                initialIndex = 0;
+                let minDiff = Math.abs(scoreThresholds[0] - currentMinScore);
+                for (let i = 1; i < scoreThresholds.length; i++) {
+                    const diff = Math.abs(scoreThresholds[i] - currentMinScore);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        initialIndex = i;
+                    }
                 }
             }
 
-            const slider = document.getElementById('scoreSlider');
-            const scoreValue = document.getElementById('scoreValue');
+            slider.value = initialIndex;
+            scoreValue.textContent = scoreLabels[initialIndex];
 
-            slider.value = closestIndex;
-            scoreValue.textContent = scoreLabels[closestIndex];
-            currentMinScore = scoreThresholds[closestIndex];
+            // Add event listener
+            slider.addEventListener('input', updateScoreFilter);
         }
 
         // Initial load
