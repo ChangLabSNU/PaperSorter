@@ -77,6 +77,13 @@
             margin-bottom: 8px;
         }
 
+        .event-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+        }
+
         .event-time {
             color: #7f8c8d;
             font-size: 14px;
@@ -234,7 +241,7 @@
                             <div class="event-user">${event.user_name || event.user_id}</div>
                             <div class="event-feed">Feed: ${feedLink}</div>
                         </div>
-                        <div>
+                        <div class="event-meta">
                             <span class="event-type ${eventClass}">${event.event_type}</span>
                             <div class="event-time">${formatDate(event.occurred)}</div>
                         </div>
