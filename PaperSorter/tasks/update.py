@@ -240,7 +240,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
 
         # Track which models have been processed to avoid duplicate scoring
         processed_models = set()
-        
+
         # Score with each channel's model and add to appropriate queues
         for channel in all_channels:
             model_id = channel['model_id'] or 1
@@ -263,14 +263,14 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
                     iteminfo = feeddb[item_id]
                     log.info(f'New item: [{score:.2f}] {iteminfo["origin"]} / '
                              f'{iteminfo["title"]}')
-                
+
                 processed_models.add(model_id)
             else:
                 # Retrieve already computed scores for this model
                 scores = []
                 for item_id in batch:
                     feeddb.cursor.execute('''
-                        SELECT pp.score 
+                        SELECT pp.score
                         FROM feeds f
                         JOIN predicted_preferences pp ON f.id = pp.feed_id
                         WHERE f.external_id = %s AND pp.model_id = %s

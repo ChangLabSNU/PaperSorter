@@ -1313,7 +1313,7 @@
             const feedsContainer = document.getElementById('feedsContainer');
             const searchResultsContainer = document.getElementById('searchResultsContainer');
             const isHidden = searchContainer.style.display === 'none';
-            
+
             if (isHidden) {
                 searchContainer.style.display = 'block';
                 feedsContainer.style.display = 'none';
@@ -1346,7 +1346,7 @@
             // Show results container
             document.getElementById('semanticSearchContainer').style.display = 'none';
             document.getElementById('searchResultsContainer').style.display = 'block';
-            
+
             const resultsDiv = document.getElementById('searchResults');
             resultsDiv.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching Semantic Scholar...</div>';
 
@@ -1380,7 +1380,7 @@
 
         function displaySearchResults(papers) {
             const resultsDiv = document.getElementById('searchResults');
-            
+
             if (papers.length === 0) {
                 resultsDiv.innerHTML = '<div class="loading">No papers found</div>';
                 return;
@@ -1391,7 +1391,7 @@
                 const year = paper.year || 'Unknown Year';
                 const venue = paper.venue || paper.journal?.name || 'Unknown Venue';
                 const abstract = paper.abstract || (paper.tldr ? `(tl;dr) ${paper.tldr.text}` : 'No abstract available');
-                
+
                 return `
                     <div class="search-result-item">
                         <div class="search-result-title">${paper.title}</div>
@@ -1400,7 +1400,7 @@
                         </div>
                         <div class="search-result-abstract">${abstract}</div>
                         <div class="search-result-actions">
-                            ${paper.already_added 
+                            ${paper.already_added
                                 ? '<span class="already-added-badge">✓ Already in database</span>'
                                 : `<button class="btn btn-add" onclick="addPaperToDatabase('${encodeURIComponent(JSON.stringify(paper))}', this)">+ Add to Database</button>`
                             }
@@ -1413,7 +1413,7 @@
 
         function addPaperToDatabase(encodedPaper, buttonElement) {
             const paper = JSON.parse(decodeURIComponent(encodedPaper));
-            
+
             buttonElement.disabled = true;
             buttonElement.textContent = 'Adding...';
 
@@ -1438,7 +1438,7 @@
                     buttonElement.textContent = '✓ Added';
                     buttonElement.className = 'btn btn-add';
                     buttonElement.disabled = true;
-                    
+
                     // Replace button with already added badge
                     setTimeout(() => {
                         buttonElement.parentElement.innerHTML = '<span class="already-added-badge">✓ Already in database</span>';
