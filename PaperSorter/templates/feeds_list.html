@@ -1402,17 +1402,25 @@
                         <div class="search-result-actions">
                             ${paper.already_added
                                 ? '<span class="already-added-badge">✓ Already in database</span>'
-                                : `<button class="btn btn-add" onclick="addPaperToDatabase('${encodeURIComponent(JSON.stringify(paper))}', this)">+ Add to Database</button>`
+                                : `<button class="btn btn-add" data-paper='${JSON.stringify(paper).replace(/'/g, '&apos;')}'>+ Add to Database</button>`
                             }
                             ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-primary">📄 View Paper</a>` : ''}
                         </div>
                     </div>
                 `;
             }).join('');
+
+            // Add event listeners to the "Add to Database" buttons
+            resultsDiv.querySelectorAll('.btn-add').forEach(button => {
+                button.addEventListener('click', function() {
+                    const paperData = this.getAttribute('data-paper').replace(/&apos;/g, "'");
+                    const paper = JSON.parse(paperData);
+                    addPaperToDatabase(paper, this);
+                });
+            });
         }
 
-        function addPaperToDatabase(encodedPaper, buttonElement) {
-            const paper = JSON.parse(decodeURIComponent(encodedPaper));
+        function addPaperToDatabase(paper, buttonElement) {
 
             buttonElement.disabled = true;
             buttonElement.textContent = 'Adding...';
