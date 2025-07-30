@@ -25,7 +25,7 @@ import os
 import yaml
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -195,6 +195,19 @@ def create_app(config_path):
     @app.route('/login')
     def login():
         """Login page"""
+        # If user is already authenticated, redirect to the main page
+        if current_user.is_authenticated:
+            next_page = request.args.get('next')
+            if next_page and next_page.startswith('/'):
+                return redirect(next_page)
+            return redirect(url_for('index'))
+        
+        # Check if this is a returning user (has visited before)
+        if request.cookies.get('returning_user') == 'true':
+            # Auto-redirect to Google OAuth for returning users
+            next_page = request.args.get('next')
+            return redirect(url_for('google_login', next=next_page))
+        
         # Get the next parameter from the request
         next_page = request.args.get('next')
         return render_template('login.html', next=next_page)
@@ -258,11 +271,15 @@ def create_app(config_path):
                 # Redirect to the original requested page or home
                 # First check session, then request args
                 next_page = session.pop('next_page', None) or request.args.get('next')
-                if next_page:
-                    # Ensure the URL is safe for redirects
-                    if next_page.startswith('/'):
-                        return redirect(next_page)
-                return redirect(url_for('index'))
+                if next_page and next_page.startswith('/'):
+                    response = make_response(redirect(next_page))
+                else:
+                    response = make_response(redirect(url_for('index')))
+                
+                # Set a cookie to mark this as a returning user
+                # Cookie expires in 1 month
+                response.set_cookie('returning_user', 'true', max_age=30*24*60*60, httponly=True, samesite='Lax')
+                return response
 
         except Exception as e:
             log.error(f"OAuth callback error: {e}")
