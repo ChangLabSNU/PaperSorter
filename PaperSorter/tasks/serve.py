@@ -1377,8 +1377,8 @@ def create_app(config_path):
 
             # Check if item already exists
             if item not in db:
-                # Add the item as starred by default
-                feed_id = db.insert_item(item, starred=1)
+                # Add the item without starring
+                feed_id = db.insert_item(item, starred=0)
                 db.commit()
 
                 # Generate embeddings and predict preferences
