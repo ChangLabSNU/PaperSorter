@@ -147,6 +147,34 @@ def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
             'action_id': 'similar-action'
         })
 
+        # Interested button
+        interested_url = f"{base_url.rstrip('/')}/feedback/{item['id']}/interested"
+        button_elements.append({
+            'type': 'button',
+            'text': {
+                'type': 'plain_text',
+                'text': 'Interested',
+                'emoji': True
+            },
+            'value': f'interested_{item["id"]}',
+            'url': interested_url,
+            'action_id': 'interested-action'
+        })
+
+        # Not Interested button
+        not_interested_url = f"{base_url.rstrip('/')}/feedback/{item['id']}/not-interested"
+        button_elements.append({
+            'type': 'button',
+            'text': {
+                'type': 'plain_text',
+                'text': 'Not Interested',
+                'emoji': True
+            },
+            'value': f'not_interested_{item["id"]}',
+            'url': not_interested_url,
+            'action_id': 'not-interested-action'
+        })
+
     if button_elements:
         blocks.append({
             'type': 'actions',

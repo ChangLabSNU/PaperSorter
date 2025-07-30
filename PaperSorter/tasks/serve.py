@@ -436,7 +436,7 @@ def create_app(config_path):
                     SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                     SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                 FROM preferences
-                WHERE source = 'interactive'
+                WHERE source IN ('interactive', 'alert-feedback')
                 GROUP BY feed_id
             ),
             broadcast_status AS (
@@ -461,7 +461,7 @@ def create_app(config_path):
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
             LEFT JOIN latest_prefs star_p ON f.id = star_p.feed_id AND star_p.source = 'feed-star'
-            LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source = 'interactive'
+            LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source IN ('interactive', 'alert-feedback')
             LEFT JOIN broadcast_status b ON f.id = b.feed_id
             LEFT JOIN vote_counts vc ON f.id = vc.feed_id
             WHERE {where_clause}
@@ -581,29 +581,31 @@ def create_app(config_path):
 
         try:
             if score is None:
-                # Remove feedback
+                # Remove feedback from both sources
                 cursor.execute("""
                     DELETE FROM preferences
-                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                    WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
                 """, (feed_id, user_id))
             else:
-                # Check if preference already exists
+                # Check if preference already exists from either source
                 cursor.execute("""
-                    SELECT id FROM preferences
-                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                    SELECT id, source FROM preferences
+                    WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
+                    ORDER BY time DESC
+                    LIMIT 1
                 """, (feed_id, user_id))
 
                 existing = cursor.fetchone()
 
                 if existing:
-                    # Update existing preference
+                    # Update existing preference (keep the original source)
                     cursor.execute("""
                         UPDATE preferences
                         SET score = %s, time = CURRENT_TIMESTAMP
-                        WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-                    """, (float(score), feed_id, user_id))
+                        WHERE id = %s
+                    """, (float(score), existing['id']))
                 else:
-                    # Insert new preference
+                    # Insert new preference with 'interactive' source
                     cursor.execute("""
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
                         VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
@@ -1060,6 +1062,82 @@ def create_app(config_path):
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Slack feedback routes
+    @app.route('/feedback/<int:feed_id>/interested')
+    def slack_feedback_interested(feed_id):
+        """Handle Slack feedback for interested"""
+        return handle_slack_feedback(feed_id, 1)
+
+    @app.route('/feedback/<int:feed_id>/not-interested')
+    def slack_feedback_not_interested(feed_id):
+        """Handle Slack feedback for not interested"""
+        return handle_slack_feedback(feed_id, 0)
+
+    def handle_slack_feedback(feed_id, score):
+        """Common handler for Slack feedback routes"""
+        # Check if user is logged in, if not, redirect to login
+        if not current_user.is_authenticated:
+            return redirect(url_for('login', next=request.path))
+
+        user_id = current_user.id
+
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            # First, check if the feed exists
+            cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
+            feed = cursor.fetchone()
+
+            if not feed:
+                cursor.close()
+                conn.close()
+                return render_template('feedback_error.html', message="Article not found"), 404
+
+            # Check if any recent preference exists (within 1 month)
+            cursor.execute("""
+                SELECT id, source FROM preferences
+                WHERE feed_id = %s AND user_id = %s
+                AND time > CURRENT_TIMESTAMP - INTERVAL '1 month'
+                ORDER BY time DESC
+                LIMIT 1
+            """, (feed_id, user_id))
+
+            existing = cursor.fetchone()
+
+            if existing:
+                # Update the existing recent preference (override regardless of source)
+                cursor.execute("""
+                    UPDATE preferences
+                    SET score = %s, time = CURRENT_TIMESTAMP, source = 'alert-feedback'
+                    WHERE id = %s
+                """, (float(score), existing['id']))
+            else:
+                # No recent preference exists, insert new one
+                cursor.execute("""
+                    INSERT INTO preferences (feed_id, user_id, time, score, source)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'alert-feedback')
+                """, (feed_id, user_id, float(score)))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            # Render feedback confirmation page with similar articles link
+            feedback_type = "interested" if score == 1 else "not interested"
+            return render_template('feedback_success.html',
+                                 feed_title=feed['title'],
+                                 feedback_type=feedback_type,
+                                 feed_id=feed_id)
+
+        except Exception as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            log.error(f"Error recording Slack feedback: {e}")
+            return render_template('feedback_error.html',
+                                 message="Error recording feedback. Please try again."), 500
 
     # Error handlers
     @app.errorhandler(403)

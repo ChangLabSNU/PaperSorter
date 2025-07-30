@@ -181,14 +181,14 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive'
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback')
                 LEFT JOIN (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
-                    WHERE source = 'interactive'
+                    WHERE source IN ('interactive', 'alert-feedback')
                     GROUP BY feed_id
                 ) vote_counts ON f.id = vote_counts.feed_id
                 WHERE e.feed_id != %s
@@ -224,14 +224,14 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source = 'interactive' AND pf.user_id = %s
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback') AND pf.user_id = %s
                 LEFT JOIN (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
-                    WHERE source = 'interactive'
+                    WHERE source IN ('interactive', 'alert-feedback')
                     GROUP BY feed_id
                 ) vote_counts ON f.id = vote_counts.feed_id
                 WHERE e.feed_id != %s
