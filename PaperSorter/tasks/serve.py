@@ -1238,16 +1238,6 @@ def create_app(config_path):
     @app.route('/slack-interactivity', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
     def slack_interactivity():
         """Handle Slack interactivity requests"""
-        # Log request information
-        log.info(f"Slack interactivity request received")
-
-        if request.is_json:
-            log.info(f"JSON data: {request.get_json()}")
-        elif request.form:
-            log.info(f"Form data: {dict(request.form)}")
-        else:
-            log.info(f"Raw data: {request.get_data(as_text=True)}")
-
         payload = json.loads(dict(request.form)['payload'])
         if 'user' in payload and 'actions' in payload:
             user_id = payload['user']['id']
@@ -1278,7 +1268,6 @@ def create_app(config_path):
                 cursor.close()
                 conn.close()
 
-        # Return 200 OK
         return '', 200
 
     # Semantic Scholar search endpoints

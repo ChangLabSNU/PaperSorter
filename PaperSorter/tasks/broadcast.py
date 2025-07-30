@@ -127,7 +127,7 @@ def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
                 'text': 'Read',
                 'emoji': True
             },
-            'value': 'read_0',
+            'value': f'read_{item["id"]}',
             'url': item['link'],
             'action_id': 'read-action'
         })
