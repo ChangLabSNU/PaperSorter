@@ -793,7 +793,7 @@
                             <div class="feed-title">${feed.title}</div>
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
-                                <div class="feed-meta-item feed-author">${feed.author || 'Unknown Author'}</div>
+                                ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
                                 <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
                             </div>
                         </div>
@@ -830,8 +830,13 @@
                     // Update source article info
                     if (data.source_article) {
                         document.querySelector('.source-article-title').textContent = data.source_article.title;
-                        document.querySelector('.source-article-meta').textContent =
-                            `${data.source_article.author || 'Unknown Author'} · ${data.source_article.origin || 'Unknown Source'}`;
+                        
+                        // Build meta text, skipping empty values
+                        const metaParts = [];
+                        if (data.source_article.author) metaParts.push(data.source_article.author);
+                        if (data.source_article.origin) metaParts.push(data.source_article.origin);
+                        
+                        document.querySelector('.source-article-meta').textContent = metaParts.join(' · ');
                     }
 
                     // Store articles for summary

@@ -1124,7 +1124,7 @@
                             <div class="feed-title">${feed.title}</div>
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
-                                <div class="feed-meta-item feed-author">${feed.author || 'Unknown Author'}</div>
+                                ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
                                 <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
                             </div>
                         </div>
@@ -1717,17 +1717,22 @@
             }
 
             resultsDiv.innerHTML = papers.map(paper => {
-                const authors = paper.authors ? paper.authors.map(a => a.name).join(', ') : 'Unknown Authors';
+                const authors = paper.authors ? paper.authors.map(a => a.name).join(', ') : '';
                 const year = paper.year || 'Unknown Year';
                 const venue = paper.venue || paper.journal?.name || 'Unknown Venue';
                 const abstract = paper.abstract || (paper.tldr ? `(tl;dr) ${paper.tldr.text}` : 'No abstract available');
 
+                // Build meta parts, filtering out empty values
+                const metaParts = [];
+                if (venue !== 'Unknown Venue') metaParts.push(`<strong>${venue}</strong>`);
+                if (year !== 'Unknown Year') metaParts.push(year);
+                if (authors) metaParts.push(authors);
+                const metaLine = metaParts.join(' • ');
+
                 return `
                     <div class="search-result-item">
                         <div class="search-result-title">${paper.title}</div>
-                        <div class="search-result-meta">
-                            <strong>${venue}</strong> • ${year} • ${authors}
-                        </div>
+                        ${metaLine ? `<div class="search-result-meta">${metaLine}</div>` : ''}
                         <div class="search-result-abstract">${abstract}</div>
                         <div class="search-result-actions">
                             ${paper.already_added
