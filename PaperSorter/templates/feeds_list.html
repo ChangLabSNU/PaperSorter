@@ -183,6 +183,10 @@
             background-color: #f8f9fa;
         }
 
+        .feed-item.expanded {
+            background-color: #f0f4f8;
+        }
+
         .feed-item:last-child {
             border-bottom: none;
         }
@@ -238,6 +242,18 @@
         .score-icon.broadcasted {
             background: #1f295a;
             color: white;
+        }
+
+        .similarity-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-width: 49px;
+        }
+
+        .badges-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
 
         .feed-content {
@@ -436,7 +452,7 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             gap: 10px;
-            align-items: center;
+            align-items: flex-start;
         }
 
         .search-input {
@@ -451,6 +467,29 @@
 
         .search-input:focus {
             border-color: #3498db;
+        }
+
+        .search-textarea {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s ease;
+            min-height: 80px;
+            max-height: 300px;
+            resize: vertical;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
+        }
+
+        .search-textarea:focus {
+            border-color: #3498db;
+        }
+
+        .search-btn {
+            align-self: flex-start;
         }
 
         .search-results-header {
@@ -587,7 +626,11 @@
                 gap: 15px;
             }
 
-            .search-input {
+            .search-input, .search-textarea {
+                width: 100%;
+            }
+
+            .search-btn {
                 width: 100%;
             }
 
@@ -614,6 +657,16 @@
             .score-badge {
                 margin-bottom: 7.5px;
                 min-width: 42px;
+                padding: 4px 8px;
+            }
+
+            .badges-container {
+                margin-bottom: 7.5px;
+            }
+
+            .similarity-badge,
+            .score-badge {
+                min-width: 35px;
                 padding: 4px 8px;
             }
 
@@ -699,13 +752,37 @@
                     <div class="user-icon">{{ current_user.username[0].upper() }}</div>
                     <span>{{ current_user.username }}</span>
                 </div>
+                <button id="generalSearchToggleBtn" class="user-info" onclick="toggleGeneralSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
+                    <span style="margin-left: 0;">🔍 Search</span>
+                </button>
                 {% if current_user.is_admin %}
                 <button id="searchToggleBtn" class="user-info" onclick="toggleSemanticSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
-                    <span style="margin-left: 0;">🔬 S2 Search</span>
+                    <span style="margin-left: 0;">🔬 S2</span>
                 </button>
                 <a href="/settings" class="nav-link">⚙️ Settings</a>
                 {% endif %}
                 <a href="/logout" class="nav-link">🚪 Logout</a>
+            </div>
+        </div>
+
+        <!-- General Search Interface -->
+        <div id="generalSearchContainer" style="display: none;">
+            <div class="search-interface">
+                <textarea id="generalSearchInput" placeholder="Search by title, abstract, or any text. Press Enter to search, Shift+Enter for new line." class="search-textarea"></textarea>
+                <button onclick="performGeneralSearch()" class="btn btn-primary search-btn">🔍 Search</button>
+            </div>
+        </div>
+
+        <!-- General Search Results Container -->
+        <div id="generalSearchResultsContainer" style="display: none;">
+            <div class="search-results-header">
+                <h2>Search Results</h2>
+                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+            </div>
+            <div class="feeds-container">
+                <div id="generalSearchResults">
+                    <!-- Search results will be loaded here -->
+                </div>
             </div>
         </div>
 
@@ -851,13 +928,35 @@
                 labels.push(`<span class="label-badge label-negative">−${count}</span>`);
             }
 
-            return `
-                <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}" data-added="${feed.added}">
-                    <div class="feed-header">
+            // Create badges HTML - show similarity badge if available
+            let badgesHtml = '';
+            if (feed.similarity !== undefined && feed.similarity !== null) {
+                const similarityText = Math.round(feed.similarity * 100).toString();
+                badgesHtml = `
+                    <div class="badges-container">
+                        <div class="similarity-badge score-badge">
+                            ${similarityText}
+                        </div>
                         <div class="score-badge" style="background-color: ${scoreColor};">
                             ${scoreText}
                             ${iconsHtml}
                         </div>
+                    </div>
+                `;
+            } else {
+                // No similarity score, just show the regular score badge
+                badgesHtml = `
+                    <div class="score-badge" style="background-color: ${scoreColor};">
+                        ${scoreText}
+                        ${iconsHtml}
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}" data-added="${feed.added}">
+                    <div class="feed-header">
+                        ${badgesHtml}
                         <div class="feed-content">
                             <div class="feed-title">${feed.title}</div>
                             <div class="feed-meta">
@@ -1213,7 +1312,7 @@
             });
         }
 
-        // Event delegation for feed item clicks
+        // Event delegation for feed item clicks (works for both feed list and search results)
         document.addEventListener('click', function(e) {
             // Don't expand/collapse if clicking on buttons or links
             if (e.target.closest('button') || e.target.closest('a')) return;
@@ -1307,6 +1406,63 @@
             slider.addEventListener('input', updateScoreFilter);
         }
 
+        // General search functions
+        function toggleGeneralSearch() {
+            const searchContainer = document.getElementById('generalSearchContainer');
+            const feedsContainer = document.getElementById('feedsContainer');
+            const searchResultsContainer = document.getElementById('generalSearchResultsContainer');
+            const isHidden = searchContainer.style.display === 'none';
+
+            if (isHidden) {
+                searchContainer.style.display = 'block';
+                feedsContainer.style.display = 'none';
+                searchResultsContainer.style.display = 'none';
+                document.getElementById('generalSearchInput').focus();
+            } else {
+                backToFeedList();
+            }
+        }
+
+        function performGeneralSearch() {
+            const query = document.getElementById('generalSearchInput').value.trim();
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+
+            // Show results container
+            document.getElementById('generalSearchContainer').style.display = 'none';
+            document.getElementById('generalSearchResultsContainer').style.display = 'block';
+
+            const resultsDiv = document.getElementById('generalSearchResults');
+            resultsDiv.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching...</div>';
+
+            fetch(`/api/search?q=${encodeURIComponent(query)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayGeneralSearchResults(data.feeds || []);
+                })
+                .catch(error => {
+                    resultsDiv.innerHTML = `<div class="loading" style="color: #e74c3c;">Error: ${error.message}</div>`;
+                });
+        }
+
+        function displayGeneralSearchResults(feeds) {
+            const resultsDiv = document.getElementById('generalSearchResults');
+
+            if (feeds.length === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
+        }
+
         // Semantic Scholar search functions
         function toggleSemanticSearch() {
             const searchContainer = document.getElementById('semanticSearchContainer');
@@ -1325,6 +1481,8 @@
         }
 
         function backToFeedList() {
+            document.getElementById('generalSearchContainer').style.display = 'none';
+            document.getElementById('generalSearchResultsContainer').style.display = 'none';
             document.getElementById('semanticSearchContainer').style.display = 'none';
             document.getElementById('searchResultsContainer').style.display = 'none';
             document.getElementById('feedsContainer').style.display = 'block';
@@ -1462,11 +1620,23 @@
             });
         }
 
-        // Handle Enter key in search input
+        // Handle Enter key in search inputs
         document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('semanticSearchInput');
-            if (searchInput) {
-                searchInput.addEventListener('keypress', function(e) {
+            const generalSearchInput = document.getElementById('generalSearchInput');
+            if (generalSearchInput) {
+                generalSearchInput.addEventListener('keydown', function(e) {
+                    // Submit on Enter without Shift
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        performGeneralSearch();
+                    }
+                    // Shift+Enter adds a new line (default behavior)
+                });
+            }
+
+            const semanticSearchInput = document.getElementById('semanticSearchInput');
+            if (semanticSearchInput) {
+                semanticSearchInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
                         performSemanticSearch();
                     }
@@ -1495,7 +1665,7 @@
                 const feedId = parseInt(topVisibleFeed.dataset.feedRowid);
                 if (feedId && feedId !== highestVisibleFeedId) {
                     highestVisibleFeedId = feedId;
-                    
+
                     // Debounce bookmark updates
                     clearTimeout(bookmarkUpdateTimer);
                     bookmarkUpdateTimer = setTimeout(() => {

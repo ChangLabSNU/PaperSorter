@@ -947,6 +947,52 @@ def create_app(config_path):
         """Show articles similar to the given feed"""
         return render_template('similar_articles.html', source_feed_id=feed_id)
 
+    @app.route('/api/search')
+    @login_required
+    def api_search():
+        """API endpoint to search feeds by text similarity"""
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify({'error': 'Query parameter is required'}), 400
+
+        try:
+            # Load embedding database with config
+            edb = EmbeddingDatabase(config_path)
+
+            # Get user ID and default model ID for filtering
+            user_id = current_user.id
+            default_model_id = get_default_model_id()
+
+            # Search using embeddings
+            search_results = edb.search_by_text(query, limit=50, user_id=user_id, model_id=default_model_id)
+
+            # Convert to format compatible with feeds list
+            feeds = []
+            for feed in search_results:
+                feeds.append({
+                    'rowid': feed['feed_id'],
+                    'external_id': feed['external_id'],
+                    'title': feed['title'],
+                    'author': feed['author'],
+                    'origin': feed['origin'],
+                    'link': feed['link'],
+                    'published': feed['published'],
+                    'added': feed['added'],
+                    'score': feed['predicted_score'],
+                    'starred': feed['starred'],
+                    'broadcasted': feed['broadcasted'],
+                    'label': feed['label'],
+                    'similarity': float(feed['similarity']),
+                    'positive_votes': feed['positive_votes'],
+                    'negative_votes': feed['negative_votes']
+                })
+
+            return jsonify({'feeds': feeds})
+
+        except Exception as e:
+            log.error(f"Error searching feeds: {e}")
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/feeds/<int:feed_id>/similar')
     @login_required
     def api_similar_feeds(feed_id):
