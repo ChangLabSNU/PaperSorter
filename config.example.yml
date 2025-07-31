@@ -1,0 +1,55 @@
+# PaperSorter Example Configuration File
+# Copy this file to your preferred location and update with your credentials
+# Default location: qbio/config.yml
+
+# Database configuration
+db:
+  type: postgres
+  host: localhost
+  port: 5432
+  user: papersorter
+  database: papersorter
+  password: "your_database_password_here"
+
+# Google OAuth configuration for web interface
+google_oauth:
+  client_id: "your_google_oauth_client_id.apps.googleusercontent.com"
+  secret: "your_google_oauth_client_secret"
+  flask_secret_key: "generate_with_python_secrets.token_hex(32)"
+
+# Embedding API configuration
+# Supports OpenAI-compatible APIs (OpenAI, Solar LLM, etc.)
+embedding_api:
+  api_key: "your_openai_api_key"
+  # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
+  api_url: "https://api.openai.com/v1"
+  # Optional: model name (defaults to text-embedding-3-large)
+  model: "text-embedding-3-large"
+
+# Summarization API configuration
+# Used for generating article summaries
+summarization_api:
+  api_key: "your_openai_api_key"
+  # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
+  api_url: "https://api.openai.com/v1"
+  # Optional: model name for summarization
+  model: "gpt-4o-mini"
+
+# Feed service configuration
+feed_service:
+  type: "theoldreader"
+  username: "your_email@example.com"
+  password: "your_theoldreader_password"
+
+# Semantic Scholar API configuration
+# Used for enriching article metadata
+semanticscholar:
+  api_key: "your_semanticscholar_api_key"
+
+# Web interface configuration
+web:
+  # Base URL for web interface (used for "More Like This" links in Slack)
+  base_url: "https://your-domain.example.com"
+
+# Note: Slack webhook URLs are configured per channel in the database
+# Use the web interface or direct database access to configure channels
