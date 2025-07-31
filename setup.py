@@ -77,5 +77,6 @@ setup(
         'Flask >= 2.0',
         'Flask-Login >= 0.6.0',
         'Authlib >= 1.2.0',
+        'markdown2 >= 2.4.0',
     ],
 )

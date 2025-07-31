@@ -155,21 +155,14 @@ class EmbeddingDatabase:
     def write_batch(self):
         return EmbeddingDatabaseWriteBatch(self)
 
-    def find_similar(self, feed_id, limit=30, user_id=None, model_id=None):
+    def find_similar(self, feed_id, limit=30, user_id=None, model_id=None, include_content=False):
         """Find similar articles using pgvector similarity search"""
         # Use provided model_id or default to 1
         if model_id is None:
             model_id = 1
         # Use WITH statement to avoid transferring embedding vectors
-        if user_id is None:
-            # If no user_id provided, don't filter preferences
-            self.cursor.execute('''
-                WITH source_embedding AS (
-                    SELECT embedding
-                    FROM embeddings
-                    WHERE feed_id = %s
-                )
-                SELECT
+        # Build the SELECT fields based on include_content parameter
+        select_fields = '''
                     e.feed_id,
                     f.external_id,
                     f.title,
@@ -183,7 +176,21 @@ class EmbeddingDatabase:
                     CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
-                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                    COALESCE(vote_counts.negative_votes, 0) as negative_votes'''
+        
+        if include_content:
+            select_fields += ',\n                    f.content,\n                    f.tldr'
+        
+        if user_id is None:
+            # If no user_id provided, don't filter preferences
+            self.cursor.execute(f'''
+                WITH source_embedding AS (
+                    SELECT embedding
+                    FROM embeddings
+                    WHERE feed_id = %s
+                )
+                SELECT
+                    {select_fields}
                 FROM embeddings e
                 CROSS JOIN source_embedding se
                 JOIN feeds f ON e.feed_id = f.id
@@ -206,27 +213,14 @@ class EmbeddingDatabase:
             ''', (model_id, feed_id, feed_id, limit))
         else:
             # Filter preferences by user_id
-            self.cursor.execute('''
+            self.cursor.execute(f'''
                 WITH source_embedding AS (
                     SELECT embedding
                     FROM embeddings
                     WHERE feed_id = %s
                 )
                 SELECT
-                    e.feed_id,
-                    f.external_id,
-                    f.title,
-                    f.author,
-                    f.origin,
-                    f.link,
-                    EXTRACT(EPOCH FROM f.published)::integer as published,
-                    1 - (e.embedding <=> se.embedding) as similarity,
-                    pp.score as predicted_score,
-                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
-                    pf.score as label,
-                    COALESCE(vote_counts.positive_votes, 0) as positive_votes,
-                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                    {select_fields}
                 FROM embeddings e
                 CROSS JOIN source_embedding se
                 JOIN feeds f ON e.feed_id = f.id
@@ -257,7 +251,7 @@ class EmbeddingDatabase:
 
         return results
 
-    def search_by_text(self, query_text, limit=50, user_id=None, model_id=None):
+    def search_by_text(self, query_text, limit=50, user_id=None, model_id=None, include_content=False):
         """Search for articles by text query using embedding similarity"""
         if not self.openai_client:
             raise ValueError("OpenAI client not configured for embeddings")
@@ -273,11 +267,8 @@ class EmbeddingDatabase:
         if model_id is None:
             model_id = 1
 
-        # Perform similarity search using the query embedding
-        if user_id is None:
-            # If no user_id provided, don't filter preferences
-            self.cursor.execute('''
-                SELECT
+        # Build the SELECT fields based on include_content parameter
+        select_fields = '''
                     e.feed_id,
                     f.external_id,
                     f.title,
@@ -292,7 +283,17 @@ class EmbeddingDatabase:
                     CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
-                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                    COALESCE(vote_counts.negative_votes, 0) as negative_votes'''
+        
+        if include_content:
+            select_fields += ',\n                    f.content,\n                    f.tldr'
+
+        # Perform similarity search using the query embedding
+        if user_id is None:
+            # If no user_id provided, don't filter preferences
+            self.cursor.execute(f'''
+                SELECT
+                    {select_fields}
                 FROM embeddings e
                 JOIN feeds f ON e.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
@@ -313,23 +314,9 @@ class EmbeddingDatabase:
             ''', (query_embedding, model_id, query_embedding, limit))
         else:
             # Filter preferences by user_id
-            self.cursor.execute('''
+            self.cursor.execute(f'''
                 SELECT
-                    e.feed_id,
-                    f.external_id,
-                    f.title,
-                    f.author,
-                    f.origin,
-                    f.link,
-                    EXTRACT(EPOCH FROM f.published)::integer as published,
-                    EXTRACT(EPOCH FROM f.added)::integer as added,
-                    1 - (e.embedding <=> %s::vector) as similarity,
-                    pp.score as predicted_score,
-                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
-                    pf.score as label,
-                    COALESCE(vote_counts.positive_votes, 0) as positive_votes,
-                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                    {select_fields}
                 FROM embeddings e
                 JOIN feeds f ON e.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
