@@ -26,6 +26,7 @@ import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import numpy as np
 import yaml
+import openai
 
 class EmbeddingDatabase:
 
@@ -37,6 +38,7 @@ class EmbeddingDatabase:
             config = yaml.safe_load(f)
 
         db_config = config['db']
+        self.config = config
 
         # Connect to PostgreSQL
         self.db = psycopg2.connect(
@@ -50,6 +52,13 @@ class EmbeddingDatabase:
 
         # Register pgvector extension
         register_vector(self.db)
+
+        # Set up OpenAI client for embeddings
+        embedding_config = config.get('embedding_api', {})
+        self.api_key = embedding_config.get('api_key')
+        self.api_url = embedding_config.get('api_url', 'https://api.openai.com/v1')
+        self.embedding_model = embedding_config.get('model', 'text-embedding-3-large')
+        self.openai_client = openai.OpenAI(api_key=self.api_key, base_url=self.api_url) if self.api_key else None
 
     def __del__(self):
         if hasattr(self, 'db'):
@@ -246,6 +255,101 @@ class EmbeddingDatabase:
             if not self.cursor.fetchone():
                 raise KeyError(f"No embedding found for feed_id: {feed_id}")
 
+        return results
+
+    def search_by_text(self, query_text, limit=50, user_id=None, model_id=None):
+        """Search for articles by text query using embedding similarity"""
+        if not self.openai_client:
+            raise ValueError("OpenAI client not configured for embeddings")
+
+        # Generate embedding for the query
+        response = self.openai_client.embeddings.create(
+            input=[query_text],
+            model=self.embedding_model
+        )
+        query_embedding = response.data[0].embedding
+
+        # Use provided model_id or default to 1
+        if model_id is None:
+            model_id = 1
+
+        # Perform similarity search using the query embedding
+        if user_id is None:
+            # If no user_id provided, don't filter preferences
+            self.cursor.execute('''
+                SELECT
+                    e.feed_id,
+                    f.external_id,
+                    f.title,
+                    f.author,
+                    f.origin,
+                    f.link,
+                    EXTRACT(EPOCH FROM f.published)::integer as published,
+                    EXTRACT(EPOCH FROM f.added)::integer as added,
+                    1 - (e.embedding <=> %s::vector) as similarity,
+                    pp.score as predicted_score,
+                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
+                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    pf.score as label,
+                    COALESCE(vote_counts.positive_votes, 0) as positive_votes,
+                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                FROM embeddings e
+                JOIN feeds f ON e.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback')
+                LEFT JOIN (
+                    SELECT
+                        feed_id,
+                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback')
+                    GROUP BY feed_id
+                ) vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY e.embedding <=> %s::vector
+                LIMIT %s
+            ''', (query_embedding, model_id, query_embedding, limit))
+        else:
+            # Filter preferences by user_id
+            self.cursor.execute('''
+                SELECT
+                    e.feed_id,
+                    f.external_id,
+                    f.title,
+                    f.author,
+                    f.origin,
+                    f.link,
+                    EXTRACT(EPOCH FROM f.published)::integer as published,
+                    EXTRACT(EPOCH FROM f.added)::integer as added,
+                    1 - (e.embedding <=> %s::vector) as similarity,
+                    pp.score as predicted_score,
+                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
+                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    pf.score as label,
+                    COALESCE(vote_counts.positive_votes, 0) as positive_votes,
+                    COALESCE(vote_counts.negative_votes, 0) as negative_votes
+                FROM embeddings e
+                JOIN feeds f ON e.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback') AND pf.user_id = %s
+                LEFT JOIN (
+                    SELECT
+                        feed_id,
+                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback')
+                    GROUP BY feed_id
+                ) vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY e.embedding <=> %s::vector
+                LIMIT %s
+            ''', (query_embedding, model_id, user_id, user_id, query_embedding, limit))
+
+        results = self.cursor.fetchall()
         return results
 
 
