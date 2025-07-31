@@ -736,6 +736,128 @@
                 border-color: #e74c3c;
             }
         }
+
+        /* Summary Section Styles */
+        .summary-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .summary-header h3 {
+            margin: 0;
+            color: #1a73e8;
+            font-size: 20px;
+        }
+
+        .summary-content {
+            position: relative;
+            min-height: 120px;
+        }
+
+        .summary-initial {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 120px;
+        }
+
+        .btn-generate {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-generate:hover {
+            background: #1557b0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+
+        .btn-generate:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 20px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .summary-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #202124;
+        }
+
+        .summary-text h1, .summary-text h2, .summary-text h3 {
+            color: #1a73e8;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .summary-text ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        .summary-text li {
+            margin: 5px 0;
+        }
+
+        .summary-text strong {
+            color: #3c4043;
+        }
+
+        .summary-disclaimer {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background-color: #f8f9fa;
+            border-left: 3px solid #dadce0;
+            border-radius: 4px;
+        }
+
+        .summary-disclaimer p {
+            margin: 0;
+            font-size: 13px;
+            color: #5f6368;
+            line-height: 1.5;
+        }
+
+        .summary-disclaimer strong {
+            color: #3c4043;
+        }
     </style>
 </head>
 <body>
@@ -779,6 +901,24 @@
                 <h2>Search Results</h2>
                 <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
             </div>
+            
+            <!-- Summary Section -->
+            <div class="summary-section" id="searchSummarySection" style="display: none;">
+                <div class="summary-header">
+                    <h3>AI Summary</h3>
+                </div>
+                <div class="summary-content" id="searchSummaryContent">
+                    <div class="summary-initial" id="searchSummaryInitial">
+                        <button class="btn btn-primary btn-generate" id="generateSearchSummaryBtn">Generate Summary</button>
+                    </div>
+                    <div class="summary-loading" id="searchSummaryLoading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Generating summary...</p>
+                    </div>
+                    <div class="summary-text" id="searchSummaryText"></div>
+                </div>
+            </div>
+            
             <div class="feeds-container">
                 <div id="generalSearchResults">
                     <!-- Search results will be loaded here -->
@@ -1018,10 +1158,10 @@
                             // Exact bookmark found
                             bookmarkPosition = exactIndex;
                         } else {
-                            // Find the most recent feed that's older than the bookmark
+                            // Find the first feed that's newer than the bookmark
                             for (let i = 0; i < data.feeds.length; i++) {
                                 if (data.feeds[i].rowid < bookmarkId) {
-                                    bookmarkPosition = i - 1; // Insert before this feed (after the previous one)
+                                    bookmarkPosition = i; // Insert before this feed
                                     break;
                                 }
                             }
@@ -1032,16 +1172,7 @@
                     data.feeds.forEach((feed, index) => {
                         const feedDateKey = getDateKey(feed.added);
 
-                        // Add date header if this is a new date
-                        if (feedDateKey !== lastDateShown) {
-                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.added)}</div>`;
-                            feedsList.insertAdjacentHTML('beforeend', dateHeader);
-                            lastDateShown = feedDateKey;
-                        }
-
-                        feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
-
-                        // Insert bookmark divider at the calculated position
+                        // Insert bookmark divider BEFORE the feed at the calculated position
                         if (bookmarkId && !bookmarkInserted && index === bookmarkPosition) {
                             // Only show divider if this isn't the very first item shown
                             const totalItemsShown = (currentPage - 1) * 20 + index;
@@ -1051,6 +1182,15 @@
                                 bookmarkInserted = true;
                             }
                         }
+
+                        // Add date header if this is a new date
+                        if (feedDateKey !== lastDateShown) {
+                            const dateHeader = `<div class="date-header">${formatDateHeader(feed.added)}</div>`;
+                            feedsList.insertAdjacentHTML('beforeend', dateHeader);
+                            lastDateShown = feedDateKey;
+                        }
+
+                        feedsList.insertAdjacentHTML('beforeend', createFeedElement(feed));
                     });
 
                     hasMore = data.has_more;
@@ -1452,14 +1592,23 @@
                 });
         }
 
+        let searchResultFeeds = [];  // Store search results for summary generation
+
         function displayGeneralSearchResults(feeds) {
             const resultsDiv = document.getElementById('generalSearchResults');
 
             if (feeds.length === 0) {
                 resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                document.getElementById('searchSummarySection').style.display = 'none';
                 return;
             }
 
+            // Store feeds for summary generation
+            searchResultFeeds = feeds;
+            
+            // Show summary section
+            document.getElementById('searchSummarySection').style.display = 'block';
+            
             resultsDiv.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
         }
 
@@ -1640,6 +1789,64 @@
                     if (e.key === 'Enter') {
                         performSemanticSearch();
                     }
+                });
+            }
+            
+            // Summary generation for search results
+            const generateSearchSummaryBtn = document.getElementById('generateSearchSummaryBtn');
+            if (generateSearchSummaryBtn) {
+                generateSearchSummaryBtn.addEventListener('click', function() {
+                    const btn = this;
+                    const summaryInitial = document.getElementById('searchSummaryInitial');
+                    const summaryLoading = document.getElementById('searchSummaryLoading');
+                    const summaryText = document.getElementById('searchSummaryText');
+                    
+                    // Hide button container and show loading
+                    summaryInitial.style.display = 'none';
+                    summaryLoading.style.display = 'block';
+                    summaryText.innerHTML = '';
+                    
+                    // Extract feed IDs from search results (limit to top 20)
+                    const feedIds = searchResultFeeds.slice(0, 20).map(feed => feed.rowid);
+                    
+                    // Call the summarization API
+                    fetch('/api/summarize', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ feed_ids: feedIds })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            summaryText.innerHTML = data.summary_html + `
+                                <div class="summary-disclaimer">
+                                    <p><strong>Note:</strong> This AI-generated summary is based solely on article titles and abstracts, not the full text. 
+                                    The summary may contain inaccuracies or miss important details from the complete papers. 
+                                    Please refer to the original articles for comprehensive information.</p>
+                                </div>
+                            `;
+                        } else {
+                            summaryText.innerHTML = `<p style="color: #e74c3c;">Failed to generate summary: ${data.error || 'Unknown error'}</p>`;
+                            // Show button again on failure
+                            summaryInitial.style.display = 'flex';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error generating summary:', error);
+                        summaryText.innerHTML = '<p style="color: #e74c3c;">An error occurred while generating the summary.</p>';
+                        // Show button again on error
+                        summaryInitial.style.display = 'flex';
+                    })
+                    .finally(() => {
+                        summaryLoading.style.display = 'none';
+                    });
                 });
             }
         });
