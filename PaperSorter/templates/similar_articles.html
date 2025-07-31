@@ -504,6 +504,125 @@
                 border-color: #e74c3c;
             }
         }
+
+        /* Summary Section Styles */
+        .summary-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .summary-header h3 {
+            margin: 0;
+            color: #1a73e8;
+            font-size: 20px;
+        }
+
+        .btn-secondary {
+            background: #f1f3f4;
+            color: #3c4043;
+            border: 1px solid #dadce0;
+        }
+
+        .btn-secondary:hover {
+            background: #e8eaed;
+            border-color: #5f6368;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .summary-content {
+            position: relative;
+            min-height: 120px;
+        }
+
+        .summary-initial {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 120px;
+        }
+
+        .btn-generate {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-generate:hover {
+            background: #1557b0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+
+        .btn-generate:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 20px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .summary-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #202124;
+        }
+
+        .summary-text h1, .summary-text h2, .summary-text h3 {
+            color: #1a73e8;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .summary-text ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        .summary-text li {
+            margin: 5px 0;
+        }
+
+        .summary-text strong {
+            color: #3c4043;
+        }
     </style>
 </head>
 <body>
@@ -523,6 +642,23 @@
             </div>
             <div class="nav-buttons">
                 <a href="/" class="nav-link">← Back to Feeds</a>
+            </div>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="summary-section" id="summary-section" style="display: none;">
+            <div class="summary-header">
+                <h3>AI Summary</h3>
+            </div>
+            <div class="summary-content" id="summary-content">
+                <div class="summary-initial" id="summary-initial">
+                    <button class="btn btn-primary btn-generate" id="generate-summary-btn">Generate Summary</button>
+                </div>
+                <div class="summary-loading" id="summary-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Generating summary...</p>
+                </div>
+                <div class="summary-text" id="summary-text"></div>
             </div>
         </div>
 
@@ -643,6 +779,8 @@
             `;
         }
 
+        let similarArticles = [];  // Store articles for summary generation
+
         function loadSimilarFeeds() {
             fetch(`/api/feeds/${sourceFeedId}/similar`)
                 .then(response => response.json())
@@ -652,6 +790,13 @@
                         document.querySelector('.source-article-title').textContent = data.source_article.title;
                         document.querySelector('.source-article-meta').textContent =
                             `${data.source_article.author || 'Unknown Author'} · ${data.source_article.origin || 'Unknown Source'}`;
+                    }
+
+                    // Store articles for summary
+                    if (data.similar_feeds) {
+                        similarArticles = data.similar_feeds;
+                        // Show summary section now that we have articles
+                        document.getElementById('summary-section').style.display = 'block';
                     }
 
                     // Display similar feeds
@@ -909,6 +1054,55 @@
                     loadFeedContent(feedItem.dataset.feedRowid, detailsElement);
                 }
             }
+        });
+
+        // Summary generation
+        document.getElementById('generate-summary-btn').addEventListener('click', function() {
+            const btn = this;
+            const summaryInitial = document.getElementById('summary-initial');
+            const summaryLoading = document.getElementById('summary-loading');
+            const summaryText = document.getElementById('summary-text');
+            
+            // Hide button container and show loading
+            summaryInitial.style.display = 'none';
+            summaryLoading.style.display = 'block';
+            summaryText.innerHTML = '';
+            
+            // Extract feed IDs from similar articles
+            const feedIds = similarArticles.map(article => article.rowid);
+            
+            // Call the summarization API with just feed IDs
+            fetch('/api/summarize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ feed_ids: feedIds })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    summaryText.innerHTML = data.summary_html;
+                } else {
+                    summaryText.innerHTML = `<p style="color: #e74c3c;">Failed to generate summary: ${data.error || 'Unknown error'}</p>`;
+                    // Show button again on failure
+                    summaryInitial.style.display = 'flex';
+                }
+            })
+            .catch(error => {
+                console.error('Error generating summary:', error);
+                summaryText.innerHTML = '<p style="color: #e74c3c;">An error occurred while generating the summary.</p>';
+                // Show button again on error
+                summaryInitial.style.display = 'flex';
+            })
+            .finally(() => {
+                summaryLoading.style.display = 'none';
+            });
         });
 
         // Initial load

@@ -26,6 +26,7 @@ import yaml
 import json
 import psycopg2
 import psycopg2.extras
+import markdown2
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
@@ -38,6 +39,7 @@ import click
 import secrets
 import requests
 import uuid
+from openai import OpenAI
 from datetime import datetime, timedelta
 from ..providers.theoldreader import Item
 from ..feed_database import FeedDatabase
@@ -567,6 +569,15 @@ def create_app(config_path):
                         VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
                     """, (feed_id, user_id))
 
+                # When starring, add to broadcasts table for all active channels
+                cursor.execute("""
+                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                    SELECT %s, id, NULL
+                    FROM channels
+                    WHERE is_active = TRUE
+                    ON CONFLICT (feed_id, channel_id) DO NOTHING
+                """, (feed_id,))
+
             conn.commit()
             cursor.close()
             conn.close()
@@ -1037,14 +1048,175 @@ def create_app(config_path):
             cursor.close()
             conn.close()
 
-            return jsonify({
+            response_data = {
                 'source_article': source_article,
                 'similar_feeds': feeds
-            })
+            }
+
+            return jsonify(response_data)
 
         except Exception as e:
             log.error(f"Error finding similar articles: {e}")
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/summarize', methods=['POST'])
+    @login_required
+    def api_summarize():
+        """Generate a summary of articles using LLM"""
+        try:
+            data = request.get_json()
+            feed_ids = data.get('feed_ids', [])
+            
+            if not feed_ids:
+                return jsonify({'error': 'No feed IDs provided'}), 400
+            
+            # Load summarization API configuration
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            api_config = config.get('summarization_api')
+            if not api_config:
+                return jsonify({'error': 'Summarization API not configured'}), 500
+            
+            # Fetch article data from database
+            conn = get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Get articles with content/tldr
+            placeholders = ','.join(['%s'] * len(feed_ids))
+            query = f"""
+                SELECT id, title, author, origin, published, content, tldr
+                FROM feeds
+                WHERE id IN ({placeholders})
+            """
+            cursor.execute(query, feed_ids)
+            
+            articles = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            if not articles:
+                return jsonify({'error': 'No articles found'}), 404
+            
+            # Format articles for summarization
+            formatted_articles = []
+            article_refs = []  # Store author-year references
+            for i, article in enumerate(articles, 1):
+                try:
+                    parts = []
+                    
+                    # Extract first author's last name and year for reference
+                    first_author = "Unknown"
+                    year = "n.d."
+                    
+                    if article.get('author') and article['author'] is not None:
+                        # Extract first author's last name
+                        authors = str(article['author']).split(',')[0].strip()
+                        # Try to get last name (assume last word is last name)
+                        first_author = authors.split()[-1] if authors else "Unknown"
+                        parts.append(f"Authors: {article['author']}")
+                    
+                    if article.get('published') and article['published'] is not None:
+                        # Extract year from published date
+                        if hasattr(article['published'], 'year'):
+                            year = str(article['published'].year)
+                        elif hasattr(article['published'], 'isoformat'):
+                            year = article['published'].isoformat()[:4]
+                            parts.append(f"Published: {article['published'].isoformat()}")
+                        else:
+                            pub_str = str(article['published'])
+                            if len(pub_str) >= 4:
+                                year = pub_str[:4]
+                            parts.append(f"Published: {article['published']}")
+                    
+                    article_ref = f"{first_author} {year}"
+                    article_refs.append(article_ref)
+                    
+                    if article.get('title') and article['title'] is not None:
+                        parts.append(f"Title: {article['title']}")
+                    if article.get('origin') and article['origin'] is not None:
+                        parts.append(f"Source: {article['origin']}")
+                    if article.get('tldr') and article['tldr'] is not None:
+                        parts.append(f"Abstract: {article['tldr']}")
+                    elif article.get('content') and article['content'] is not None:
+                        # Truncate content if too long
+                        content = str(article['content'])  # Ensure it's a string
+                        if len(content) > 500:
+                            content = content[:497] + '...'
+                        parts.append(f"Abstract: {content}")
+                    
+                    if parts:  # Only add if we have some content
+                        formatted_articles.append(f"[{article_ref}]\n" + "\n".join(parts))
+                except Exception as e:
+                    log.error(f"Error formatting article {i} (id={article.get('id')}): {e}")
+                    continue
+            
+            if not formatted_articles:
+                return jsonify({'error': 'No valid articles to summarize'}), 400
+            
+            articles_text = "\n\n---\n\n".join(formatted_articles)
+            
+            # Create prompt
+            prompt = f"""You are an expert scientific literature analyst. Analyze the following collection of research articles and provide a focused summary.
+
+{articles_text}
+
+Start your response directly with the numbered sections below. Do not include any introductory sentences like "Here is my analysis" or "Based on the provided articles". Do not repeat the format instructions (like "2-3 sentences" or "3-4 bullet points") in your output. Begin immediately with:
+
+1. **Common Themes**: Identify the main research areas connecting these articles in 2-3 sentences.
+
+2. **Key Topics**: List the most significant concepts, methods, or findings that appear across multiple papers as 3-4 bullet points.
+
+3. **Unique Contributions**: For each article, briefly state what distinguishes it from the others in one sentence. Reference articles using their author-year format (e.g., "Smith 2023 introduces...").
+
+4. **Future Directions**: Based on these papers, provide 2-3 bullet points on the most promising research opportunities.
+
+Keep your response focused and actionable, using clear Markdown formatting. When referencing specific papers, use the author-year format provided in square brackets for each article."""
+            
+            # Initialize OpenAI client with Gemini backend
+            client = OpenAI(
+                api_key=api_config["api_key"],
+                base_url=api_config["api_url"]
+            )
+            
+            # Generate summarization
+            response = client.chat.completions.create(
+                model=api_config["model"],
+                messages=[
+                    {"role": "system", "content": "You are an expert at analyzing and summarizing scientific literature."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=8000
+            )
+            
+            summary_markdown = response.choices[0].message.content
+            
+            # Ensure we have valid content
+            if not summary_markdown:
+                return jsonify({'error': 'Empty response from LLM'}), 500
+            
+            # Ensure it's a string
+            if not isinstance(summary_markdown, str):
+                log.error(f"Unexpected type for summary_markdown: {type(summary_markdown)}")
+                summary_markdown = str(summary_markdown)
+            
+            # Convert Markdown to HTML
+            summary_html = markdown2.markdown(
+                summary_markdown,
+                extras=['fenced-code-blocks', 'tables', 'strike', 'task_list']
+            )
+            
+            return jsonify({
+                'success': True,
+                'summary_html': summary_html,
+                'summary_markdown': summary_markdown
+            })
+            
+        except Exception as e:
+            import traceback
+            log.error(f"Error generating summary: {e}")
+            log.error(f"Traceback:\n{traceback.format_exc()}")
+            return jsonify({'error': 'Failed to generate summary'}), 500
 
     # Models API endpoints
     @app.route('/api/settings/models')
