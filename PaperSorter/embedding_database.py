@@ -366,7 +366,7 @@ class EmbeddingDatabase:
                 ) vote_counts ON f.id = vote_counts.feed_id
                 ORDER BY e.embedding <=> %s::vector
                 LIMIT %s
-            ''', (query_embedding, user_id, model_id, user_id, query_embedding, limit))
+            ''', (user_id, query_embedding, model_id, user_id, query_embedding, limit))
 
         results = self.cursor.fetchall()
         return results

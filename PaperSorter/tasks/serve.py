@@ -1228,7 +1228,6 @@ def create_app(config_path):
                     VALUES (%s, %s, %s, %s)
                 """, ('web:text-search', current_user.id, feed_id_to_log, query))
                 conn.commit()
-                log.info(f"Text search event logged for query '{query}' by user {current_user.username}")
             except Exception as e:
                 log.error(f"Failed to log text search event: {e}")
                 conn.rollback()
