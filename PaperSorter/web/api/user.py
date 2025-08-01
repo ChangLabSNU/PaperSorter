@@ -23,12 +23,9 @@
 
 """User API endpoints."""
 
-import json
 import uuid
 import time
 import threading
-import psycopg2
-import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 from ...log import log

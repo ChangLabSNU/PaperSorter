@@ -71,7 +71,6 @@ def google_callback():
 
         if user_info:
             email = user_info.get('email')
-            name = user_info.get('name', email.split('@')[0])
 
             conn = current_app.config['get_db_connection']()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

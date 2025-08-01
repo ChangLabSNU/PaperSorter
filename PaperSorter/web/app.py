@@ -120,7 +120,7 @@ def create_app(config_path):
 
     # Set up OAuth
     oauth = OAuth(app)
-    google = oauth.register(
+    oauth.register(
         name='google',
         client_id=google_config['client_id'],
         client_secret=google_config['secret'],

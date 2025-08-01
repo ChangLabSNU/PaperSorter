@@ -22,11 +22,9 @@
 #
 
 from ..feed_database import FeedDatabase
-from ..embedding_database import EmbeddingDatabase
 from ..log import log, initialize_logging
 import xgboost as xgb
 import numpy as np
-import pandas as pd
 import click
 import pickle
 import psycopg2
@@ -35,7 +33,6 @@ from pgvector.psycopg2 import register_vector
 import yaml
 import openai
 import os
-from datetime import datetime
 
 
 def generate_embeddings(feeds_without_embeddings, config_data, feeddb):

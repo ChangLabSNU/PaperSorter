@@ -24,11 +24,8 @@
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
 import requests
-import pandas as pd
 import click
-import time
 import re
-import os
 import yaml
 
 SLACK_ENDPOINT_KEY = 'PAPERSORTER_WEBHOOK_URL'

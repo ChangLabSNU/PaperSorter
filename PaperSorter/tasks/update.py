@@ -33,7 +33,6 @@ import time
 import requests
 import pickle
 import click
-import os
 
 FEED_UPDATE_LIMIT_REGULAR = 200
 FEED_UPDATE_LIMIT_FULL = 1000

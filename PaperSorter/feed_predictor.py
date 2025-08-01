@@ -28,8 +28,6 @@ import os
 import yaml
 import openai
 from .log import log
-from .embedding_database import EmbeddingDatabase
-import psycopg2.extras
 
 
 class FeedPredictor:
@@ -78,7 +76,7 @@ class FeedPredictor:
                 self.embeddingdb.cursor.execute('SELECT 1 FROM embeddings WHERE feed_id = %s', (feed_id,))
                 if not self.embeddingdb.cursor.fetchone():
                     feeds_needing_embeddings.append(feed_id)
-            except:
+            except Exception:
                 feeds_needing_embeddings.append(feed_id)
 
         if not feeds_needing_embeddings:

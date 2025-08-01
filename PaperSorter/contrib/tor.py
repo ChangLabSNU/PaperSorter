@@ -260,7 +260,7 @@ class ItemsSearch(object):
             's': 'user/-/state/com.google/reading-list',
             'xt': 'user/-/state/com.google/read'
         }
-        if (feed!=None):
+        if feed is not None:
             var['s'] = feed
         resp = self._make_search_request(var, limit_items)
         continuation = resp.get('continuation')
