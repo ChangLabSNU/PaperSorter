@@ -21,15 +21,12 @@
 # THE SOFTWARE.
 #
 
-from ..feed_database import FeedDatabase
-from ..embedding_database import EmbeddingDatabase
 from ..log import log, initialize_logging
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import xgboost as xgb
 import numpy as np
-import pandas as pd
 import click
 import pickle
 import psycopg2

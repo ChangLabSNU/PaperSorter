@@ -26,7 +26,6 @@
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, render_template, current_app
-from flask_login import login_required
 from ..auth.decorators import admin_required
 
 settings_bp = Blueprint('settings', __name__)

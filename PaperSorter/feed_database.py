@@ -26,7 +26,6 @@ import psycopg2.extras
 import pandas as pd
 import re
 import yaml
-import os
 
 class FeedDatabase:
 
@@ -107,9 +106,8 @@ class FeedDatabase:
     def insert_item(self, item, starred=0, broadcasted=None, tldr=None):
         content = remove_html_tags(item.content)
 
-        # Get user_id and model_id from preferences/models tables or use defaults
+        # Get user_id from preferences table or use default
         user_id = 1  # Default user
-        model_id = 1  # Default model
 
         # Insert into feeds table
         self.cursor.execute('''

@@ -26,8 +26,7 @@
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, current_app
-from flask_login import login_required, current_user
-from ..log import log
+from flask_login import login_required
 from .utils.database import get_unlabeled_item, update_label, get_labeling_stats
 
 main_bp = Blueprint('main', __name__)

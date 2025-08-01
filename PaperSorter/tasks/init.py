@@ -27,7 +27,6 @@ from .update import update_feeds, update_embeddings
 from ..log import log, initialize_logging
 from datetime import datetime
 import click
-import os
 
 FEED_EPOCH = 2020, 1, 1
 
