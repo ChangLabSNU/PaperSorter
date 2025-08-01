@@ -21,26 +21,10 @@
 # THE SOFTWARE.
 #
 
-"""Web server task for PaperSorter."""
+"""Authentication module for PaperSorter web interface."""
 
-import click
-from ..log import log, initialize_logging
-from ..web import create_app
+from .models import User
+from .decorators import admin_required
+from .routes import auth_bp
 
-
-@click.option('--config', default='qbio/config.yml', help='Database configuration file.')
-@click.option('--host', default='0.0.0.0', help='Host to bind to.')
-@click.option('--port', default=5001, help='Port to bind to.')
-@click.option('--debug', is_flag=True, help='Enable debug mode.')
-@click.option('--log-file', default=None, help='Log file.')
-@click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(config, host, port, debug, log_file, quiet):
-    """Serve web interface for article labeling and other tasks."""
-    initialize_logging(task='serve', logfile=log_file, quiet=quiet)
-
-    log.info(f'Starting web server on {host}:{port}')
-
-    app = create_app(config)
-
-    # Run the Flask app
-    app.run(host=host, port=port, debug=debug)
+__all__ = ['User', 'admin_required', 'auth_bp']
