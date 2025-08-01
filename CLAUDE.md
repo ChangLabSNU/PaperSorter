@@ -17,7 +17,25 @@ The system consists of several key components:
   - `update`: Fetch new articles, generate embeddings, and queue items for broadcast
   - `train`: Train XGBoost model on labeled data
   - `broadcast`: Process broadcast queue and send notifications to Slack
-  - `serve`: Web interface for article labeling and other interactive tasks
+  - `serve`: Entry point for web interface (delegates to web package)
+- **Web** (`web/`): Modular web interface implementation
+  - `app.py`: Flask application factory
+  - `main.py`: Main route handlers for feed list and labeling
+  - `auth/`: Authentication module with Google OAuth integration
+    - `models.py`: User model for Flask-Login
+    - `decorators.py`: Authentication decorators (admin_required)
+    - `routes.py`: Login/logout/OAuth callback routes
+  - `api/`: RESTful API endpoints organized by domain
+    - `feeds.py`: Feed operations (list, star, feedback, similar articles)
+    - `search.py`: Text search, AI summarization, Semantic Scholar integration
+    - `settings.py`: Admin settings for channels, users, models, events
+    - `user.py`: User preferences and poster generation
+  - `models/`: Data models
+    - `semantic_scholar.py`: Semantic Scholar paper representation
+  - `utils/`: Shared utilities
+    - `database.py`: Database helper functions
+  - `jobs/`: Background job processors
+    - `poster.py`: AI-powered infographic poster generation
 - **Providers** (`providers/`): TheOldReader API integration
 - **Contrib** (`contrib/`): Additional utilities like Tor support
 - **__main__.py**: Dynamic CLI command loader that imports all tasks from `tasks/__init__.py`
@@ -85,6 +103,11 @@ embedding_api:
   api_url: ""   # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
   model: ""     # Optional: model name (defaults to text-embedding-3-large)
 
+summarization_api:
+  api_key: "your_api_key"
+  api_url: "https://generativelanguage.googleapis.com/v1beta/openai"  # For Gemini
+  model: "gemini-2.0-flash-thinking-exp-01-21"
+
 feed_service:
   type: "theoldreader"
   username: "your_email"
@@ -113,9 +136,11 @@ The PostgreSQL database includes tables for:
 - **broadcast_logs**: Tracking of sent notifications (feed_id, channel_id, broadcasted_time)
 - **broadcast_queue**: Queue for items pending broadcast (feed_id, channel_id, processed)
 - **labeling_sessions**: Manual labeling interface data
-- **users**: User accounts
-- **channels**: Notification channels
+- **users**: User accounts (includes bookmark position and preferences)
+- **channels**: Notification channels (Slack webhooks with per-channel settings)
 - **models**: Trained model metadata
+- **events**: Event logging for user actions and system events
+- **broadcasts**: Record of articles sent to channels (prevents duplicates)
 
 ## Key Implementation Details
 
@@ -134,6 +159,15 @@ The PostgreSQL database includes tables for:
 - Broadcast queue mechanism: items are queued during update phase based on score threshold and processed during broadcast phase
 - Broadcast task iterates through all active channels (is_active=TRUE) and processes their associated broadcast queue items
 - Each channel can have its own model_id and score_threshold settings
+
+### Web Interface Architecture
+- Modular Flask application using blueprints for better organization
+- Authentication handled separately with reusable decorators
+- API endpoints organized by functional domain (feeds, search, settings, user)
+- Background jobs (like poster generation) run in separate threads
+- Shareable search URLs with query parameters (`?q=search+terms`)
+- Real-time feed content loading and interactive labeling
+- AI-powered summarization and infographic generation for article collections
 
 ## Dependencies
 
