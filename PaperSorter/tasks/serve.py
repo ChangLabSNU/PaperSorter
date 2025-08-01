@@ -106,11 +106,11 @@ def admin_required(f):
 def _process_poster_job(app, job_id, feed_ids, config_path):
     """Process poster generation in background thread"""
     try:
-        
+
         # Load summarization API configuration
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
-        
+
         api_config = config.get('summarization_api')
         if not api_config:
             log.error("Summarization API not configured in config file")
@@ -118,8 +118,8 @@ def _process_poster_job(app, job_id, feed_ids, config_path):
                 app.poster_jobs[job_id]['status'] = 'error'
                 app.poster_jobs[job_id]['error'] = 'Summarization API not configured'
             return
-        
-        
+
+
         # Get database connection function from app context
         with app.app_context():
             # Fetch article data from database
@@ -127,7 +127,7 @@ def _process_poster_job(app, job_id, feed_ids, config_path):
             pg_config = {k: v for k, v in app.db_config.items() if k != 'type'}
             conn = psycopg2.connect(**pg_config)
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
+
             # Get articles with content/tldr
             placeholders = ','.join(['%s'] * len(feed_ids))
             query = f"""
@@ -136,18 +136,18 @@ def _process_poster_job(app, job_id, feed_ids, config_path):
                 WHERE id IN ({placeholders})
             """
             cursor.execute(query, feed_ids)
-            
+
             articles = cursor.fetchall()
             cursor.close()
             conn.close()
-            
+
             if not articles:
                 log.error("No articles found in database for given IDs")
                 with app.poster_jobs_lock:
                     app.poster_jobs[job_id]['status'] = 'error'
                     app.poster_jobs[job_id]['error'] = 'No articles found'
                 return
-            
+
             # Format articles for infographic
             formatted_articles = []
             for i, article in enumerate(articles):
@@ -164,8 +164,8 @@ def _process_poster_job(app, job_id, feed_ids, config_path):
                 except Exception as e:
                     log.error(f"Error formatting article {i} (id={article.get('id')}): {e}")
                     continue
-            
-            
+
+
             # Create prompt for infographic generation
             prompt = f"""You are an expert at creating beautiful, informative scientific infographics. Create a single-page React-based HTML infographic poster that visualizes the following collection of research articles.
 
@@ -209,19 +209,19 @@ IMPORTANT: For the Article Insights section, avoid boring lists. Create rich vis
 Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending with </html>. Make it visually stunning and informative, focusing on clarity and impact."""
 
             # Initialize OpenAI client
-            
+
             client = OpenAI(
                 api_key=api_config["api_key"],
                 base_url=api_config.get("api_url", "https://api.openai.com/v1")
             )
-            
+
             # Generate infographic
             start_time = time.time()
-            
+
             try:
                 # Set a longer timeout for the client
                 client.timeout = 300.0  # 5 minutes timeout
-                
+
                 response = client.chat.completions.create(
                     model=api_config.get("model", "gpt-4o-mini"),
                     messages=[
@@ -232,9 +232,9 @@ Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending w
                     max_tokens=128000,
                     timeout=300.0  # 5 minutes timeout
                 )
-                
+
                 elapsed_time = time.time() - start_time
-                
+
             except Exception as api_error:
                 elapsed_time = time.time() - start_time
                 log.error(f"API call failed after {elapsed_time:.2f} seconds: {api_error}")
@@ -242,9 +242,9 @@ Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending w
                     app.poster_jobs[job_id]['status'] = 'error'
                     app.poster_jobs[job_id]['error'] = f'API call failed: {str(api_error)}'
                 return
-            
+
             poster_html = response.choices[0].message.content
-            
+
             # Extract HTML content if wrapped in markdown code blocks
             if "```html" in poster_html:
                 start = poster_html.find("```html") + 7
@@ -254,17 +254,39 @@ Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending w
                 start = poster_html.find("```") + 3
                 end = poster_html.find("```", start)
                 poster_html = poster_html[start:end].strip()
-            
+
             # Store result
             with app.poster_jobs_lock:
                 app.poster_jobs[job_id]['status'] = 'completed'
                 app.poster_jobs[job_id]['result'] = poster_html
-            
+                user_id = app.poster_jobs[job_id]['user_id']
+
+            # Log the event to database
+            # Filter out non-PostgreSQL parameters
+            pg_config = {k: v for k, v in app.db_config.items() if k != 'type'}
+            conn = psycopg2.connect(**pg_config)
+            cursor = conn.cursor()
+            try:
+                # Log AI poster generation event - store all feed IDs in content field
+                if feed_ids:
+                    # Store the list of feed IDs as JSON in the content field
+                    cursor.execute("""
+                        INSERT INTO events (event_type, user_id, feed_id, content)
+                        VALUES (%s, %s, %s, %s)
+                    """, ('web:ai-poster-infographic', user_id, feed_ids[0], json.dumps(feed_ids)))
+                    conn.commit()
+            except Exception as e:
+                log.error(f"Failed to log AI poster event: {e}")
+                conn.rollback()
+            finally:
+                cursor.close()
+                conn.close()
+
     except Exception as e:
         import traceback
         log.error(f"Poster generation job {job_id} failed: {type(e).__name__}: {str(e)}")
         log.error(f"Traceback:\n{traceback.format_exc()}")
-        
+
         # Store error
         with app.poster_jobs_lock:
             app.poster_jobs[job_id]['status'] = 'error'
@@ -284,7 +306,7 @@ def create_app(config_path):
 
     db_config = config['db']
     google_config = config.get('google_oauth', {})
-    
+
     # Store db_config in app for background threads
     app.db_config = db_config
 
@@ -293,11 +315,11 @@ def create_app(config_path):
 
     # Set session lifetime to 30 days
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-    
+
     # Initialize job queue for poster generation
     app.poster_jobs = {}
     app.poster_jobs_lock = threading.Lock()
-    
+
     # Cleanup old jobs every 5 minutes
     def cleanup_old_jobs():
         while True:
@@ -312,7 +334,7 @@ def create_app(config_path):
                 for job_id in jobs_to_remove:
                     log.info(f"Cleaning up old poster job: {job_id}")
                     del app.poster_jobs[job_id]
-    
+
     cleanup_thread = threading.Thread(target=cleanup_old_jobs, daemon=True)
     cleanup_thread.start()
 
@@ -1194,6 +1216,26 @@ def create_app(config_path):
                     'negative_votes': feed['negative_votes']
                 })
 
+            # Log the search event
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                # Log text search event with the most relevant result (if any)
+                # Store search query in content field, and the most relevant feed_id if results exist
+                feed_id_to_log = search_results[0]['feed_id'] if search_results else None
+                cursor.execute("""
+                    INSERT INTO events (event_type, user_id, feed_id, content)
+                    VALUES (%s, %s, %s, %s)
+                """, ('web:text-search', current_user.id, feed_id_to_log, query))
+                conn.commit()
+                log.info(f"Text search event logged for query '{query}' by user {current_user.username}")
+            except Exception as e:
+                log.error(f"Failed to log text search event: {e}")
+                conn.rollback()
+            finally:
+                cursor.close()
+                conn.close()
+
             return jsonify({'feeds': feeds})
 
         except Exception as e:
@@ -1262,22 +1304,22 @@ def create_app(config_path):
         try:
             data = request.get_json()
             feed_ids = data.get('feed_ids', [])
-            
+
             if not feed_ids:
                 return jsonify({'error': 'No feed IDs provided'}), 400
-            
+
             # Load summarization API configuration
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
-            
+
             api_config = config.get('summarization_api')
             if not api_config:
                 return jsonify({'error': 'Summarization API not configured'}), 500
-            
+
             # Fetch article data from database
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
+
             # Get articles with content/tldr
             placeholders = ','.join(['%s'] * len(feed_ids))
             query = f"""
@@ -1286,31 +1328,31 @@ def create_app(config_path):
                 WHERE id IN ({placeholders})
             """
             cursor.execute(query, feed_ids)
-            
+
             articles = cursor.fetchall()
             cursor.close()
             conn.close()
             if not articles:
                 return jsonify({'error': 'No articles found'}), 404
-            
+
             # Format articles for summarization
             formatted_articles = []
             article_refs = []  # Store author-year references
             for i, article in enumerate(articles, 1):
                 try:
                     parts = []
-                    
+
                     # Extract first author's last name and year for reference
                     first_author = "Unknown"
                     year = "n.d."
-                    
+
                     if article.get('author') and article['author'] is not None:
                         # Extract first author's last name
                         authors = str(article['author']).split(',')[0].strip()
                         # Try to get last name (assume last word is last name)
                         first_author = authors.split()[-1] if authors else "Unknown"
                         parts.append(f"Authors: {article['author']}")
-                    
+
                     if article.get('published') and article['published'] is not None:
                         # Extract year from published date
                         if hasattr(article['published'], 'year'):
@@ -1323,10 +1365,10 @@ def create_app(config_path):
                             if len(pub_str) >= 4:
                                 year = pub_str[:4]
                             parts.append(f"Published: {article['published']}")
-                    
+
                     article_ref = f"{first_author} {year}"
                     article_refs.append(article_ref)
-                    
+
                     if article.get('title') and article['title'] is not None:
                         parts.append(f"Title: {article['title']}")
                     if article.get('origin') and article['origin'] is not None:
@@ -1339,18 +1381,18 @@ def create_app(config_path):
                         if len(content) > 500:
                             content = content[:497] + '...'
                         parts.append(f"Abstract: {content}")
-                    
+
                     if parts:  # Only add if we have some content
                         formatted_articles.append(f"[{article_ref}]\n" + "\n".join(parts))
                 except Exception as e:
                     log.error(f"Error formatting article {i} (id={article.get('id')}): {e}")
                     continue
-            
+
             if not formatted_articles:
                 return jsonify({'error': 'No valid articles to summarize'}), 400
-            
+
             articles_text = "\n\n---\n\n".join(formatted_articles)
-            
+
             # Create prompt
             prompt = f"""You are an expert scientific literature analyst. Analyze the following collection of research articles and provide a focused summary.
 
@@ -1367,13 +1409,13 @@ Start your response directly with the numbered sections below. Do not include an
 4. **Future Directions**: Based on these papers, provide 2-3 bullet points on the most promising research opportunities.
 
 Keep your response focused and actionable, using clear Markdown formatting. When referencing specific papers, use the author-year format provided in square brackets for each article."""
-            
+
             # Initialize OpenAI client with Gemini backend
             client = OpenAI(
                 api_key=api_config["api_key"],
                 base_url=api_config["api_url"]
             )
-            
+
             # Generate summarization
             response = client.chat.completions.create(
                 model=api_config["model"],
@@ -1384,30 +1426,49 @@ Keep your response focused and actionable, using clear Markdown formatting. When
                 temperature=0.7,
                 max_tokens=8000
             )
-            
+
             summary_markdown = response.choices[0].message.content
-            
+
             # Ensure we have valid content
             if not summary_markdown:
                 return jsonify({'error': 'Empty response from LLM'}), 500
-            
+
             # Ensure it's a string
             if not isinstance(summary_markdown, str):
                 log.error(f"Unexpected type for summary_markdown: {type(summary_markdown)}")
                 summary_markdown = str(summary_markdown)
-            
+
             # Convert Markdown to HTML
             summary_html = markdown2.markdown(
                 summary_markdown,
                 extras=['fenced-code-blocks', 'tables', 'strike', 'task_list']
             )
-            
+
+            # Log the event to database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                # Log AI summary generation event - store all feed IDs in content field
+                if feed_ids:
+                    # Store the list of feed IDs as JSON in the content field
+                    cursor.execute("""
+                        INSERT INTO events (event_type, user_id, feed_id, content)
+                        VALUES (%s, %s, %s, %s)
+                    """, ('web:ai-summary-text', current_user.id, feed_ids[0], json.dumps(feed_ids)))
+                    conn.commit()
+            except Exception as e:
+                log.error(f"Failed to log AI summary event: {e}")
+                conn.rollback()
+            finally:
+                cursor.close()
+                conn.close()
+
             return jsonify({
                 'success': True,
                 'summary_html': summary_html,
                 'summary_markdown': summary_markdown
             })
-            
+
         except Exception as e:
             import traceback
             log.error(f"Error generating summary: {e}")
@@ -1421,14 +1482,14 @@ Keep your response focused and actionable, using clear Markdown formatting. When
         try:
             data = request.get_json()
             feed_ids = data.get('feed_ids', [])
-            
+
             if not feed_ids:
                 log.error("No feed IDs provided in request")
                 return jsonify({'error': 'No feed IDs provided'}), 400
-            
+
             # Generate unique job ID
             job_id = str(uuid.uuid4())
-            
+
             # Store job in queue
             with app.poster_jobs_lock:
                 app.poster_jobs[job_id] = {
@@ -1439,46 +1500,46 @@ Keep your response focused and actionable, using clear Markdown formatting. When
                     'result': None,
                     'error': None
                 }
-            
+
             # Start background thread to process the job
             thread = threading.Thread(
-                target=_process_poster_job, 
+                target=_process_poster_job,
                 args=(app, job_id, feed_ids, config_path),
                 daemon=True
             )
             thread.start()
-            
+
             # Return job ID immediately
             return jsonify({
                 'success': True,
                 'job_id': job_id
             })
-            
+
         except Exception as e:
             log.error(f"Error creating poster job: {e}")
             return jsonify({'error': str(e)}), 500
-    
+
     @app.route('/api/poster-status/<job_id>', methods=['GET'])
     @login_required
     def api_poster_status(job_id):
         """Check the status of a poster generation job"""
         with app.poster_jobs_lock:
             job = app.poster_jobs.get(job_id)
-            
+
             if not job:
                 return jsonify({'error': 'Job not found'}), 404
-            
+
             # Check if job belongs to current user
             if job['user_id'] != current_user.id and not current_user.is_admin:
                 return jsonify({'error': 'Unauthorized'}), 403
-            
+
             # Return job status
             response = {
                 'job_id': job_id,
                 'status': job['status'],
                 'created_at': job['created_at']
             }
-            
+
             if job['status'] == 'completed':
                 response['poster_html'] = job['result']
                 # Clear the job after returning it
@@ -1487,7 +1548,7 @@ Keep your response focused and actionable, using clear Markdown formatting. When
                 response['error'] = job['error']
                 # Clear the job after returning the error
                 del app.poster_jobs[job_id]
-            
+
             return jsonify(response)
 
     # Models API endpoints
@@ -1617,11 +1678,12 @@ Keep your response focused and actionable, using clear Markdown formatting. When
             cursor.execute("SELECT COUNT(*) as total FROM events")
             total = cursor.fetchone()['total']
 
-            # Get events with feed information
+            # Get events with feed and user information
             cursor.execute("""
-                SELECT e.*, f.title as feed_title
+                SELECT e.*, f.title as feed_title, u.username
                 FROM events e
                 LEFT JOIN feeds f ON e.feed_id = f.id
+                LEFT JOIN users u ON e.user_id = u.id
                 ORDER BY e.occurred DESC
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
@@ -1729,11 +1791,10 @@ Keep your response focused and actionable, using clear Markdown formatting. When
         """Handle Slack interactivity requests"""
         payload = json.loads(dict(request.form)['payload'])
         if 'user' in payload and 'actions' in payload:
-            user_id = payload['user']['id']
-            user_name = payload['user']['name']
+            external_id = payload['user']['id']
+            content = payload['user']['name']
             action, related_feed_id = payload['actions'][0]['value'].split('_', 1)
             related_feed_id = int(related_feed_id)
-            log.info(f"User {user_name} ({user_id}) performed action: {action} on feed ID {related_feed_id}")
 
             # Insert event into database
             conn = get_db_connection()
@@ -1743,11 +1804,10 @@ Keep your response focused and actionable, using clear Markdown formatting. When
                 cursor.execute("SELECT id FROM feeds WHERE id = %s", (related_feed_id,))
                 if cursor.fetchone():
                     cursor.execute("""
-                        INSERT INTO events (event_type, user_id, user_name, feed_id)
+                        INSERT INTO events (event_type, external_id, content, feed_id)
                         VALUES (%s, %s, %s, %s)
-                    """, (action, user_id, user_name, related_feed_id))
+                    """, ('slack:' + action, external_id, content, related_feed_id))
                     conn.commit()
-                    log.info(f"Event logged to database: {action} by {user_name} on feed {related_feed_id}")
                 else:
                     log.warning(f"Feed ID {related_feed_id} not found, skipping event logging")
             except Exception as e:
