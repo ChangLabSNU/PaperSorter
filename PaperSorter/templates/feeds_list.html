@@ -912,8 +912,14 @@
         <!-- General Search Results Container -->
         <div id="generalSearchResultsContainer" style="display: none;">
             <div class="search-results-header">
-                <h2>Search Results</h2>
-                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+                <div style="flex: 1;">
+                    <h2 style="margin-bottom: 8px;">Search Results</h2>
+                    <p id="searchQueryDisplay" style="margin: 0; color: #7f8c8d; font-size: 14px;"></p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <button onclick="copySearchLink()" class="btn btn-primary">📋 Copy Link</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+                </div>
             </div>
             
             <!-- Summary Section -->
@@ -1593,6 +1599,11 @@
                 return;
             }
 
+            // Update URL with search query
+            const newURL = new URL(window.location);
+            newURL.searchParams.set('q', query);
+            window.history.pushState({ path: newURL.toString() }, '', newURL.toString());
+
             // Show results container
             document.getElementById('generalSearchContainer').style.display = 'none';
             document.getElementById('generalSearchResultsContainer').style.display = 'block';
@@ -1619,6 +1630,11 @@
 
         function displayGeneralSearchResults(feeds) {
             const resultsDiv = document.getElementById('generalSearchResults');
+            const query = document.getElementById('generalSearchInput').value.trim();
+            
+            // Update search query display
+            const queryDisplay = document.getElementById('searchQueryDisplay');
+            queryDisplay.textContent = `Query: "${query}"`;
 
             if (feeds.length === 0) {
                 resultsDiv.innerHTML = '<div class="loading">No results found</div>';
@@ -1652,12 +1668,82 @@
             }
         }
 
+        function copySearchLink() {
+            const url = window.location.href;
+            
+            // Try modern clipboard API first
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(() => {
+                    // Change button text temporarily to show success
+                    const btn = event.target || document.querySelector('#generalSearchResultsContainer button[onclick*="copySearchLink"]');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✅ Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    // Fallback to older method
+                    fallbackCopyToClipboard(url);
+                });
+            } else {
+                // Use fallback for older browsers or non-HTTPS
+                fallbackCopyToClipboard(url);
+            }
+        }
+        
+        function fallbackCopyToClipboard(text) {
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-999999px';
+            textarea.style.top = '-999999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                const btn = event.target || document.querySelector('#generalSearchResultsContainer button[onclick*="copySearchLink"]');
+                
+                if (successful) {
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✅ Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                } else {
+                    // Show the URL in a prompt as last resort
+                    prompt('Copy this link:', text);
+                }
+            } catch (err) {
+                // Show the URL in a prompt as last resort
+                prompt('Copy this link:', text);
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+
         function backToFeedList() {
             document.getElementById('generalSearchContainer').style.display = 'none';
             document.getElementById('generalSearchResultsContainer').style.display = 'none';
             document.getElementById('semanticSearchContainer').style.display = 'none';
             document.getElementById('searchResultsContainer').style.display = 'none';
             document.getElementById('feedsContainer').style.display = 'block';
+            
+            // Clear search query from URL
+            const newURL = new URL(window.location);
+            newURL.searchParams.delete('q');
+            window.history.pushState({ path: newURL.toString() }, '', newURL.toString());
+            
+            // Load feeds if not already loaded
+            const feedsList = document.getElementById('feeds-list');
+            if (feedsList.children.length === 0) {
+                currentPage = 1;
+                hasMore = true;
+                lastDateShown = null;
+                loadFeeds();
+            }
         }
 
         function backToSearchInput() {
@@ -2043,9 +2129,43 @@
             }
         });
 
+        // Handle browser back/forward navigation
+        window.addEventListener('popstate', function(event) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchQuery = urlParams.get('q');
+            
+            if (searchQuery) {
+                // Show search results
+                document.getElementById('generalSearchInput').value = searchQuery;
+                toggleGeneralSearch();
+                performGeneralSearch();
+            } else {
+                // Show feed list
+                backToFeedList();
+            }
+        });
+
+        // Check for search query in URL parameters
+        function checkURLSearchParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchQuery = urlParams.get('q');
+            
+            if (searchQuery) {
+                // Show search interface with the query
+                document.getElementById('generalSearchInput').value = searchQuery;
+                toggleGeneralSearch();
+                // Perform the search automatically
+                performGeneralSearch();
+            }
+        }
+
         // Initial load
         initializeSlider();
-        loadFeeds();
+        checkURLSearchParams();
+        // Only load feeds if not searching
+        if (!new URLSearchParams(window.location.search).get('q')) {
+            loadFeeds();
+        }
     </script>
 </body>
 </html>
