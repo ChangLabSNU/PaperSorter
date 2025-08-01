@@ -188,6 +188,14 @@ class EmbeddingDatabase:
                     SELECT embedding
                     FROM embeddings
                     WHERE feed_id = %s
+                ),
+                all_prefs AS (
+                    SELECT DISTINCT ON (feed_id)
+                        feed_id,
+                        score
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback')
+                    ORDER BY feed_id, id DESC
                 )
                 SELECT
                     {select_fields}
@@ -197,7 +205,7 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback')
+                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN (
                     SELECT
                         feed_id,
@@ -210,7 +218,7 @@ class EmbeddingDatabase:
                 WHERE e.feed_id != %s
                 ORDER BY e.embedding <=> se.embedding
                 LIMIT %s
-            ''', (model_id, feed_id, feed_id, limit))
+            ''', (feed_id, model_id, feed_id, limit))
         else:
             # Filter preferences by user_id
             self.cursor.execute(f'''
@@ -218,6 +226,14 @@ class EmbeddingDatabase:
                     SELECT embedding
                     FROM embeddings
                     WHERE feed_id = %s
+                ),
+                user_prefs AS (
+                    SELECT DISTINCT ON (feed_id)
+                        feed_id,
+                        score
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback') AND user_id = %s
+                    ORDER BY feed_id, id DESC
                 )
                 SELECT
                     {select_fields}
@@ -227,7 +243,7 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback') AND pf.user_id = %s
+                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN (
                     SELECT
                         feed_id,
@@ -240,7 +256,7 @@ class EmbeddingDatabase:
                 WHERE e.feed_id != %s
                 ORDER BY e.embedding <=> se.embedding
                 LIMIT %s
-            ''', (feed_id, model_id, user_id, user_id, feed_id, limit))
+            ''', (feed_id, user_id, model_id, user_id, feed_id, limit))
 
         results = self.cursor.fetchall()
         if not results:
@@ -292,6 +308,14 @@ class EmbeddingDatabase:
         if user_id is None:
             # If no user_id provided, don't filter preferences
             self.cursor.execute(f'''
+                WITH all_prefs AS (
+                    SELECT DISTINCT ON (feed_id)
+                        feed_id,
+                        score
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback')
+                    ORDER BY feed_id, id DESC
+                )
                 SELECT
                     {select_fields}
                 FROM embeddings e
@@ -299,7 +323,7 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback')
+                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN (
                     SELECT
                         feed_id,
@@ -315,6 +339,14 @@ class EmbeddingDatabase:
         else:
             # Filter preferences by user_id
             self.cursor.execute(f'''
+                WITH user_prefs AS (
+                    SELECT DISTINCT ON (feed_id)
+                        feed_id,
+                        score
+                    FROM preferences
+                    WHERE source IN ('interactive', 'alert-feedback') AND user_id = %s
+                    ORDER BY feed_id, id DESC
+                )
                 SELECT
                     {select_fields}
                 FROM embeddings e
@@ -322,7 +354,7 @@ class EmbeddingDatabase:
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
                 LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN preferences pf ON f.id = pf.feed_id AND pf.source IN ('interactive', 'alert-feedback') AND pf.user_id = %s
+                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN (
                     SELECT
                         feed_id,
@@ -334,7 +366,7 @@ class EmbeddingDatabase:
                 ) vote_counts ON f.id = vote_counts.feed_id
                 ORDER BY e.embedding <=> %s::vector
                 LIMIT %s
-            ''', (query_embedding, model_id, user_id, user_id, query_embedding, limit))
+            ''', (query_embedding, user_id, model_id, user_id, query_embedding, limit))
 
         results = self.cursor.fetchall()
         return results

@@ -1115,10 +1115,10 @@
             summaryLoading.style.display = 'block';
             summaryText.innerHTML = '';
             
-            // Extract feed IDs from similar articles
-            const feedIds = similarArticles.map(article => article.rowid);
+            // Extract feed IDs from similar articles and include the source article
+            const feedIds = [sourceFeedId, ...similarArticles.map(article => article.rowid)];
             
-            // Call the summarization API with just feed IDs
+            // Call the summarization API with feed IDs including the source
             fetch('/api/summarize', {
                 method: 'POST',
                 headers: {
@@ -1172,8 +1172,8 @@
             summaryText.style.display = 'none';
             posterContent.style.display = 'none';
             
-            // Extract feed IDs from similar articles
-            const feedIds = similarArticles.map(article => article.rowid);
+            // Extract feed IDs from similar articles and include the source article
+            const feedIds = [sourceFeedId, ...similarArticles.map(article => article.rowid)];
             
             // Call the poster generation API to queue the job
             
