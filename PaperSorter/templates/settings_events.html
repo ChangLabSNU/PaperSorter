@@ -90,29 +90,80 @@
         }
 
         .event-type {
-            background: #3498db;
-            color: white;
-            padding: 4px 12px;
+            display: inline-flex;
+            align-items: stretch;
             border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: 11px;
+            font-weight: 600;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            white-space: nowrap;
+        }
+
+        .event-type-source {
+            padding: 4px 8px;
+            color: white;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
         }
 
-        .event-type.interested {
-            background: #27ae60;
+        .event-type-action {
+            padding: 4px 10px;
+            color: white;
+            text-transform: capitalize;
+            border-left: 1px solid rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
         }
 
-        .event-type.not-interested {
+        /* Source colors */
+        .source-slack {
+            background: #4A154B;
+        }
+
+        .source-web {
+            background: #0066CC;
+        }
+
+        /* Action colors for Slack events */
+        .action-interested {
+            background: #2ecc71;
+        }
+
+        .action-not-interested {
             background: #e74c3c;
         }
 
-        .event-type.bookmarked {
+        .action-bookmarked {
             background: #f39c12;
         }
 
-        .event-type.unbookmarked {
+        .action-unbookmarked {
             background: #95a5a6;
+        }
+
+        .action-read {
+            background: #34495e;
+        }
+
+        .action-similar {
+            background: #e67e22;
+        }
+
+        /* Action colors for Web events */
+        .action-text-search {
+            background: #3498db;
+        }
+
+        .action-ai-summary-text {
+            background: #8B4513;
+        }
+
+        .action-ai-poster-infographic {
+            background: #C71585;
         }
 
         .event-details {
@@ -124,6 +175,12 @@
         .event-user {
             font-weight: bold;
             color: #2c3e50;
+        }
+
+        /* Special styling for search queries */
+        .search-query {
+            color: #27ae60;
+            font-style: italic;
         }
 
         .event-feed {
@@ -218,31 +275,92 @@
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
         }
 
-        function getEventTypeClass(eventType) {
-            const typeMap = {
-                'interested': 'interested',
-                'not-interested': 'not-interested',
-                'bookmarked': 'bookmarked',
-                'unbookmarked': 'unbookmarked'
-            };
-            return typeMap[eventType] || '';
+        function renderEventTypeBadge(eventType) {
+            let source = '';
+            let action = '';
+            let sourceClass = '';
+            let actionClass = '';
+
+            if (eventType.startsWith('slack:')) {
+                source = 'slack';
+                sourceClass = 'source-slack';
+                action = eventType.substring(6); // Remove 'slack:' prefix
+                actionClass = `action-${action}`;
+            } else if (eventType.startsWith('web:')) {
+                source = 'web';
+                sourceClass = 'source-web';
+                action = eventType.substring(4); // Remove 'web:' prefix
+                actionClass = `action-${action}`;
+            } else {
+                // Legacy event types (assume they're from slack)
+                source = 'slack';
+                sourceClass = 'source-slack';
+                action = eventType;
+                actionClass = `action-${eventType}`;
+            }
+
+            // Format the action text for display
+            const actionDisplay = action.replace(/-/g, ' ');
+
+            return `
+                <span class="event-type">
+                    <span class="event-type-source ${sourceClass}">${source}</span>
+                    <span class="event-type-action ${actionClass}">${actionDisplay}</span>
+                </span>
+            `;
         }
 
         function renderEvent(event) {
-            const eventClass = getEventTypeClass(event.event_type);
             const feedLink = event.feed_id ?
                 `<a href="/similar/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown feed'}</a>` :
                 'No feed associated';
+
+            // Determine what to display based on event type
+            let primaryInfo = '';
+            let secondaryInfo = '';
+
+            if (event.event_type === 'web:text-search') {
+                // For text searches, show the search query
+                const username = event.username || 'Unknown user';
+                primaryInfo = `${username} searched: <span class="search-query">"${event.content}"</span>`;
+                secondaryInfo = feedLink;
+            } else if (event.event_type.startsWith('slack:')) {
+                // For Slack events, show the user name and action
+                primaryInfo = event.content || event.external_id || 'Unknown user';
+                secondaryInfo = feedLink;
+            } else if (event.event_type === 'web:ai-summary-text' || event.event_type === 'web:ai-poster-infographic') {
+                // For AI generation events, show what was generated
+                const actionType = event.event_type === 'web:ai-summary-text' ? 'AI Summary' : 'AI Poster';
+                const username = event.username || 'Unknown user';
+                let articleCount = 1;
+                // Try to parse content as JSON array to get actual count
+                if (event.content) {
+                    try {
+                        const feedIds = JSON.parse(event.content);
+                        if (Array.isArray(feedIds)) {
+                            articleCount = feedIds.length;
+                        }
+                    } catch (e) {
+                        // If parsing fails, use default count
+                    }
+                }
+                primaryInfo = `${username} generated ${actionType} for ${articleCount} article${articleCount > 1 ? 's' : ''}`;
+                secondaryInfo = feedLink;
+            } else {
+                // Default display
+                primaryInfo = event.content || event.external_id || 'User action';
+                secondaryInfo = feedLink;
+            }
 
             return `
                 <div class="event-item">
                     <div class="event-header">
                         <div class="event-details">
-                            <div class="event-user">${event.user_name || event.user_id}</div>
-                            <div class="event-feed">${feedLink}</div>
+                            <div class="event-user">${primaryInfo}</div>
+                            <div class="event-feed">${secondaryInfo}</div>
                         </div>
                         <div class="event-meta">
-                            <span class="event-type ${eventClass}">${event.event_type}</span>
+                            ${renderEventTypeBadge(event.event_type)}
                             <div class="event-time">${formatDate(event.occurred)}</div>
                         </div>
                     </div>

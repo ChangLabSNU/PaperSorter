@@ -113,9 +113,10 @@ CREATE TABLE papersorter.events (
     id integer NOT NULL,
     occurred timestamp with time zone DEFAULT now() NOT NULL,
     event_type text,
-    user_id text,
-    user_name text,
-    feed_id bigint
+    external_id text,
+    content text,
+    feed_id bigint,
+    user_id integer
 );
 
 
@@ -141,6 +142,9 @@ ALTER SEQUENCE papersorter.events_id_seq OWNER TO papersorter;
 --
 
 ALTER SEQUENCE papersorter.events_id_seq OWNED BY papersorter.events.id;
+
+ALTER TABLE ONLY papersorter.events
+    ADD CONSTRAINT fk_events_user FOREIGN KEY (user_id) REFERENCES papersorter.users(id) ON UPDATE CASCADE;
 
 
 --
