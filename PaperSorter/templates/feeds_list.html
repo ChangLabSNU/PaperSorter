@@ -892,12 +892,12 @@
         .summary-disclaimer strong {
             color: #3c4043;
         }
-        
+
         .poster-content {
             width: 100%;
             margin-top: 20px;
         }
-        
+
         .poster-iframe {
             width: 100%;
             height: 800px;
@@ -954,7 +954,7 @@
                     <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
                 </div>
             </div>
-            
+
             <!-- Summary Section -->
             <div class="summary-section" id="searchSummarySection" style="display: none;">
                 <div class="summary-header">
@@ -980,7 +980,7 @@
                     <div class="poster-content" id="searchPosterContent" style="display: none;"></div>
                 </div>
             </div>
-            
+
             <div class="feeds-container">
                 <div id="generalSearchResults">
                     <!-- Search results will be loaded here -->
@@ -1693,7 +1693,7 @@
         function displayGeneralSearchResults(feeds) {
             const resultsDiv = document.getElementById('generalSearchResults');
             const query = document.getElementById('generalSearchInput').value.trim();
-            
+
             // Update search query display
             const queryDisplay = document.getElementById('searchQueryDisplay');
             queryDisplay.textContent = `Query: "${query}"`;
@@ -1706,10 +1706,10 @@
 
             // Store feeds for summary generation
             searchResultFeeds = feeds;
-            
+
             // Show summary section
             document.getElementById('searchSummarySection').style.display = 'block';
-            
+
             resultsDiv.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
         }
 
@@ -1732,7 +1732,7 @@
 
         function copySearchLink() {
             let url;
-            
+
             // Use shortened URL if available
             if (currentSearchShortName) {
                 // Get base URL from current location
@@ -1742,7 +1742,7 @@
                 // Fallback to full URL with query parameters
                 url = window.location.href;
             }
-            
+
             // Try modern clipboard API first
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(url).then(() => {
@@ -1756,7 +1756,7 @@
                 fallbackCopyToClipboard(url);
             }
         }
-        
+
         function fallbackCopyToClipboard(text) {
             // Create a temporary textarea element
             const textarea = document.createElement('textarea');
@@ -1767,11 +1767,11 @@
             document.body.appendChild(textarea);
             textarea.focus();
             textarea.select();
-            
+
             try {
                 const successful = document.execCommand('copy');
                 const btn = event.target || document.querySelector('#generalSearchResultsContainer button[onclick*="copySearchLink"]');
-                
+
                 if (successful) {
                     showToast('Link copied to clipboard!', 'success');
                 } else {
@@ -1792,15 +1792,15 @@
             document.getElementById('semanticSearchContainer').style.display = 'none';
             document.getElementById('searchResultsContainer').style.display = 'none';
             document.getElementById('feedsContainer').style.display = 'block';
-            
+
             // Clear search state
             currentSearchShortName = null;
-            
+
             // Clear search query from URL
             const newURL = new URL(window.location);
             newURL.searchParams.delete('q');
             window.history.pushState({ path: newURL.toString() }, '', newURL.toString());
-            
+
             // Load feeds if not already loaded
             const feedsList = document.getElementById('feeds-list');
             if (feedsList.children.length === 0) {
@@ -1970,7 +1970,7 @@
                     }
                 });
             }
-            
+
             // Summary generation for search results
             const generateSearchSummaryBtn = document.getElementById('generateSearchSummaryBtn');
             if (generateSearchSummaryBtn) {
@@ -1979,15 +1979,15 @@
                     const summaryInitial = document.getElementById('searchSummaryInitial');
                     const summaryLoading = document.getElementById('searchSummaryLoading');
                     const summaryText = document.getElementById('searchSummaryText');
-                    
+
                     // Hide button container and show loading
                     summaryInitial.style.display = 'none';
                     summaryLoading.style.display = 'block';
                     summaryText.innerHTML = '';
-                    
+
                     // Extract feed IDs from search results (limit to top 20)
                     const feedIds = searchResultFeeds.slice(0, 20).map(feed => feed.rowid);
-                    
+
                     // Call the summarization API
                     fetch('/api/summarize', {
                         method: 'POST',
@@ -2006,8 +2006,8 @@
                         if (data.success) {
                             summaryText.innerHTML = data.summary_html + `
                                 <div class="summary-disclaimer">
-                                    <p><strong>Note:</strong> This AI-generated summary is based solely on article titles and abstracts, not the full text. 
-                                    The summary may contain inaccuracies or miss important details from the complete papers. 
+                                    <p><strong>Note:</strong> This AI-generated summary is based solely on article titles and abstracts, not the full text.
+                                    The summary may contain inaccuracies or miss important details from the complete papers.
                                     Please refer to the original articles for comprehensive information.</p>
                                 </div>
                             `;
@@ -2028,7 +2028,7 @@
                     });
                 });
             }
-            
+
             // Poster generation for search results
             const generateSearchPosterBtn = document.getElementById('generateSearchPosterBtn');
             if (generateSearchPosterBtn) {
@@ -2038,18 +2038,18 @@
                     const posterLoading = document.getElementById('searchPosterLoading');
                     const summaryText = document.getElementById('searchSummaryText');
                     const posterContent = document.getElementById('searchPosterContent');
-                    
+
                     // Hide button container and show loading
                     summaryInitial.style.display = 'none';
                     posterLoading.style.display = 'block';
                     summaryText.style.display = 'none';
                     posterContent.style.display = 'none';
-                    
+
                     // Extract feed IDs from search results (limit to top 20)
                     const feedIds = searchResultFeeds.slice(0, 20).map(feed => feed.rowid);
-                    
+
                     // Call the poster generation API to queue the job
-                    
+
                     fetch('/api/generate-poster', {
                         method: 'POST',
                         headers: {
@@ -2081,22 +2081,22 @@
                                         if (statusData.status === 'completed') {
                                             clearInterval(pollInterval);
                                             posterLoading.style.display = 'none';
-                                            
+
                                             // Create an iframe to display the HTML poster
                                             posterContent.innerHTML = `
                                                 <iframe class="poster-iframe" srcdoc="${statusData.poster_html.replace(/"/g, '&quot;')}" frameborder="0"></iframe>
                                                 <div class="summary-disclaimer">
-                                                    <p><strong>Note:</strong> This AI-generated infographic is based solely on article titles and abstracts, not the full text. 
-                                                    The visualization may contain inaccuracies or miss important details from the complete papers. 
+                                                    <p><strong>Note:</strong> This AI-generated infographic is based solely on article titles and abstracts, not the full text.
+                                                    The visualization may contain inaccuracies or miss important details from the complete papers.
                                                     Please refer to the original articles for comprehensive information.</p>
                                                 </div>
                                             `;
                                             posterContent.style.display = 'block';
-                                            
+
                                         } else if (statusData.status === 'error') {
                                             clearInterval(pollInterval);
                                             posterLoading.style.display = 'none';
-                                            
+
                                             posterContent.innerHTML = `<p style="color: #e74c3c;">Failed to generate poster: ${statusData.error || 'Unknown error'}</p>`;
                                             posterContent.style.display = 'block';
                                             // Show button again on failure
@@ -2107,14 +2107,14 @@
                                     .catch(error => {
                                         clearInterval(pollInterval);
                                         posterLoading.style.display = 'none';
-                                        
+
                                         posterContent.innerHTML = `<p style="color: #e74c3c;">An error occurred while checking job status: ${error.message}</p>`;
                                         posterContent.style.display = 'block';
                                         // Show button again on error
                                         summaryInitial.style.display = 'flex';
                                     });
                             }, 3000); // Poll every 3 seconds
-                            
+
                             // Stop polling after 5 minutes
                             setTimeout(() => {
                                 clearInterval(pollInterval);
@@ -2125,7 +2125,7 @@
                                     summaryInitial.style.display = 'flex';
                                 }
                             }, 300000); // 5 minutes timeout
-                            
+
                         } else {
                             throw new Error('Failed to create job');
                         }
@@ -2198,7 +2198,7 @@
         window.addEventListener('popstate', function(event) {
             const urlParams = new URLSearchParams(window.location.search);
             const searchQuery = urlParams.get('q');
-            
+
             if (searchQuery) {
                 // Show search results
                 document.getElementById('generalSearchInput').value = searchQuery;
@@ -2214,7 +2214,7 @@
         function checkURLSearchParams() {
             const urlParams = new URLSearchParams(window.location.search);
             const searchQuery = urlParams.get('q');
-            
+
             if (searchQuery) {
                 // Show search interface with the query
                 document.getElementById('generalSearchInput').value = searchQuery;
