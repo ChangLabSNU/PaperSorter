@@ -35,7 +35,7 @@ MANIFEST
 *.swo
 *~
 .*.swp
-background-updates.log
+background-updates.log*
 notebook/
 old/
 qbio/
