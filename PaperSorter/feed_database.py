@@ -29,12 +29,6 @@ import yaml
 
 class FeedDatabase:
 
-    llm_input_format = (
-        'Title: {item[title]}.\n'
-        'Authors: {item[author]}.\n'
-        'Source: {item[origin]}.\n'
-        'Abstract: {item[content]}.')
-
     dbfields = ['id', 'starred', 'title', 'content', 'author', 'origin',
                 'published', 'link', 'mediaUrl', 'label', 'score', 'broadcasted',
                 'tldr']
@@ -155,7 +149,21 @@ class FeedDatabase:
             self.cursor.execute('SELECT * FROM feeds WHERE id = %s', (item_id,))
         item = self.cursor.fetchone()
         if item:
-            return self.llm_input_format.format(item=item)
+            parts = []
+            
+            if item['title']:
+                parts.append(f"Title: {item['title']}")
+            
+            if item['author']:
+                parts.append(f"Authors: {item['author']}")
+            
+            if item['origin']:
+                parts.append(f"Journal/Source: {item['origin']}")
+            
+            if item['content']:
+                parts.append(f"Abstract: {item['content']}")
+            
+            return "\n\n".join(parts)
         return None
 
     def build_dataframe_from_results(self, results):

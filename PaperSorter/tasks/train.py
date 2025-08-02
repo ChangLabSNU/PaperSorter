@@ -42,9 +42,10 @@ import yaml
 @click.option('--pos-cutoff', default=0.5, help='Predicted score cutoff for positive pseudo-labels.')
 @click.option('--neg-cutoff', default=0.2, help='Predicted score cutoff for negative pseudo-labels.')
 @click.option('--pseudo-weight', default=0.5, help='Weight for pseudo-labeled data.')
+@click.option('--embeddings-table', default='embeddings', help='Name of the embeddings table to use.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight, log_file, quiet):
+def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight, embeddings_table, log_file, quiet):
     initialize_logging(task='train', logfile=log_file, quiet=quiet)
 
     # Load database configuration
@@ -67,8 +68,12 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
     register_vector(db)
 
     # Query to get all feeds with their embeddings, preferences, and predicted scores
-    log.info(f'Loading training data for user_id={user_id}...')
-    cursor.execute('''
+    log.info(f'Loading training data for user_id={user_id} using table "{embeddings_table}"...')
+    
+    # Use psycopg2.sql to safely insert table name
+    from psycopg2 import sql
+    
+    query = sql.SQL('''
         WITH latest_preferences AS (
             SELECT DISTINCT ON (feed_id)
                 feed_id, score, time, source
@@ -87,11 +92,13 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
             pp.score as predicted_score,
             e.embedding
         FROM feeds f
-        JOIN embeddings e ON f.id = e.feed_id
+        JOIN {embeddings_table} e ON f.id = e.feed_id
         LEFT JOIN latest_preferences lp ON f.id = lp.feed_id
         LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
         ORDER BY f.id
-    ''', (user_id,))
+    ''').format(embeddings_table=sql.Identifier(embeddings_table))
+    
+    cursor.execute(query, (user_id,))
 
     results = cursor.fetchall()
     cursor.close()
@@ -147,7 +154,9 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
 
     # Calculate weights for pseudo-labeled data
     wopref_pos_weight = cnt_with_pref / cnt_wopref_pos * pseudo_weight if cnt_wopref_pos > 0 else 0
+    wopref_pos_weight = min(wopref_pos_weight, 1.0)  # Ensure weight does not exceed true label weight
     wopref_neg_weight = cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
+    wopref_neg_weight = min(wopref_neg_weight, 1.0)  # Ensure weight does not exceed true label weight
 
     log.info(f'Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}')
 

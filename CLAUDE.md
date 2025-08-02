@@ -77,7 +77,7 @@ python -m black PaperSorter/         # Code formatting
 - All tasks support `--config` (default: `qbio/config.yml`), `--log-file` and `-q/--quiet` options
 - `init`: `--batch-size` (default: 100)
 - `update`: `--batch-size`, `--get-full-list`, `--force-reembed`, `--force-rescore`, `--score-threshold` (default: 0.7)
-- `train`: `-r/--rounds` (default: 100), `-o/--output` (model file)
+- `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `--embeddings-table` (default: embeddings)
 - `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
 - `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`
 
@@ -99,9 +99,10 @@ google_oauth:
   flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
 
 embedding_api:
-  api_key: "your_openai_api_key"
+  api_key: "your_api_key"
   api_url: ""   # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
   model: ""     # Optional: model name (defaults to text-embedding-3-large)
+  dimensions: ""  # Optional: embedding dimensions (e.g., 1536 for pgvector HNSW indexing)
 
 summarization_api:
   api_key: "your_api_key"
@@ -133,8 +134,7 @@ The PostgreSQL database includes tables for:
 - **embeddings**: Embedding vectors using pgvector extension (feed_id, embedding)
 - **preferences**: User labels and ratings (feed_id, user_id, score, source)
 - **predicted_preferences**: Model predictions (feed_id, model_id, score)
-- **broadcast_logs**: Tracking of sent notifications (feed_id, channel_id, broadcasted_time)
-- **broadcast_queue**: Queue for items pending broadcast (feed_id, channel_id, processed)
+- **broadcasts**: Tracking and queuing of notifications (feed_id, channel_id, broadcasted_time)
 - **labeling_sessions**: Manual labeling interface data
 - **users**: User accounts (includes bookmark position and preferences)
 - **channels**: Notification channels (Slack webhooks with per-channel settings)
