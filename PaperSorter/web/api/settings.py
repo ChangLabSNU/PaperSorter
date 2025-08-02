@@ -67,6 +67,13 @@ def settings_events():
     return render_template('settings_events.html')
 
 
+@settings_bp.route('/settings/broadcast-queue')
+@admin_required
+def settings_broadcast_queue():
+    """Broadcast queue management page."""
+    return render_template('settings_broadcast_queue.html')
+
+
 # Channels API endpoints
 @settings_bp.route('/api/settings/channels')
 @admin_required
@@ -445,3 +452,73 @@ def api_get_events():
         cursor.close()
         conn.close()
         return jsonify({'error': str(e)}), 500
+
+
+# Broadcast Queue API endpoints
+@settings_bp.route('/api/settings/broadcast-queue')
+@admin_required
+def api_get_broadcast_queue():
+    """Get broadcast queue items across all channels (unbroadcasted only)."""
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        cursor.execute("""
+            SELECT
+                b.feed_id,
+                b.channel_id,
+                b.broadcasted_time,
+                f.title,
+                f.author,
+                f.origin,
+                f.published,
+                f.link,
+                c.name as channel_name,
+                pp.score
+            FROM broadcasts b
+            JOIN feeds f ON b.feed_id = f.id
+            JOIN channels c ON b.channel_id = c.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = c.model_id
+            WHERE b.broadcasted_time IS NULL
+            ORDER BY f.published DESC
+        """)
+
+        queue_items = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Convert datetime to ISO format for JSON
+        for item in queue_items:
+            if item['published']:
+                item['published'] = item['published'].isoformat()
+
+        return jsonify({'queue_items': queue_items})
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/api/settings/broadcast-queue/<int:feed_id>/<int:channel_id>', methods=['DELETE'])
+@admin_required
+def api_remove_from_queue(feed_id, channel_id):
+    """Remove item from broadcast queue."""
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            DELETE FROM broadcasts
+            WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
+        """, (feed_id, channel_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500
