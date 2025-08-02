@@ -25,7 +25,7 @@
 
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, current_app, redirect, url_for
 from flask_login import login_required
 from .utils.database import get_unlabeled_item, update_label, get_labeling_stats
 
@@ -37,6 +37,35 @@ main_bp = Blueprint('main', __name__)
 def index():
     """Show list of all feeds with their labels."""
     return render_template('feeds_list.html')
+
+
+@main_bp.route('/link/<short_name>')
+@login_required
+def shortened_link(short_name):
+    """Redirect from shortened link to search query."""
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor()
+    
+    try:
+        # Look up the query for this short_name
+        cursor.execute("""
+            SELECT query FROM saved_searches 
+            WHERE short_name = %s
+            LIMIT 1
+        """, (short_name,))
+        
+        result = cursor.fetchone()
+        if result:
+            query = result[0]
+            # Redirect to the main page with the search query
+            return redirect(url_for('main.index', q=query))
+        else:
+            # Short name not found
+            return "Link not found", 404
+            
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @main_bp.route('/label', methods=['POST'])
