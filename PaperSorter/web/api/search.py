@@ -39,7 +39,7 @@ from ...feed_database import FeedDatabase
 from ...feed_predictor import FeedPredictor
 from ..auth.decorators import admin_required
 from ..models.semantic_scholar import SemanticScholarItem
-from ..utils.database import get_default_model_id
+from ..utils.database import get_default_model_id, save_search_query
 
 search_bp = Blueprint('search', __name__)
 
@@ -86,6 +86,13 @@ def api_search():
                 'negative_votes': feed['negative_votes']
             })
 
+        # Save the search query to saved_searches table
+        try:
+            short_name = save_search_query(conn, query, current_user.id)
+        except Exception as e:
+            log.error(f"Failed to save search query: {e}")
+            short_name = None
+
         # Log the search event
         cursor = conn.cursor()
         try:
@@ -104,7 +111,10 @@ def api_search():
             cursor.close()
             conn.close()
 
-        return jsonify({'feeds': feeds})
+        return jsonify({
+            'feeds': feeds,
+            'short_name': short_name
+        })
 
     except Exception as e:
         log.error(f"Error searching feeds: {e}")

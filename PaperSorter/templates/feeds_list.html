@@ -1679,6 +1679,7 @@
                     return response.json();
                 })
                 .then(data => {
+                    currentSearchShortName = data.short_name || null;
                     displayGeneralSearchResults(data.feeds || []);
                 })
                 .catch(error => {
@@ -1687,6 +1688,7 @@
         }
 
         let searchResultFeeds = [];  // Store search results for summary generation
+        let currentSearchShortName = null;  // Store short name for current search
 
         function displayGeneralSearchResults(feeds) {
             const resultsDiv = document.getElementById('generalSearchResults');
@@ -1729,7 +1731,17 @@
         }
 
         function copySearchLink() {
-            const url = window.location.href;
+            let url;
+            
+            // Use shortened URL if available
+            if (currentSearchShortName) {
+                // Get base URL from current location
+                const baseUrl = window.location.origin;
+                url = `${baseUrl}/link/${currentSearchShortName}`;
+            } else {
+                // Fallback to full URL with query parameters
+                url = window.location.href;
+            }
             
             // Try modern clipboard API first
             if (navigator.clipboard && window.isSecureContext) {
@@ -1780,6 +1792,9 @@
             document.getElementById('semanticSearchContainer').style.display = 'none';
             document.getElementById('searchResultsContainer').style.display = 'none';
             document.getElementById('feedsContainer').style.display = 'block';
+            
+            // Clear search state
+            currentSearchShortName = null;
             
             // Clear search query from URL
             const newURL = new URL(window.location);

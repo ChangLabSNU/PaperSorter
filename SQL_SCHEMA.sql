@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Dumped from database version 17.5 (Ubuntu 17.5-0ubuntu0.25.04.1)
 -- Dumped by pg_dump version 17.5 (Ubuntu 17.5-0ubuntu0.25.04.1)
 
--- Started on 2025-08-02 11:54:55 KST
+-- Started on 2025-08-02 12:39:59 KST
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -34,7 +34,7 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- TOC entry 3785 (class 1262 OID 16386)
+-- TOC entry 3800 (class 1262 OID 16386)
 -- Name: papersorter; Type: DATABASE; Schema: -; Owner: -
 --
 
@@ -64,7 +64,7 @@ CREATE SCHEMA papersorter;
 
 
 --
--- TOC entry 984 (class 1247 OID 16717)
+-- TOC entry 986 (class 1247 OID 16717)
 -- Name: preferences_source; Type: TYPE; Schema: papersorter; Owner: -
 --
 
@@ -121,7 +121,7 @@ CREATE SEQUENCE papersorter.channels_id_seq
 
 
 --
--- TOC entry 3786 (class 0 OID 0)
+-- TOC entry 3801 (class 0 OID 0)
 -- Dependencies: 221
 -- Name: channels_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
@@ -137,6 +137,17 @@ ALTER SEQUENCE papersorter.channels_id_seq OWNED BY papersorter.channels.id;
 CREATE TABLE papersorter.embeddings (
     feed_id bigint NOT NULL,
     embedding public.vector(1536)
+);
+
+
+--
+-- TOC entry 222 (class 1259 OID 16733)
+-- Name: embeddings3072; Type: TABLE; Schema: papersorter; Owner: -
+--
+
+CREATE TABLE papersorter.embeddings3072 (
+    feed_id bigint NOT NULL,
+    embedding public.vector(3072)
 );
 
 
@@ -171,7 +182,7 @@ CREATE SEQUENCE papersorter.events_id_seq
 
 
 --
--- TOC entry 3787 (class 0 OID 0)
+-- TOC entry 3802 (class 0 OID 0)
 -- Dependencies: 224
 -- Name: events_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
@@ -214,7 +225,7 @@ CREATE SEQUENCE papersorter.feeds_id_seq
 
 
 --
--- TOC entry 3788 (class 0 OID 0)
+-- TOC entry 3803 (class 0 OID 0)
 -- Dependencies: 226
 -- Name: feeds_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
@@ -265,7 +276,7 @@ CREATE SEQUENCE papersorter.models_id_seq
 
 
 --
--- TOC entry 3789 (class 0 OID 0)
+-- TOC entry 3804 (class 0 OID 0)
 -- Dependencies: 229
 -- Name: models_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
@@ -315,12 +326,48 @@ CREATE SEQUENCE papersorter.preferences_id_seq
 
 
 --
--- TOC entry 3790 (class 0 OID 0)
+-- TOC entry 3805 (class 0 OID 0)
 -- Dependencies: 232
 -- Name: preferences_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
 
 ALTER SEQUENCE papersorter.preferences_id_seq OWNED BY papersorter.preferences.id;
+
+
+--
+-- TOC entry 237 (class 1259 OID 114148)
+-- Name: saved_searches; Type: TABLE; Schema: papersorter; Owner: -
+--
+
+CREATE TABLE papersorter.saved_searches (
+    id bigint NOT NULL,
+    short_name text NOT NULL,
+    user_id integer,
+    added timestamp with time zone DEFAULT now() NOT NULL,
+    query text NOT NULL
+);
+
+
+--
+-- TOC entry 236 (class 1259 OID 114147)
+-- Name: saved_searches_id_seq; Type: SEQUENCE; Schema: papersorter; Owner: -
+--
+
+CREATE SEQUENCE papersorter.saved_searches_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- TOC entry 3806 (class 0 OID 0)
+-- Dependencies: 236
+-- Name: saved_searches_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
+--
+
+ALTER SEQUENCE papersorter.saved_searches_id_seq OWNED BY papersorter.saved_searches.id;
 
 
 --
@@ -355,7 +402,7 @@ CREATE SEQUENCE papersorter.users_id_seq
 
 
 --
--- TOC entry 3791 (class 0 OID 0)
+-- TOC entry 3807 (class 0 OID 0)
 -- Dependencies: 234
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: papersorter; Owner: -
 --
@@ -364,7 +411,7 @@ ALTER SEQUENCE papersorter.users_id_seq OWNED BY papersorter.users.id;
 
 
 --
--- TOC entry 3561 (class 2604 OID 16779)
+-- TOC entry 3566 (class 2604 OID 16779)
 -- Name: channels id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -372,7 +419,7 @@ ALTER TABLE ONLY papersorter.channels ALTER COLUMN id SET DEFAULT nextval('paper
 
 
 --
--- TOC entry 3563 (class 2604 OID 16780)
+-- TOC entry 3568 (class 2604 OID 16780)
 -- Name: events id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -380,7 +427,7 @@ ALTER TABLE ONLY papersorter.events ALTER COLUMN id SET DEFAULT nextval('paperso
 
 
 --
--- TOC entry 3565 (class 2604 OID 16781)
+-- TOC entry 3570 (class 2604 OID 16781)
 -- Name: feeds id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -388,7 +435,7 @@ ALTER TABLE ONLY papersorter.feeds ALTER COLUMN id SET DEFAULT nextval('papersor
 
 
 --
--- TOC entry 3567 (class 2604 OID 16782)
+-- TOC entry 3572 (class 2604 OID 16782)
 -- Name: models id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -396,7 +443,7 @@ ALTER TABLE ONLY papersorter.models ALTER COLUMN id SET DEFAULT nextval('paperso
 
 
 --
--- TOC entry 3570 (class 2604 OID 16783)
+-- TOC entry 3575 (class 2604 OID 16783)
 -- Name: preferences id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -404,7 +451,15 @@ ALTER TABLE ONLY papersorter.preferences ALTER COLUMN id SET DEFAULT nextval('pa
 
 
 --
--- TOC entry 3571 (class 2604 OID 16784)
+-- TOC entry 3580 (class 2604 OID 114151)
+-- Name: saved_searches id; Type: DEFAULT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.saved_searches ALTER COLUMN id SET DEFAULT nextval('papersorter.saved_searches_id_seq'::regclass);
+
+
+--
+-- TOC entry 3576 (class 2604 OID 16784)
 -- Name: users id; Type: DEFAULT; Schema: papersorter; Owner: -
 --
 
@@ -412,7 +467,7 @@ ALTER TABLE ONLY papersorter.users ALTER COLUMN id SET DEFAULT nextval('papersor
 
 
 --
--- TOC entry 3576 (class 2606 OID 16786)
+-- TOC entry 3583 (class 2606 OID 16786)
 -- Name: broadcasts broadcast_logs_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -421,7 +476,7 @@ ALTER TABLE ONLY papersorter.broadcasts
 
 
 --
--- TOC entry 3579 (class 2606 OID 16788)
+-- TOC entry 3586 (class 2606 OID 16788)
 -- Name: channels channels_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -430,7 +485,16 @@ ALTER TABLE ONLY papersorter.channels
 
 
 --
--- TOC entry 3620 (class 2606 OID 66500)
+-- TOC entry 3588 (class 2606 OID 16790)
+-- Name: embeddings3072 embeddings_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.embeddings3072
+    ADD CONSTRAINT embeddings_pkey PRIMARY KEY (feed_id);
+
+
+--
+-- TOC entry 3627 (class 2606 OID 66500)
 -- Name: embeddings embeddings_tmp_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -439,7 +503,7 @@ ALTER TABLE ONLY papersorter.embeddings
 
 
 --
--- TOC entry 3583 (class 2606 OID 16792)
+-- TOC entry 3590 (class 2606 OID 16792)
 -- Name: events events_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -448,7 +512,7 @@ ALTER TABLE ONLY papersorter.events
 
 
 --
--- TOC entry 3588 (class 2606 OID 16794)
+-- TOC entry 3595 (class 2606 OID 16794)
 -- Name: feeds feeds_external_id_unique; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -457,7 +521,7 @@ ALTER TABLE ONLY papersorter.feeds
 
 
 --
--- TOC entry 3591 (class 2606 OID 16796)
+-- TOC entry 3598 (class 2606 OID 16796)
 -- Name: feeds idx_16500_primary; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -466,7 +530,7 @@ ALTER TABLE ONLY papersorter.feeds
 
 
 --
--- TOC entry 3598 (class 2606 OID 16798)
+-- TOC entry 3605 (class 2606 OID 16798)
 -- Name: labeling_sessions idx_16506_primary; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -475,7 +539,7 @@ ALTER TABLE ONLY papersorter.labeling_sessions
 
 
 --
--- TOC entry 3610 (class 2606 OID 16800)
+-- TOC entry 3617 (class 2606 OID 16800)
 -- Name: preferences idx_16512_primary; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -484,7 +548,7 @@ ALTER TABLE ONLY papersorter.preferences
 
 
 --
--- TOC entry 3602 (class 2606 OID 16802)
+-- TOC entry 3609 (class 2606 OID 16802)
 -- Name: models idx_models_id_unique; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -493,7 +557,7 @@ ALTER TABLE ONLY papersorter.models
 
 
 --
--- TOC entry 3605 (class 2606 OID 16804)
+-- TOC entry 3612 (class 2606 OID 16804)
 -- Name: models models_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -502,7 +566,7 @@ ALTER TABLE ONLY papersorter.models
 
 
 --
--- TOC entry 3607 (class 2606 OID 16806)
+-- TOC entry 3614 (class 2606 OID 16806)
 -- Name: predicted_preferences predicted_preferences_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -511,7 +575,34 @@ ALTER TABLE ONLY papersorter.predicted_preferences
 
 
 --
--- TOC entry 3615 (class 2606 OID 16808)
+-- TOC entry 3630 (class 2606 OID 114156)
+-- Name: saved_searches saved_searches_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.saved_searches
+    ADD CONSTRAINT saved_searches_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 3632 (class 2606 OID 114158)
+-- Name: saved_searches saved_searches_short_name_key; Type: CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.saved_searches
+    ADD CONSTRAINT saved_searches_short_name_key UNIQUE (short_name);
+
+
+--
+-- TOC entry 3634 (class 2606 OID 114166)
+-- Name: saved_searches uqidx_saved_searches_query; Type: CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.saved_searches
+    ADD CONSTRAINT uqidx_saved_searches_query UNIQUE (query);
+
+
+--
+-- TOC entry 3622 (class 2606 OID 16808)
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -520,7 +611,7 @@ ALTER TABLE ONLY papersorter.users
 
 
 --
--- TOC entry 3617 (class 2606 OID 16810)
+-- TOC entry 3624 (class 2606 OID 16810)
 -- Name: users users_username_key; Type: CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -529,7 +620,7 @@ ALTER TABLE ONLY papersorter.users
 
 
 --
--- TOC entry 3618 (class 1259 OID 114069)
+-- TOC entry 3625 (class 1259 OID 114069)
 -- Name: embeddings_tmp_embedding_idx1; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -537,7 +628,7 @@ CREATE INDEX embeddings_tmp_embedding_idx1 ON papersorter.embeddings USING hnsw 
 
 
 --
--- TOC entry 3589 (class 1259 OID 16811)
+-- TOC entry 3596 (class 1259 OID 16811)
 -- Name: idx_16500_idx_feeds_id; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -545,7 +636,7 @@ CREATE INDEX idx_16500_idx_feeds_id ON papersorter.feeds USING btree (external_i
 
 
 --
--- TOC entry 3608 (class 1259 OID 16812)
+-- TOC entry 3615 (class 1259 OID 16812)
 -- Name: idx_16512_idx_ratings_feedid; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -553,7 +644,7 @@ CREATE INDEX idx_16512_idx_ratings_feedid ON papersorter.preferences USING btree
 
 
 --
--- TOC entry 3577 (class 1259 OID 16813)
+-- TOC entry 3584 (class 1259 OID 16813)
 -- Name: idx_broadcast_logs_time; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -561,7 +652,7 @@ CREATE INDEX idx_broadcast_logs_time ON papersorter.broadcasts USING btree (broa
 
 
 --
--- TOC entry 3584 (class 1259 OID 16814)
+-- TOC entry 3591 (class 1259 OID 16814)
 -- Name: idx_events_feed; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -569,7 +660,7 @@ CREATE INDEX idx_events_feed ON papersorter.events USING btree (feed_id);
 
 
 --
--- TOC entry 3585 (class 1259 OID 16815)
+-- TOC entry 3592 (class 1259 OID 16815)
 -- Name: idx_events_occurred; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -577,7 +668,7 @@ CREATE INDEX idx_events_occurred ON papersorter.events USING btree (occurred);
 
 
 --
--- TOC entry 3586 (class 1259 OID 16816)
+-- TOC entry 3593 (class 1259 OID 16816)
 -- Name: idx_events_type; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -585,7 +676,7 @@ CREATE INDEX idx_events_type ON papersorter.events USING btree (event_type);
 
 
 --
--- TOC entry 3592 (class 1259 OID 16817)
+-- TOC entry 3599 (class 1259 OID 16817)
 -- Name: idx_feeds_added; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -593,7 +684,7 @@ CREATE INDEX idx_feeds_added ON papersorter.feeds USING btree (added);
 
 
 --
--- TOC entry 3593 (class 1259 OID 16818)
+-- TOC entry 3600 (class 1259 OID 16818)
 -- Name: idx_feeds_link; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -601,7 +692,7 @@ CREATE INDEX idx_feeds_link ON papersorter.feeds USING btree (link);
 
 
 --
--- TOC entry 3594 (class 1259 OID 16819)
+-- TOC entry 3601 (class 1259 OID 16819)
 -- Name: idx_feeds_mediaurl; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -609,7 +700,7 @@ CREATE INDEX idx_feeds_mediaurl ON papersorter.feeds USING btree (mediaurl);
 
 
 --
--- TOC entry 3595 (class 1259 OID 16820)
+-- TOC entry 3602 (class 1259 OID 16820)
 -- Name: idx_feeds_published; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -617,7 +708,7 @@ CREATE INDEX idx_feeds_published ON papersorter.feeds USING btree (published);
 
 
 --
--- TOC entry 3596 (class 1259 OID 16821)
+-- TOC entry 3603 (class 1259 OID 16821)
 -- Name: idx_feeds_title; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -625,7 +716,7 @@ CREATE INDEX idx_feeds_title ON papersorter.feeds USING btree (title);
 
 
 --
--- TOC entry 3599 (class 1259 OID 16822)
+-- TOC entry 3606 (class 1259 OID 16822)
 -- Name: idx_labeling_session; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -633,7 +724,7 @@ CREATE INDEX idx_labeling_session ON papersorter.labeling_sessions USING btree (
 
 
 --
--- TOC entry 3600 (class 1259 OID 16823)
+-- TOC entry 3607 (class 1259 OID 16823)
 -- Name: idx_labeling_sessions_score; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -641,7 +732,7 @@ CREATE INDEX idx_labeling_sessions_score ON papersorter.labeling_sessions USING 
 
 
 --
--- TOC entry 3603 (class 1259 OID 16824)
+-- TOC entry 3610 (class 1259 OID 16824)
 -- Name: idx_models_user; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -649,7 +740,7 @@ CREATE INDEX idx_models_user ON papersorter.models USING btree (user_id);
 
 
 --
--- TOC entry 3611 (class 1259 OID 16825)
+-- TOC entry 3618 (class 1259 OID 16825)
 -- Name: idx_preferences_score; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -657,7 +748,7 @@ CREATE INDEX idx_preferences_score ON papersorter.preferences USING btree (score
 
 
 --
--- TOC entry 3612 (class 1259 OID 16826)
+-- TOC entry 3619 (class 1259 OID 16826)
 -- Name: idx_preferences_time; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -665,7 +756,7 @@ CREATE INDEX idx_preferences_time ON papersorter.preferences USING btree ("time"
 
 
 --
--- TOC entry 3613 (class 1259 OID 16827)
+-- TOC entry 3620 (class 1259 OID 16827)
 -- Name: idx_user_id; Type: INDEX; Schema: papersorter; Owner: -
 --
 
@@ -673,7 +764,15 @@ CREATE INDEX idx_user_id ON papersorter.preferences USING btree (user_id);
 
 
 --
--- TOC entry 3634 (class 2606 OID 66501)
+-- TOC entry 3628 (class 1259 OID 114159)
+-- Name: saved_searches_added; Type: INDEX; Schema: papersorter; Owner: -
+--
+
+CREATE INDEX saved_searches_added ON papersorter.saved_searches USING btree (added);
+
+
+--
+-- TOC entry 3648 (class 2606 OID 66501)
 -- Name: embeddings embeddings_tmp_feed_id_fkey; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -682,7 +781,7 @@ ALTER TABLE ONLY papersorter.embeddings
 
 
 --
--- TOC entry 3621 (class 2606 OID 16828)
+-- TOC entry 3635 (class 2606 OID 16828)
 -- Name: broadcasts fk_broadcast_logs_channel; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -691,7 +790,7 @@ ALTER TABLE ONLY papersorter.broadcasts
 
 
 --
--- TOC entry 3622 (class 2606 OID 16833)
+-- TOC entry 3636 (class 2606 OID 16833)
 -- Name: broadcasts fk_broadcast_logs_feed; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -700,7 +799,7 @@ ALTER TABLE ONLY papersorter.broadcasts
 
 
 --
--- TOC entry 3623 (class 2606 OID 16838)
+-- TOC entry 3637 (class 2606 OID 16838)
 -- Name: channels fk_channels_model; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -709,7 +808,7 @@ ALTER TABLE ONLY papersorter.channels
 
 
 --
--- TOC entry 3625 (class 2606 OID 16843)
+-- TOC entry 3639 (class 2606 OID 16843)
 -- Name: events fk_events_feed; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -718,7 +817,7 @@ ALTER TABLE ONLY papersorter.events
 
 
 --
--- TOC entry 3626 (class 2606 OID 66297)
+-- TOC entry 3640 (class 2606 OID 66297)
 -- Name: events fk_events_user; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -727,7 +826,16 @@ ALTER TABLE ONLY papersorter.events
 
 
 --
--- TOC entry 3627 (class 2606 OID 16853)
+-- TOC entry 3638 (class 2606 OID 16848)
+-- Name: embeddings3072 fk_feed_id; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.embeddings3072
+    ADD CONSTRAINT fk_feed_id FOREIGN KEY (feed_id) REFERENCES papersorter.feeds(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 3641 (class 2606 OID 16853)
 -- Name: labeling_sessions fk_labeling_sessions_feed_id; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -736,7 +844,7 @@ ALTER TABLE ONLY papersorter.labeling_sessions
 
 
 --
--- TOC entry 3628 (class 2606 OID 16858)
+-- TOC entry 3642 (class 2606 OID 16858)
 -- Name: labeling_sessions fk_labeling_sessions_user_id; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -745,7 +853,7 @@ ALTER TABLE ONLY papersorter.labeling_sessions
 
 
 --
--- TOC entry 3629 (class 2606 OID 16863)
+-- TOC entry 3643 (class 2606 OID 16863)
 -- Name: models fk_models_user_id; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -754,7 +862,7 @@ ALTER TABLE ONLY papersorter.models
 
 
 --
--- TOC entry 3630 (class 2606 OID 16868)
+-- TOC entry 3644 (class 2606 OID 16868)
 -- Name: predicted_preferences fk_pred_pref_feed; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -763,7 +871,7 @@ ALTER TABLE ONLY papersorter.predicted_preferences
 
 
 --
--- TOC entry 3631 (class 2606 OID 16873)
+-- TOC entry 3645 (class 2606 OID 16873)
 -- Name: predicted_preferences fk_pred_pref_model; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -772,7 +880,7 @@ ALTER TABLE ONLY papersorter.predicted_preferences
 
 
 --
--- TOC entry 3632 (class 2606 OID 16878)
+-- TOC entry 3646 (class 2606 OID 16878)
 -- Name: preferences fk_preferences_user_id; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -781,7 +889,7 @@ ALTER TABLE ONLY papersorter.preferences
 
 
 --
--- TOC entry 3633 (class 2606 OID 16883)
+-- TOC entry 3647 (class 2606 OID 16883)
 -- Name: preferences fk_ratings_feedid; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
 --
 
@@ -789,7 +897,16 @@ ALTER TABLE ONLY papersorter.preferences
     ADD CONSTRAINT fk_ratings_feedid FOREIGN KEY (feed_id) REFERENCES papersorter.feeds(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
--- Completed on 2025-08-02 11:54:55 KST
+--
+-- TOC entry 3649 (class 2606 OID 114160)
+-- Name: saved_searches fk_saved_searches_user; Type: FK CONSTRAINT; Schema: papersorter; Owner: -
+--
+
+ALTER TABLE ONLY papersorter.saved_searches
+    ADD CONSTRAINT fk_saved_searches_user FOREIGN KEY (user_id) REFERENCES papersorter.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+-- Completed on 2025-08-02 12:39:59 KST
 
 --
 -- PostgreSQL database dump complete
