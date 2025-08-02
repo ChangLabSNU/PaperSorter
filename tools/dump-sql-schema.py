@@ -21,26 +21,26 @@ def load_config(config_file):
     if not config_path.exists():
         print(f"Error: Configuration file '{config_file}' not found.", file=sys.stderr)
         sys.exit(1)
-    
+
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
     except yaml.YAMLError as e:
         print(f"Error parsing YAML configuration: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     if 'db' not in config:
         print("Error: No 'db' section found in configuration file.", file=sys.stderr)
         sys.exit(1)
-    
+
     db_config = config['db']
     required_fields = ['host', 'database', 'user']
-    
+
     for field in required_fields:
         if field not in db_config:
             print(f"Error: Required field '{field}' not found in database configuration.", file=sys.stderr)
             sys.exit(1)
-    
+
     return db_config
 
 
@@ -59,27 +59,27 @@ def dump_schema(db_config, output_file=None, schema_name='papersorter'):
         '--create',       # Include CREATE SCHEMA statement
         '--verbose'       # Verbose output to stderr
     ]
-    
+
     # Set password through environment variable if provided
     env = os.environ.copy()
     if 'password' in db_config and db_config['password']:
         env['PGPASSWORD'] = db_config['password']
-    
+
     # Add port if specified
     if 'port' in db_config:
         cmd.extend(['--port', str(db_config['port'])])
-    
+
     try:
         # Run pg_dump
         result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-        
+
         if result.returncode != 0:
             print(f"Error running pg_dump: {result.stderr}", file=sys.stderr)
             sys.exit(1)
-        
+
         # Process the output to ensure proper formatting
         schema_sql = result.stdout
-        
+
         # Add header comment
         header = f"""--
 -- PaperSorter Database Schema
@@ -96,10 +96,10 @@ def dump_schema(db_config, output_file=None, schema_name='papersorter'):
 CREATE EXTENSION IF NOT EXISTS vector;
 
 """
-        
+
         # Combine header with schema
         full_schema = header + schema_sql
-        
+
         # Output to file or stdout
         if output_file:
             with open(output_file, 'w') as f:
@@ -107,7 +107,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
             print(f"Schema successfully dumped to '{output_file}'")
         else:
             print(full_schema)
-            
+
     except FileNotFoundError:
         print("Error: pg_dump command not found. Please ensure PostgreSQL client tools are installed.", file=sys.stderr)
         sys.exit(1)
@@ -124,51 +124,51 @@ def main():
 Examples:
   # Dump schema using default config file
   %(prog)s
-  
+
   # Dump schema to a specific file
   %(prog)s -o schema.sql
-  
+
   # Use a different config file
   %(prog)s -c /path/to/config.yml
-  
+
   # Override database connection parameters
   %(prog)s --host localhost --database papersorter --user myuser
 """
     )
-    
-    parser.add_argument('-c', '--config', 
+
+    parser.add_argument('-c', '--config',
                         default='qbio/config.yml',
                         help='Path to configuration file (default: qbio/config.yml)')
-    
+
     parser.add_argument('-o', '--output',
                         help='Output file for schema (default: stdout)')
-    
+
     parser.add_argument('-s', '--schema',
                         default='papersorter',
                         help='Database schema name (default: papersorter)')
-    
+
     # Database connection overrides
     parser.add_argument('--host',
                         help='Database host (overrides config file)')
-    
+
     parser.add_argument('--port',
                         type=int,
                         help='Database port (overrides config file)')
-    
+
     parser.add_argument('--database',
                         help='Database name (overrides config file)')
-    
+
     parser.add_argument('--user',
                         help='Database user (overrides config file)')
-    
+
     parser.add_argument('--password',
                         help='Database password (overrides config file)')
-    
+
     args = parser.parse_args()
-    
+
     # Load configuration from file
     db_config = load_config(args.config)
-    
+
     # Apply command-line overrides
     if args.host:
         db_config['host'] = args.host
@@ -180,7 +180,7 @@ Examples:
         db_config['user'] = args.user
     if args.password:
         db_config['password'] = args.password
-    
+
     # Dump the schema
     dump_schema(db_config, args.output, args.schema)
 

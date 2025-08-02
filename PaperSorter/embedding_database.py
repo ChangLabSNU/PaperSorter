@@ -178,10 +178,10 @@ class EmbeddingDatabase:
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes'''
-        
+
         if include_content:
             select_fields += ',\n                    f.content,\n                    f.tldr'
-        
+
         if user_id is None:
             # If no user_id provided, don't filter preferences
             self.cursor.execute(f'''
@@ -278,11 +278,11 @@ class EmbeddingDatabase:
             'input': [query_text],
             'model': self.embedding_model
         }
-        
+
         # Add dimensions if specified
         if self.embedding_dimensions:
             params['dimensions'] = self.embedding_dimensions
-            
+
         response = self.openai_client.embeddings.create(**params)
         query_embedding = response.data[0].embedding
 
@@ -307,7 +307,7 @@ class EmbeddingDatabase:
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes'''
-        
+
         if include_content:
             select_fields += ',\n                    f.content,\n                    f.tldr'
 

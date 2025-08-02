@@ -146,7 +146,7 @@ def api_summarize():
 
         articles = cursor.fetchall()
         cursor.close()
-        
+
         if not articles:
             conn.close()
             return jsonify({'error': 'No articles found'}), 404

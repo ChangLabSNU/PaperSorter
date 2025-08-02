@@ -290,7 +290,7 @@ def api_similar_feeds(feed_id):
     """API endpoint to get similar feeds."""
     try:
         from ...embedding_database import EmbeddingDatabase
-        
+
         # Load embedding database with config
         config_path = current_app.config['CONFIG_PATH']
         edb = EmbeddingDatabase(config_path)
@@ -358,7 +358,7 @@ def slack_feedback_not_interested(feed_id):
 def handle_slack_feedback(feed_id, score):
     """Common handler for Slack feedback routes."""
     from flask import redirect, url_for
-    
+
     # Check if user is logged in, if not, redirect to login
     if not current_user.is_authenticated:
         return redirect(url_for('auth.login', next=request.path))

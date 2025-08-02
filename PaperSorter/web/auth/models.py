@@ -28,7 +28,7 @@ from flask_login import UserMixin
 
 class User(UserMixin):
     """User model for Flask-Login integration."""
-    
+
     def __init__(self, id, username, email=None, is_admin=False, timezone='Asia/Seoul', feedlist_minscore=None):
         self.id = id
         self.username = username
