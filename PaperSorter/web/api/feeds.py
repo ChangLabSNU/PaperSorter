@@ -430,8 +430,18 @@ def slack_interactivity():
     if 'user' in payload and 'actions' in payload:
         external_id = payload['user']['id']
         content = payload['user']['name']
-        action, related_feed_id = payload['actions'][0]['value'].split('_', 1)
-        related_feed_id = int(related_feed_id)
+        # Split from the right to handle actions like "not_interested_12345"
+        value_parts = payload['actions'][0]['value'].rsplit('_', 1)
+        if len(value_parts) == 2:
+            action, related_feed_id = value_parts
+            try:
+                related_feed_id = int(related_feed_id)
+            except ValueError:
+                log.error(f"Invalid feed ID in Slack action: {payload['actions'][0]['value']}")
+                return jsonify({'response_type': 'ephemeral', 'text': 'Invalid feed ID'}), 400
+        else:
+            log.error(f"Invalid action format: {payload['actions'][0]['value']}")
+            return jsonify({'response_type': 'ephemeral', 'text': 'Invalid action format'}), 400
 
         # Insert event into database
         conn = current_app.config['get_db_connection']()
