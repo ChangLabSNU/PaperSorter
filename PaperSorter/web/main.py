@@ -45,33 +45,33 @@ def shortened_link(short_name):
     """Redirect from shortened link to search query."""
     conn = current_app.config['get_db_connection']()
     cursor = conn.cursor()
-    
+
     try:
         # Look up the query for this short_name
         cursor.execute("""
-            SELECT query FROM saved_searches 
+            SELECT query FROM saved_searches
             WHERE short_name = %s
             LIMIT 1
         """, (short_name,))
-        
+
         result = cursor.fetchone()
         if result:
             query = result[0]
-            
+
             # Update last_access time
             cursor.execute("""
-                UPDATE saved_searches 
+                UPDATE saved_searches
                 SET last_access = NOW()
                 WHERE short_name = %s
             """, (short_name,))
             conn.commit()
-            
+
             # Redirect to the main page with the search query
             return redirect(url_for('main.index', q=query))
         else:
             # Short name not found
             return "Link not found", 404
-            
+
     finally:
         cursor.close()
         conn.close()

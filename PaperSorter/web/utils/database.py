@@ -110,52 +110,52 @@ def generate_short_name(length=8):
 
 def save_search_query(conn, query, user_id=None):
     """Save a search query to the saved_searches table.
-    
+
     If the query already exists, return the existing short_name.
     Otherwise, create a new entry with a unique short_name.
-    
+
     Args:
         conn: Database connection
         query: The search query to save
         user_id: Optional user ID who performed the search
-        
+
     Returns:
         The short_name for this search query
     """
     cursor = conn.cursor()
-    
+
     try:
         # First check if this query already exists
         cursor.execute("""
-            SELECT short_name FROM saved_searches 
+            SELECT short_name FROM saved_searches
             WHERE query = %s
             LIMIT 1
         """, (query,))
-        
+
         existing = cursor.fetchone()
         if existing:
             # Query already exists, update last_access and return the existing short_name
             short_name = existing[0]
             cursor.execute("""
-                UPDATE saved_searches 
+                UPDATE saved_searches
                 SET last_access = NOW()
                 WHERE short_name = %s
             """, (short_name,))
             conn.commit()
             return short_name
-        
+
         # Generate a unique short_name
         max_attempts = 100
         for _ in range(max_attempts):
             short_name = generate_short_name()
-            
+
             # Check if this short_name already exists
             cursor.execute("""
-                SELECT 1 FROM saved_searches 
+                SELECT 1 FROM saved_searches
                 WHERE short_name = %s
                 LIMIT 1
             """, (short_name,))
-            
+
             if not cursor.fetchone():
                 # This short_name is unique, insert the new record
                 cursor.execute("""
@@ -163,13 +163,13 @@ def save_search_query(conn, query, user_id=None):
                     VALUES (%s, %s, %s)
                     RETURNING short_name
                 """, (short_name, query, user_id))
-                
+
                 conn.commit()
                 return cursor.fetchone()[0]
-        
+
         # If we couldn't generate a unique short_name after max_attempts
         raise Exception("Failed to generate unique short_name")
-        
+
     except Exception as e:
         conn.rollback()
         raise e
