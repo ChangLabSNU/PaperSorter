@@ -69,10 +69,10 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
 
     # Query to get all feeds with their embeddings, preferences, and predicted scores
     log.info(f'Loading training data for user_id={user_id} using table "{embeddings_table}"...')
-    
+
     # Use psycopg2.sql to safely insert table name
     from psycopg2 import sql
-    
+
     query = sql.SQL('''
         WITH latest_preferences AS (
             SELECT DISTINCT ON (feed_id)
@@ -97,7 +97,7 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
         LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
         ORDER BY f.id
     ''').format(embeddings_table=sql.Identifier(embeddings_table))
-    
+
     cursor.execute(query, (user_id,))
 
     results = cursor.fetchall()

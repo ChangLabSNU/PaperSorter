@@ -29,3 +29,36 @@ MANIFEST
 *.pkl
 *.xlsx
 *eaDir
+
+# Temporary files and directories
+*.swp
+*.swo
+*~
+.*.swp
+background-updates.log
+notebook/
+old/
+qbio/
+run-update.sh
+
+# Data files
+*.tsv
+*.png
+*.json
+search-dump.json
+sqlnotes.txt
+
+# Model comparison files
+model_comparison.tsv
+model_*.png
+*_analysis.py
+*_differences.py
+*_comparison.py
+compare_model_predictions.py
+analyze_model_differences.py
+summarize_model_comparison.py
+plot_model_comparisons.py
+
+# Temporary scripts
+recreate_embeddings_vertex.py
+openai-google-embedding.py

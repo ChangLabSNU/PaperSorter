@@ -150,19 +150,19 @@ class FeedDatabase:
         item = self.cursor.fetchone()
         if item:
             parts = []
-            
+
             if item['title']:
                 parts.append(f"Title: {item['title']}")
-            
+
             if item['author']:
                 parts.append(f"Authors: {item['author']}")
-            
+
             if item['origin']:
                 parts.append(f"Journal/Source: {item['origin']}")
-            
+
             if item['content']:
                 parts.append(f"Abstract: {item['content']}")
-            
+
             return "\n\n".join(parts)
         return None
 

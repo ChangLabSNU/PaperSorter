@@ -76,7 +76,7 @@ def create_app(config_path):
             user=db_config['user'],
             password=db_config['password']
         )
-    
+
     app.config['get_db_connection'] = get_db_connection
 
     # Cleanup old jobs every 5 minutes

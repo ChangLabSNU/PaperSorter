@@ -30,7 +30,7 @@ from ...providers.theoldreader import Item
 
 class SemanticScholarItem(Item):
     """Item model for Semantic Scholar papers."""
-    
+
     def __init__(self, paper_info):
         self.paper_info = paper_info
         article_id = uuid.uuid3(uuid.NAMESPACE_URL, paper_info['url'])

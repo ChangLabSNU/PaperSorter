@@ -57,12 +57,12 @@ def generate_embeddings(feeds_without_embeddings, config_data, feeddb):
                 'model': model,
                 'input': input_text
             }
-            
+
             # Add dimensions if specified in config
             dimensions = embedding_config.get('dimensions')
             if dimensions:
                 params['dimensions'] = dimensions
-                
+
             response = client.embeddings.create(**params)
 
             embedding = response.data[0].embedding
