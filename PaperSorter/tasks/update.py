@@ -131,7 +131,19 @@ def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=
             progress_log(f'Updating embedding: batch {bid+1} ...')
 
             items = [feeddb.get_formatted_item(item_id) for item_id in batch]
-            embresults = client.embeddings.create(model=model_name, input=items)
+            
+            # Prepare parameters for embedding creation
+            params = {
+                'model': model_name,
+                'input': items
+            }
+            
+            # Add dimensions if specified in config
+            dimensions = api_config.get('dimensions')
+            if dimensions:
+                params['dimensions'] = dimensions
+                
+            embresults = client.embeddings.create(**params)
 
             for item_id, result in zip(batch, embresults.data):
                 writer[item_id] = result.embedding

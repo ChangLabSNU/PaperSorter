@@ -58,6 +58,7 @@ class EmbeddingDatabase:
         self.api_key = embedding_config.get('api_key')
         self.api_url = embedding_config.get('api_url', 'https://api.openai.com/v1')
         self.embedding_model = embedding_config.get('model', 'text-embedding-3-large')
+        self.embedding_dimensions = embedding_config.get('dimensions')
         self.openai_client = openai.OpenAI(api_key=self.api_key, base_url=self.api_url) if self.api_key else None
 
     def __del__(self):
@@ -273,10 +274,16 @@ class EmbeddingDatabase:
             raise ValueError("OpenAI client not configured for embeddings")
 
         # Generate embedding for the query
-        response = self.openai_client.embeddings.create(
-            input=[query_text],
-            model=self.embedding_model
-        )
+        params = {
+            'input': [query_text],
+            'model': self.embedding_model
+        }
+        
+        # Add dimensions if specified
+        if self.embedding_dimensions:
+            params['dimensions'] = self.embedding_dimensions
+            
+        response = self.openai_client.embeddings.create(**params)
         query_embedding = response.data[0].embedding
 
         # Use provided model_id or default to 1

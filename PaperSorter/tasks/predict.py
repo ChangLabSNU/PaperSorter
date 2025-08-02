@@ -53,10 +53,17 @@ def generate_embeddings(feeds_without_embeddings, config_data, feeddb):
             input_text = feeddb.get_formatted_item(feed['id'])
 
             # Generate embedding
-            response = client.embeddings.create(
-                model=model,
-                input=input_text
-            )
+            params = {
+                'model': model,
+                'input': input_text
+            }
+            
+            # Add dimensions if specified in config
+            dimensions = embedding_config.get('dimensions')
+            if dimensions:
+                params['dimensions'] = dimensions
+                
+            response = client.embeddings.create(**params)
 
             embedding = response.data[0].embedding
             embeddings.append({
