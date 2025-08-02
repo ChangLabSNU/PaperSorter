@@ -30,6 +30,8 @@ import psycopg2
 import psycopg2.extras
 from openai import OpenAI
 from ...log import log
+import os
+from datetime import datetime
 
 
 def process_poster_job(app, job_id, feed_ids, config_path):
@@ -185,6 +187,27 @@ Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending w
                 app.poster_jobs[job_id]['status'] = 'completed'
                 app.poster_jobs[job_id]['result'] = poster_html
                 user_id = app.poster_jobs[job_id]['user_id']
+
+            # Save poster HTML to file if directory is configured
+            ai_poster_dir = config.get('storage', {}).get('ai_poster_dir')
+            if ai_poster_dir:
+                try:
+                    # Create directory if it doesn't exist
+                    os.makedirs(ai_poster_dir, exist_ok=True)
+
+                    # Generate filename with user_id and timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+                    filename = f"{user_id}-{timestamp}.html"
+                    filepath = os.path.join(ai_poster_dir, filename)
+
+                    # Save the poster HTML
+                    with open(filepath, 'w', encoding='utf-8') as f:
+                        f.write(poster_html)
+                except Exception as e:
+                    log.error(f"Failed to save poster to file: {e}")
+                    # Don't fail the job if file saving fails
+            else:
+                log.debug("AI poster directory not configured, skipping file save")
 
             # Log the event to database
             # Filter out non-PostgreSQL parameters
