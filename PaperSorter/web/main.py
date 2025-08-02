@@ -57,6 +57,15 @@ def shortened_link(short_name):
         result = cursor.fetchone()
         if result:
             query = result[0]
+            
+            # Update last_access time
+            cursor.execute("""
+                UPDATE saved_searches 
+                SET last_access = NOW()
+                WHERE short_name = %s
+            """, (short_name,))
+            conn.commit()
+            
             # Redirect to the main page with the search query
             return redirect(url_for('main.index', q=query))
         else:

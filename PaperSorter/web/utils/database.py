@@ -134,8 +134,15 @@ def save_search_query(conn, query, user_id=None):
         
         existing = cursor.fetchone()
         if existing:
-            # Query already exists, return the existing short_name
-            return existing[0]
+            # Query already exists, update last_access and return the existing short_name
+            short_name = existing[0]
+            cursor.execute("""
+                UPDATE saved_searches 
+                SET last_access = NOW()
+                WHERE short_name = %s
+            """, (short_name,))
+            conn.commit()
+            return short_name
         
         # Generate a unique short_name
         max_attempts = 100
