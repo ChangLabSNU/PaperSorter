@@ -257,6 +257,12 @@ def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
             'model_name': model_name,
         }
 
+        # Check and remove duplicates from the broadcast queue for this channel
+        duplicates_removed = feeddb.check_and_remove_duplicate_broadcasts(channel_id=channel_id, lookback_months=3)
+        if duplicates_removed > 0:
+            feeddb.commit()
+            log.info(f'Removed {duplicates_removed} duplicate(s) from queue for channel "{channel_name}" (id={channel_id}).')
+
         # Get items from the broadcast queue for this channel
         queue_items = feeddb.get_broadcast_queue_items(channel_id=channel_id, limit=limit, model_id=model_id)
 

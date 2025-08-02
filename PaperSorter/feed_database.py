@@ -26,6 +26,9 @@ import psycopg2.extras
 import pandas as pd
 import re
 import yaml
+import unicodedata
+from difflib import SequenceMatcher
+from .log import log
 
 class FeedDatabase:
 
@@ -430,6 +433,58 @@ class FeedDatabase:
             ON CONFLICT (feed_id, channel_id) DO NOTHING
         ''', (feed_id, channel_id))
 
+    def normalize_title_for_duplicate_detection(self, title):
+        """Normalize title for fuzzy duplicate detection.
+
+        Removes common prefixes, suffixes, and normalizes the text to detect duplicates
+        even when journals add headers like "[ARTICLE]" or suffixes.
+        """
+        if not title:
+            return ""
+
+        # Convert to lowercase
+        title = title.lower()
+
+        # Remove common academic prefixes in brackets or parentheses
+        title = re.sub(r'^\s*\[[^\]]+\]\s*', '', title)  # Remove [ARTICLE], [PREPRINT], etc.
+        title = re.sub(r'^\s*\([^\)]+\)\s*', '', title)  # Remove (Article), (Letter), etc.
+
+        # Remove common suffixes
+        title = re.sub(r'\s*[\(\[]?(preprint|published|article|letter|review|research|paper)[\)\]]?\s*$', '', title, flags=re.IGNORECASE)
+
+        # Normalize unicode characters (e.g., different types of dashes, quotes)
+        title = unicodedata.normalize('NFKD', title)
+
+        # Replace multiple spaces with single space
+        title = re.sub(r'\s+', ' ', title)
+
+        # Remove special characters but keep alphanumeric and basic punctuation
+        title = re.sub(r'[^\w\s\-\:\.\,]', ' ', title)
+
+        # Remove extra whitespace
+        title = title.strip()
+
+        return title
+
+    def titles_are_similar(self, title1, title2, threshold=0.85):
+        """Check if two titles are similar enough to be considered duplicates.
+
+        Uses normalized titles and sequence matching to detect duplicates.
+        """
+        norm1 = self.normalize_title_for_duplicate_detection(title1)
+        norm2 = self.normalize_title_for_duplicate_detection(title2)
+
+        if not norm1 or not norm2:
+            return False
+
+        # Quick exact match check
+        if norm1 == norm2:
+            return True
+
+        # Use sequence matcher for fuzzy matching
+        similarity = SequenceMatcher(None, norm1, norm2).ratio()
+        return similarity >= threshold
+
     def get_broadcast_queue_items(self, channel_id=1, limit=None, model_id=None):
         """Get unprocessed items from the broadcast queue (using merged broadcasts table)."""
         # If no model_id provided, get the most recent active model
@@ -443,6 +498,7 @@ class FeedDatabase:
             result = self.cursor.fetchone()
             model_id = result['id'] if result else 1
 
+        # Get unprocessed items from the queue
         query = '''
             SELECT f.*, pp.score, bl.feed_id as queue_feed_id
             FROM broadcasts bl
@@ -461,7 +517,6 @@ class FeedDatabase:
             items.append(item)
 
         # Convert to DataFrame to match the existing broadcast.py interface
-        import pandas as pd
         if items:
             df = pd.DataFrame(items)
             df.set_index('queue_feed_id', inplace=True)
@@ -483,6 +538,73 @@ class FeedDatabase:
             DELETE FROM broadcasts
             WHERE broadcasted_time < CURRENT_TIMESTAMP - INTERVAL '%s days'
         ''', (days,))
+
+    def remove_duplicate_from_queue(self, feed_id, channel_id):
+        """Remove an item from the broadcast queue without marking it as broadcasted."""
+        self.cursor.execute('''
+            DELETE FROM broadcasts
+            WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
+        ''', (feed_id, channel_id))
+
+    def check_and_remove_duplicate_broadcasts(self, channel_id=1, lookback_months=3):
+        """Check for duplicate items in the broadcast queue and remove them.
+
+        Returns the number of duplicates removed.
+        """
+        # First, get recently broadcasted items for duplicate detection
+        self.cursor.execute('''
+            SELECT f.id as feed_id, f.title
+            FROM broadcasts bl
+            JOIN feeds f ON bl.feed_id = f.id
+            WHERE bl.channel_id = %s
+                AND bl.broadcasted_time IS NOT NULL
+                AND bl.broadcasted_time >= CURRENT_TIMESTAMP - INTERVAL '%s months'
+        ''', (channel_id, lookback_months))
+
+        recent_broadcasts = []
+        for row in self.cursor.fetchall():
+            recent_broadcasts.append({
+                'feed_id': row['feed_id'],
+                'title': row['title']
+            })
+
+        # Get unprocessed items from the queue
+        self.cursor.execute('''
+            SELECT f.id as feed_id, f.title
+            FROM broadcasts bl
+            JOIN feeds f ON bl.feed_id = f.id
+            WHERE bl.channel_id = %s AND bl.broadcasted_time IS NULL
+        ''', (channel_id,))
+
+        queue_items = []
+        for row in self.cursor.fetchall():
+            queue_items.append({
+                'feed_id': row['feed_id'],
+                'title': row['title']
+            })
+
+        # Check each queue item for duplicates
+        removed_count = 0
+        for queue_item in queue_items:
+            is_duplicate = False
+
+            # Check against recently broadcasted items
+            for recent in recent_broadcasts:
+                if self.titles_are_similar(queue_item['title'], recent['title']):
+                    is_duplicate = True
+                    log.info(f"Removing duplicate from queue - Feed ID: {queue_item['feed_id']}, "
+                            f"Title: '{queue_item['title'][:80]}...' "
+                            f"(similar to previously broadcasted feed {recent['feed_id']})")
+                    break
+
+            if is_duplicate:
+                self.remove_duplicate_from_queue(queue_item['feed_id'], channel_id)
+                removed_count += 1
+
+        if removed_count > 0:
+            log.info(f"Removed {removed_count} duplicate items from broadcast queue for channel {channel_id}")
+
+        return removed_count
 
 def remove_html_tags(text, pattern=re.compile('<.*?>')):
     return pattern.sub(' ', text)
