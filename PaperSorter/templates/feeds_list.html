@@ -442,6 +442,36 @@
             border: 1px solid #bdc3c7;
         }
 
+        /* Toast notification styles */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            max-width: 300px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: #4caf50;
+        }
+
+        .toast.error {
+            background: #f44336;
+        }
+
         .btn-secondary:hover {
             background: #d5dbdb;
             border-color: #95a5a6;
@@ -1035,6 +1065,33 @@
                 return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
             }
             return date.toLocaleDateString('en-US', options).replace(/\//g, '-');
+        }
+
+        function showToast(message, type = 'success') {
+            // Remove any existing toasts
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            // Create new toast
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Show toast
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            // Hide and remove toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
         }
 
         function formatDateHeader(timestamp) {
@@ -1677,13 +1734,7 @@
             // Try modern clipboard API first
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(url).then(() => {
-                    // Change button text temporarily to show success
-                    const btn = event.target || document.querySelector('#generalSearchResultsContainer button[onclick*="copySearchLink"]');
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '✅ Copied!';
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                    }, 2000);
+                    showToast('Link copied to clipboard!', 'success');
                 }).catch(err => {
                     // Fallback to older method
                     fallbackCopyToClipboard(url);
@@ -1710,18 +1761,14 @@
                 const btn = event.target || document.querySelector('#generalSearchResultsContainer button[onclick*="copySearchLink"]');
                 
                 if (successful) {
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '✅ Copied!';
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                    }, 2000);
+                    showToast('Link copied to clipboard!', 'success');
                 } else {
-                    // Show the URL in a prompt as last resort
-                    prompt('Copy this link:', text);
+                    // Show error toast
+                    showToast('Copy failed. Please manually copy the link.', 'error');
                 }
             } catch (err) {
-                // Show the URL in a prompt as last resort
-                prompt('Copy this link:', text);
+                // Show error toast
+                showToast('Copy failed. Please manually copy the link.', 'error');
             } finally {
                 document.body.removeChild(textarea);
             }
