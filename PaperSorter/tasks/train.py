@@ -242,18 +242,48 @@ def main(config, output, rounds, user_id, pos_cutoff, neg_cutoff, pseudo_weight,
         num_boost_round=rounds,
         evals=evals,
         verbose_eval=10,
-        early_stopping_rounds=15
+        early_stopping_rounds=50
     )
 
-    # Save model
-    log.info('Saving model...')
+    # Evaluate model on test set
+    log.info('Evaluating model on test set...')
+    y_testpred = model.predict(dtest)
+    rocauc = roc_auc_score(y_test, y_testpred, sample_weight=weights_test)
+    log.info(f'-> Test ROCAUC: {rocauc:.3f}')
+
+    # Train final model on full dataset with validation split for early stopping
+    log.info('Training final model on full dataset...')
+
+    # Create validation split from full data (20% for validation)
+    X_train_final, X_val_final, y_train_final, y_val_final, weights_train_final, weights_val_final = \
+        train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=42)
+
+    # Create XGBoost datasets for final model
+    dtrain_final = xgb.DMatrix(X_train_final, y_train_final, weight=weights_train_final)
+    dval_final = xgb.DMatrix(X_val_final, y_val_final, weight=weights_val_final)
+
+    # Training with early stopping
+    evals_final = [(dtrain_final, 'train'), (dval_final, 'validation')]
+
+    # Use the best iteration from the test model as a guide
+    best_iteration = model.best_iteration
+    log.info(f'Using best iteration from test model: {best_iteration}')
+
+    # Train final model
+    final_model = xgb.train(
+        params=params,
+        dtrain=dtrain_final,
+        num_boost_round=rounds,
+        evals=evals_final,
+        verbose_eval=10,
+        early_stopping_rounds=50
+    )
+
+    # Save final model
+    log.info('Saving final model...')
     pickle.dump({
-        'model': model,
+        'model': final_model,
         'scaler': scaler,
     }, open(output, 'wb'))
 
-    # Evaluate model
-    log.info('Evaluating model...')
-    y_testpred = model.predict(dtest)
-    rocauc = roc_auc_score(y_test, y_testpred, sample_weight=weights_test)
-    log.info(f'-> ROCAUC of the model: {rocauc:.3f}')
+    log.info(f'Final model saved to {output} (best iteration: {final_model.best_iteration})')
