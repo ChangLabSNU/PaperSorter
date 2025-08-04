@@ -293,29 +293,26 @@ class FeedDatabase:
             self.cursor.execute('UPDATE feeds SET origin = %s WHERE id = %s', (origin, item_id))
 
     def get_unscored_items(self):
-        model_id = 1  # Default model
-        self.cursor.execute('''
+        # Get active model IDs
+        self.cursor.execute('SELECT id FROM models WHERE is_active = TRUE')
+        active_model_ids = [row['id'] for row in self.cursor.fetchall()]
+        active_model_count = len(active_model_ids)
+
+        if active_model_count == 0:
+            return []
+
+        placeholders = ','.join(['%s'] * active_model_count)
+        self.cursor.execute(f'''
             SELECT f.external_id
             FROM feeds f
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-            WHERE pp.score IS NULL AND f.external_id IS NOT NULL
-        ''', (model_id,))
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
+                AND pp.model_id IN ({placeholders})
+            WHERE f.external_id IS NOT NULL
+            GROUP BY f.id, f.external_id
+            HAVING COUNT(pp.score) < %s
+        ''', (*active_model_ids, active_model_count))
         return [row['external_id'] for row in self.cursor.fetchall()]
 
-    def get_new_interesting_items(self, threshold, since, remove_duplicated=None):
-        model_id = 1  # Default model
-        self.cursor.execute('''
-            SELECT f.*, pp.score as score,
-                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
-            FROM feeds f
-            JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-            WHERE pp.score > %s AND bl.broadcasted_time IS NULL AND f.published >= to_timestamp(%s)
-                  AND f.external_id IS NOT NULL
-        ''', (model_id, threshold, since))
-
-        matches = self.build_dataframe_from_results(self.cursor.fetchall())
-        return self.filter_duplicates(matches, remove_duplicated)
 
     def filter_duplicates(self, matches, remove_duplicated):
         if len(matches) == 0:
