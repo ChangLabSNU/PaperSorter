@@ -249,6 +249,13 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
         log.debug(f'Scoring batch: {bid+1}')
         emb = embeddingdb[batch]
 
+        # KNOWN ISSUE: The current implementation has a problem where if ANY model lacks
+        # a score for an item, ALL models will re-score that item. This happens because
+        # get_unscored_items() returns items missing scores from ANY active model, not
+        # items that are completely unscored. This can lead to unnecessary re-computation
+        # when new models are added or activated.
+        # TODO: Consider tracking which specific models need scoring for each item.
+
         # Track which models have been processed to avoid duplicate scoring
         processed_models = set()
 
