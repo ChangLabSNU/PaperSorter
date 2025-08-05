@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperSorter is an academic paper recommendation system built in Python that uses machine learning to filter RSS feeds and predict user interest in research articles. The system fetches articles from TheOldReader, generates embeddings using OpenAI-compatible APIs (like Solar LLM), and uses XGBoost regression to predict user interest levels.
+PaperSorter is an academic paper recommendation system built in Python that uses machine learning to filter RSS feeds and predict user interest in research articles. The system fetches articles from RSS/Atom feeds, generates embeddings using OpenAI-compatible APIs (like Solar LLM), and uses XGBoost regression to predict user interest levels.
 
 ## Architecture
 
@@ -13,7 +13,6 @@ The system consists of several key components:
 - **FeedDatabase** (`feed_database.py`): PostgreSQL-based storage for article metadata, user labels, and predictions
 - **EmbeddingDatabase** (`embedding_database.py`): PostgreSQL-based storage for article embedding vectors using pgvector extension
 - **Tasks** (`tasks/`): CLI commands implemented as Click commands
-  - `init`: Initialize databases from TheOldReader feeds
   - `update`: Fetch new articles, generate embeddings, and queue items for broadcast
   - `train`: Train XGBoost model on labeled data
   - `broadcast`: Process broadcast queue and send notifications to Slack
@@ -36,8 +35,9 @@ The system consists of several key components:
     - `database.py`: Database helper functions
   - `jobs/`: Background job processors
     - `poster.py`: AI-powered infographic poster generation
-- **Providers** (`providers/`): TheOldReader API integration
-- **Contrib** (`contrib/`): Additional utilities like Tor support
+- **Providers** (`providers/`): Feed provider implementations
+  - `base.py`: Abstract base class for feed providers
+  - `rss.py`: RSS/Atom feed provider
 - **__main__.py**: Dynamic CLI command loader that imports all tasks from `tasks/__init__.py`
 
 ## Common Commands
@@ -49,9 +49,6 @@ pip install -e .
 
 ### Core Workflow
 ```bash
-# Initial setup - requires populated TheOldReader account
-papersorter init
-
 # Train initial model (needs ~1000 articles with ~100 starred)
 papersorter train
 
@@ -67,7 +64,7 @@ papersorter train                                          # Retrain model
 ### Development Commands
 Since this is a Python package without traditional build/test configuration files, use standard Python development tools:
 ```bash
-python -m PaperSorter.tasks.init     # Run individual tasks directly
+python -m PaperSorter.tasks.update     # Run individual tasks directly
 python -m pytest                     # Run tests (if test files exist)
 python -m flake8 PaperSorter/        # Code linting
 python -m black PaperSorter/         # Code formatting
@@ -75,8 +72,7 @@ python -m black PaperSorter/         # Code formatting
 
 ### Task-specific Options
 - All tasks support `--config` (default: `qbio/config.yml`), `--log-file` and `-q/--quiet` options
-- `init`: `--batch-size` (default: 100)
-- `update`: `--batch-size`, `--get-full-list`, `--force-reembed`, `--force-rescore`, `--score-threshold` (default: 0.7)
+- `update`: `--batch-size`, `--limit-sources` (max sources to scan), `--check-interval-hours` (check interval)
 - `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `--embeddings-table` (default: embeddings)
 - `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
 - `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`
@@ -109,10 +105,8 @@ summarization_api:
   api_url: "https://generativelanguage.googleapis.com/v1beta/openai"  # For Gemini
   model: "gemini-2.0-flash-thinking-exp-01-21"
 
-feed_service:
-  type: "theoldreader"
-  username: "your_email"
-  password: "your_password"
+# Feed sources are configured via web interface or database
+# No feed_service configuration needed anymore
 
 semanticscholar:
   api_key: "your_s2_api_key"

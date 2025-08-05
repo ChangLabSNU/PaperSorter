@@ -25,35 +25,45 @@
 
 import uuid
 from datetime import datetime
-from ...providers.theoldreader import Item
+from ...providers import FeedItem
 
 
-class SemanticScholarItem(Item):
+class SemanticScholarItem(FeedItem):
     """Item model for Semantic Scholar papers."""
 
     def __init__(self, paper_info):
         self.paper_info = paper_info
         article_id = uuid.uuid3(uuid.NAMESPACE_URL, paper_info['url'])
 
-        super().__init__(None, str(article_id))
-
+        # Extract content with tldr fallback
         tldr = (
             ('(tl;dr) ' + paper_info['tldr']['text'])
             if paper_info['tldr'] and paper_info['tldr']['text']
             else '')
-        self.title = paper_info['title']
-        self.content = paper_info['abstract'] or tldr
-        self.href = paper_info['url']
-        self.author = ', '.join([a['name'] for a in paper_info['authors']])
-        self.origin = self.determine_journal(paper_info)
-        self.mediaUrl = paper_info['url']
+        content = paper_info['abstract'] or tldr
 
+        # Parse publication date
+        published_datetime = None
         pdate = paper_info['publicationDate']
         if pdate is not None:
-            pubtime = datetime(*list(map(int, paper_info['publicationDate'].split('-'))))
-            self.published = int(pubtime.timestamp())
+            published_datetime = datetime(*list(map(int, paper_info['publicationDate'].split('-'))))
         else:
-            self.published = None
+            published_datetime = datetime.now()
+
+        # Initialize parent FeedItem
+        super().__init__(
+            external_id=str(article_id),
+            title=paper_info['title'],
+            content=content,
+            author=', '.join([a['name'] for a in paper_info['authors']]),
+            origin=self.determine_journal(paper_info),
+            link=paper_info['url'],
+            published=published_datetime
+        )
+
+        # Store additional attributes for compatibility
+        self.href = self.link
+        self.mediaUrl = self.link
 
     def determine_journal(self, paper_info):
         if paper_info['journal']:

@@ -21,7 +21,7 @@
 # THE SOFTWARE.
 #
 
-from ..providers.theoldreader import Connection, ItemsSearch
+from ..providers.rss import RSSProvider
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..broadcast_channels import BroadcastChannels
@@ -34,9 +34,7 @@ import requests
 import pickle
 import click
 
-FEED_UPDATE_LIMIT_REGULAR = 200
-FEED_UPDATE_LIMIT_FULL = 1000
-FEED_EPOCH = 2020, 1, 1
+FEED_EPOCH = (1980, 1, 1)
 
 OPENAI_API_URL = 'https://api.openai.com/v1'
 OPENAI_EMBEDDING_MODEL = 'text-embedding-3-large'
@@ -55,33 +53,42 @@ def batched(iterable, n):
     if items:
         yield items
 
-def retrieve_items_into_db(db, iterator, date_cutoff, stop_at_no_new_items=False,
-                           bulk_loading=False):
-    default_broadcasted = 0 if bulk_loading else None
-    progress_log = log.info if bulk_loading else log.debug
+def retrieve_items_into_db(db, items_iterator, date_cutoff):
+    """Process items from provider and insert into database."""
     new_item_ids = []  # Track newly added items
 
-    for page, items in enumerate(iterator):
-        progress_log(f'Processing page {page+1}')
+    for page, items in enumerate(items_iterator):
+        log.debug(f'Processing page {page+1} with {len(items)} items')
         newitems = 0
 
         for item in items:
-            if item in db:
+            # Check if item already exists
+            if item.external_id in db:
                 continue
 
-            if item.title is None:
-                item.get_details()
-            if item.published < date_cutoff:
-                log.debug(f'Skipping item {item.item_id} due to date cutoff {item.published}.')
+            # Check date cutoff
+            if item.published.timestamp() < date_cutoff:
+                log.debug(f'Skipping item {item.external_id} due to date cutoff {item.published}.')
                 continue
 
-            date_formatted = datetime.fromtimestamp(item.published).strftime('%Y-%m-%d %H:%M:%S')
+            date_formatted = item.published.strftime('%Y-%m-%d %H:%M:%S')
             log.debug(f'Retrieved: [{date_formatted}] {item.title}')
-            db.insert_item(item, starred=0, broadcasted=default_broadcasted)
-            new_item_ids.append(item.item_id)
+
+            # Insert into database
+            db.insert_feed_item(
+                external_id=item.external_id,
+                title=item.title,
+                content=item.content,
+                author=item.author,
+                origin=item.origin,
+                link=item.link,
+                published=item.published.timestamp()
+            )
+
+            new_item_ids.append(item.external_id)
             newitems += 1
 
-        if newitems == 0 and stop_at_no_new_items:
+        if newitems == 0:
             log.debug(f'Stopping at page {page+1} due to no new items.')
             break
 
@@ -89,30 +96,54 @@ def retrieve_items_into_db(db, iterator, date_cutoff, stop_at_no_new_items=False
 
     return new_item_ids
 
-def update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading, credential):
-    conn = Connection(email=credential['TOR_EMAIL'], password=credential['TOR_PASSWORD'])
-    conn.login()
-
+def update_feeds(feeddb, date_cutoff, config, limit_sources=None, check_interval_hours=24):
+    """Update feeds from all configured sources."""
     log.info('Updating feeds...')
     log.debug(f'Items in database: {len(feeddb)}')
 
-    searcher = ItemsSearch(conn)
-    stop_at_no_new_items = not get_full_list
-    update_limit = FEED_UPDATE_LIMIT_FULL if get_full_list else FEED_UPDATE_LIMIT_REGULAR
+    # Initialize RSS provider
+    provider = RSSProvider(config)
 
-    # Get all items
-    new_item_ids = retrieve_items_into_db(feeddb, searcher.get_all(limit_items=update_limit),
-                                         date_cutoff=date_cutoff, stop_at_no_new_items=stop_at_no_new_items,
-                                         bulk_loading=bulk_loading)
+    # Get sources that need updating
+    sources = provider.get_sources(source_type='rss', check_interval_hours=check_interval_hours)
+    log.info(f'Found {len(sources)} RSS sources to update')
 
-    return new_item_ids
+    # Apply source limit if specified
+    if limit_sources and limit_sources < len(sources):
+        sources = sources[:limit_sources]
+        log.info(f'Limiting to {limit_sources} sources')
 
-def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=False,
-                      force_reembed=False):
+    all_new_items = []
+
+    for source in sources:
+        log.info(f'Processing source: {source["name"]}')
+
+        # Validate source
+        if not provider.validate_source(source):
+            log.warning(f'Invalid source configuration for {source["name"]}')
+            continue
+
+        # Get items from source
+        since_date = datetime.fromtimestamp(date_cutoff, tz=datetime.now().astimezone().tzinfo)
+        items_iterator = provider.get_items(source, since=since_date)
+
+        # Process items
+        new_items = retrieve_items_into_db(
+            feeddb,
+            items_iterator,
+            date_cutoff=date_cutoff
+        )
+
+        all_new_items.extend(new_items)
+
+        # Update source timestamps
+        provider.update_source_timestamp(source['id'], has_new_items=len(new_items) > 0)
+
+    return all_new_items
+
+def update_embeddings(embeddingdb, batch_size, api_config, feeddb):
     keystoupdate = feeddb.keys().copy()
-    if not force_reembed:
-        keystoupdate -= embeddingdb.keys()
-    progress_log = log.info if bulk_loading else log.debug
+    keystoupdate -= embeddingdb.keys()
 
     log.info(f'Items: feed_db:{len(feeddb)} '
              f'embedding_db:{len(embeddingdb)} '
@@ -128,7 +159,7 @@ def update_embeddings(embeddingdb, batch_size, api_config, feeddb, bulk_loading=
 
     with embeddingdb.write_batch() as writer:
         for bid, batch in enumerate(batched(keystoupdate, batch_size)):
-            progress_log(f'Updating embedding: batch {bid+1} ...')
+            log.debug(f'Updating embedding: batch {bid+1} ...')
 
             items = [feeddb.get_formatted_item(item_id) for item_id in batch]
 
@@ -192,7 +223,6 @@ def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
             continue
 
         s2feed = r['data'][0]
-        # s2feed['matchScore']
         if s2feed['tldr'] and s2feed['tldr'].get('text'):
             feeddb.update_tldr(feed_id, s2feed['tldr']['text'])
         if s2feed['authors']:
@@ -213,11 +243,8 @@ def format_authors(authors, max_authors=4):
         last_authors = ', '.join(a['name'] for a in authors[-2:])
         return first_authors + ', ..., ' + last_authors
 
-def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=False):
-    if force_rescore:
-        unscored = feeddb.keys()
-    else:
-        unscored = feeddb.get_unscored_items()
+def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
+    unscored = feeddb.get_unscored_items()
 
     log.info('Scoring new feeds...')
     log.debug(f'Items to score: {len(unscored)}')
@@ -318,13 +345,11 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore=Fals
 
 @click.option('--config', default='qbio/config.yml', help='Database configuration file.')
 @click.option('--batch-size', default=100, help='Batch size for processing.')
-@click.option('--get-full-list', is_flag=True, help='Retrieve all items from feeds.')
-@click.option('--force-reembed', is_flag=True, help='Force recalculation of embeddings for all items.')
-@click.option('--force-rescore', is_flag=True, help='Force rescoring all items.')
+@click.option('--limit-sources', type=int, default=20, help='Maximum number of feed sources to scan.')
+@click.option('--check-interval-hours', type=int, default=6, help='Only check sources not updated within this many hours.')
 @click.option('--log-file', default=None, help='Log file.')
 @click.option('-q', '--quiet', is_flag=True, help='Suppress log output.')
-def main(config, batch_size, get_full_list,
-         force_reembed, force_rescore, log_file, quiet):
+def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
     initialize_logging(task='update', logfile=log_file, quiet=quiet)
 
     # Load configuration
@@ -337,31 +362,29 @@ def main(config, batch_size, get_full_list,
     embeddingdb = EmbeddingDatabase(config)
     channels = BroadcastChannels(config)
 
-    tor_config = {
-        'TOR_EMAIL': full_config['feed_service']['username'],
-        'TOR_PASSWORD': full_config['feed_service']['password']
-    }
-    new_item_ids = update_feeds(get_full_list, feeddb, date_cutoff, bulk_loading=False,
-                                credential=tor_config)
+    # Update feeds from RSS sources
+    new_item_ids = update_feeds(feeddb, date_cutoff, config=full_config,
+                                limit_sources=limit_sources, check_interval_hours=check_interval_hours)
 
-    s2_config = {
-        'S2_API_KEY': full_config['semanticscholar']['api_key'],
-        'S2_API_URL': full_config['semanticscholar'].get('api_url'),
-        'S2_THROTTLE': full_config['semanticscholar'].get('throttle', 1),
-    }
-    try:
-        update_s2_info(feeddb, s2_config, new_item_ids)
-    except requests.exceptions.ConnectionError:
-        import traceback
-        traceback.print_exc()
-        # Show the exception but proceed to the next job.
+    # Update Semantic Scholar info if configured
+    if 'semanticscholar' in full_config and full_config['semanticscholar'].get('api_key'):
+        s2_config = {
+            'S2_API_KEY': full_config['semanticscholar']['api_key'],
+            'S2_API_URL': full_config['semanticscholar'].get('api_url'),
+            'S2_THROTTLE': full_config['semanticscholar'].get('throttle', 1),
+        }
+        try:
+            update_s2_info(feeddb, s2_config, new_item_ids)
+        except requests.exceptions.ConnectionError:
+            import traceback
+            traceback.print_exc()
+            # Show the exception but proceed to the next job.
 
     num_updates = update_embeddings(embeddingdb, batch_size, full_config['embedding_api'],
-                                    feeddb, force_reembed=force_reembed,
-                                    bulk_loading=False)
+                                    feeddb)
 
     if num_updates > 0:
         model_dir = full_config.get('models', {}).get('path', '.')
-        score_new_feeds(feeddb, embeddingdb, channels, model_dir, force_rescore)
+        score_new_feeds(feeddb, embeddingdb, channels, model_dir)
 
     log.info('Update completed.')
