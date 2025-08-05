@@ -360,28 +360,35 @@ class RSSProvider(FeedProvider):
         return text.strip()
 
     def _generate_external_id(self, entry: dict) -> str:
-        """Generate UUID v5 for feed entry."""
-        # Try to use existing ID/GUID if it's a valid UUID
-        if hasattr(entry, 'id') and entry.id and self._is_valid_uuid(entry.id):
-            return entry.id
-        elif hasattr(entry, 'guid') and entry.guid and self._is_valid_uuid(entry.guid):
-            return entry.guid
+        """Generate external ID for feed entry.
+        
+        Priority:
+        1. Use guid if present (as-is, regardless of format)
+        2. Use id if present (as-is, regardless of format)
+        3. Generate UUID v5 from link URL
+        4. Generate UUID v5 from title
+        5. Fallback to random UUID v4
+        """
+        # Try to use guid first (most stable identifier in RSS/ATOM)
+        if hasattr(entry, 'guid') and entry.guid:
+            return str(entry.guid)
+        
+        # Try to use id second
+        if hasattr(entry, 'id') and entry.id:
+            return str(entry.id)
 
-        # Generate UUID v5 from URL or other identifier
-        entry_url = entry.get('link', '') or entry.get('title', '')
+        # Generate UUID v5 from URL
+        entry_url = entry.get('link', '')
         if entry_url:
             return str(uuid.uuid5(uuid.NAMESPACE_URL, entry_url))
-        else:
-            # Fallback to random UUID
-            return str(uuid.uuid4())
-
-    def _is_valid_uuid(self, value: str) -> bool:
-        """Check if string is a valid UUID."""
-        try:
-            uuid.UUID(value)
-            return True
-        except (ValueError, AttributeError):
-            return False
+        
+        # Generate UUID v5 from title as last resort
+        entry_title = entry.get('title', '')
+        if entry_title:
+            return str(uuid.uuid5(uuid.NAMESPACE_URL, entry_title))
+        
+        # Fallback to random UUID
+        return str(uuid.uuid4())
 
     def _parse_published_date(self, entry: dict) -> datetime:
         """Parse published date from feed entry."""
