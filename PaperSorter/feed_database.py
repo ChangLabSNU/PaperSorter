@@ -59,7 +59,15 @@ class FeedDatabase:
             self.db.close()
 
     def __contains__(self, item):
-        return item.item_id in self.idcache
+        # Handle both string IDs and objects with item_id attribute
+        if isinstance(item, str):
+            return item in self.idcache
+        elif hasattr(item, 'item_id'):
+            return item.item_id in self.idcache
+        elif hasattr(item, 'external_id'):
+            return item.external_id in self.idcache
+        else:
+            return False
 
     def __len__(self):
         self.cursor.execute('SELECT COUNT(*) FROM feeds')
@@ -143,6 +151,27 @@ class FeedDatabase:
                 ''', (feed_id, channel_id, broadcasted))
 
             self.idcache.add(item.item_id)
+            return feed_id
+
+    def insert_feed_item(self, external_id, title, content=None, author=None,
+                        origin=None, link=None, published=None, tldr=None):
+        """Insert a feed item directly with explicit fields."""
+        # Clean content
+        if content:
+            content = remove_html_tags(content)
+
+        # Insert into feeds table
+        self.cursor.execute('''
+            INSERT INTO feeds (external_id, title, content, author, origin, published, link, tldr)
+            VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s)
+            ON CONFLICT (external_id) DO NOTHING
+            RETURNING id
+        ''', (external_id, title, content, author, origin, published, link, tldr))
+
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result['id']
+            self.idcache.add(external_id)
             return feed_id
 
     def get_formatted_item(self, item_id):

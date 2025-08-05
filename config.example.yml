@@ -37,11 +37,11 @@ summarization_api:
   # Optional: model name for summarization
   model: "gpt-4o-mini"
 
-# Feed service configuration
-feed_service:
-  type: "theoldreader"
-  username: "your_email@example.com"
-  password: "your_theoldreader_password"
+# Feed sources are now configured via the web interface or database
+# RSS feeds can be added through:
+# - Web interface at /settings/feed-sources
+# - OPML import using tools/import-opml.py
+# - Direct database insertion
 
 # Semantic Scholar API configuration
 # Used for enriching article metadata

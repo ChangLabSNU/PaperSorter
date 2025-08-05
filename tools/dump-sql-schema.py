@@ -55,6 +55,7 @@ def dump_schema(db_config, output_file=None, schema_name='papersorter'):
         '--schema-only',  # Only dump schema, no data
         '--no-owner',     # Don't include ownership statements
         '--no-privileges', # Don't include privilege statements
+        '--no-comments',  # Don't include comment lines
         '--schema', schema_name,  # Only dump the papersorter schema
         '--create',       # Include CREATE SCHEMA statement
         '--verbose'       # Verbose output to stderr
@@ -78,7 +79,15 @@ def dump_schema(db_config, output_file=None, schema_name='papersorter'):
             sys.exit(1)
 
         # Process the output to ensure proper formatting
-        schema_sql = result.stdout
+        # Filter out all comment lines from pg_dump output
+        lines = result.stdout.split('\n')
+        filtered_lines = []
+        for line in lines:
+            # Skip comment lines (lines starting with --)
+            if not line.strip().startswith('--'):
+                filtered_lines.append(line)
+
+        schema_sql = '\n'.join(filtered_lines)
 
         # Add header comment
         header = f"""--

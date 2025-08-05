@@ -74,6 +74,13 @@ def settings_broadcast_queue():
     return render_template('settings_broadcast_queue.html')
 
 
+@settings_bp.route('/settings/feed-sources')
+@admin_required
+def settings_feed_sources():
+    """Feed sources management page."""
+    return render_template('settings_feed_sources.html')
+
+
 # Channels API endpoints
 @settings_bp.route('/api/settings/channels')
 @admin_required
@@ -512,6 +519,133 @@ def api_remove_from_queue(feed_id, channel_id):
             WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
         """, (feed_id, channel_id))
 
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500# Feed Sources API endpoints
+@settings_bp.route('/api/settings/feed-sources')
+@admin_required
+def api_get_feed_sources():
+    """Get all feed sources."""
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        cursor.execute("""
+            SELECT id, name, source_type, url, added, last_updated, last_checked,
+                   (SELECT COUNT(*) FROM feeds WHERE origin = feed_sources.name) as feed_count
+            FROM feed_sources
+            ORDER BY id
+        """)
+
+        feed_sources = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Convert datetime to ISO format for JSON
+        for source in feed_sources:
+            if source['added']:
+                source['added'] = source['added'].isoformat()
+            if source['last_updated']:
+                source['last_updated'] = source['last_updated'].isoformat()
+            if source['last_checked']:
+                source['last_checked'] = source['last_checked'].isoformat()
+
+        return jsonify({'feed_sources': feed_sources})
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/api/settings/feed-sources', methods=['POST'])
+@admin_required
+def api_create_feed_source():
+    """Create a new feed source."""
+    data = request.get_json()
+
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO feed_sources (name, source_type, url)
+            VALUES (%s, %s, %s)
+            RETURNING id
+        """, (data['name'], data.get('source_type', 'rss'), data.get('url')))
+
+        source_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'id': source_id})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/api/settings/feed-sources/<int:source_id>', methods=['PUT'])
+@admin_required
+def api_update_feed_source(source_id):
+    """Update a feed source."""
+    data = request.get_json()
+
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE feed_sources
+            SET name = %s, source_type = %s, url = %s
+            WHERE id = %s
+        """, (data['name'], data.get('source_type', 'rss'),
+              data.get('url'), source_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/api/settings/feed-sources/<int:source_id>', methods=['DELETE'])
+@admin_required
+def api_delete_feed_source(source_id):
+    """Delete a feed source."""
+    conn = current_app.config['get_db_connection']()
+    cursor = conn.cursor()
+
+    try:
+        # Check if there are any feeds using this source
+        cursor.execute("""
+            SELECT COUNT(*) FROM feeds
+            WHERE origin = (SELECT name FROM feed_sources WHERE id = %s)
+        """, (source_id,))
+
+        feed_count = cursor.fetchone()[0]
+        if feed_count > 0:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': f'Cannot delete: {feed_count} feeds are using this source'
+            }), 400
+
+        cursor.execute("DELETE FROM feed_sources WHERE id = %s", (source_id,))
         conn.commit()
         cursor.close()
         conn.close()
