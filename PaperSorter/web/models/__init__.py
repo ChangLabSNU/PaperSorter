@@ -25,4 +25,4 @@
 
 from .semantic_scholar import SemanticScholarItem
 
-__all__ = ['SemanticScholarItem']
+__all__ = ["SemanticScholarItem"]

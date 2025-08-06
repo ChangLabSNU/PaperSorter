@@ -23,6 +23,16 @@
 
 """Utility functions for the web interface."""
 
-from .database import get_default_model_id, get_unlabeled_item, update_label, get_labeling_stats
+from .database import (
+    get_default_model_id,
+    get_unlabeled_item,
+    update_label,
+    get_labeling_stats,
+)
 
-__all__ = ['get_default_model_id', 'get_unlabeled_item', 'update_label', 'get_labeling_stats']
+__all__ = [
+    "get_default_model_id",
+    "get_unlabeled_item",
+    "update_label",
+    "get_labeling_stats",
+]

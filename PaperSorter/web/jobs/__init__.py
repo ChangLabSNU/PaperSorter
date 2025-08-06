@@ -25,4 +25,4 @@
 
 from .poster import process_poster_job
 
-__all__ = ['process_poster_job']
+__all__ = ["process_poster_job"]

@@ -28,65 +28,65 @@ import psycopg2.extras
 from flask import Blueprint, request, jsonify, render_template, current_app
 from ..auth.decorators import admin_required
 
-settings_bp = Blueprint('settings', __name__)
+settings_bp = Blueprint("settings", __name__)
 
 
 # Settings pages
-@settings_bp.route('/settings')
+@settings_bp.route("/settings")
 @admin_required
 def settings():
     """Settings main page."""
-    return render_template('settings.html')
+    return render_template("settings.html")
 
 
-@settings_bp.route('/settings/channels')
+@settings_bp.route("/settings/channels")
 @admin_required
 def settings_channels():
     """Channels settings page."""
-    return render_template('settings_channels.html')
+    return render_template("settings_channels.html")
 
 
-@settings_bp.route('/settings/users')
+@settings_bp.route("/settings/users")
 @admin_required
 def settings_users():
     """Users settings page."""
-    return render_template('settings_users.html')
+    return render_template("settings_users.html")
 
 
-@settings_bp.route('/settings/models')
+@settings_bp.route("/settings/models")
 @admin_required
 def settings_models():
     """Models settings page."""
-    return render_template('settings_models.html')
+    return render_template("settings_models.html")
 
 
-@settings_bp.route('/settings/events')
+@settings_bp.route("/settings/events")
 @admin_required
 def settings_events():
     """Event logs viewer page."""
-    return render_template('settings_events.html')
+    return render_template("settings_events.html")
 
 
-@settings_bp.route('/settings/broadcast-queue')
+@settings_bp.route("/settings/broadcast-queue")
 @admin_required
 def settings_broadcast_queue():
     """Broadcast queue management page."""
-    return render_template('settings_broadcast_queue.html')
+    return render_template("settings_broadcast_queue.html")
 
 
-@settings_bp.route('/settings/feed-sources')
+@settings_bp.route("/settings/feed-sources")
 @admin_required
 def settings_feed_sources():
     """Feed sources management page."""
-    return render_template('settings_feed_sources.html')
+    return render_template("settings_feed_sources.html")
 
 
 # Channels API endpoints
-@settings_bp.route('/api/settings/channels')
+@settings_bp.route("/api/settings/channels")
 @admin_required
 def api_get_channels():
     """Get all channels."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
@@ -99,75 +99,90 @@ def api_get_channels():
     cursor.close()
     conn.close()
 
-    return jsonify({'channels': channels})
+    return jsonify({"channels": channels})
 
 
-@settings_bp.route('/api/settings/channels', methods=['POST'])
+@settings_bp.route("/api/settings/channels", methods=["POST"])
 @admin_required
 def api_create_channel():
     """Create a new channel."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id
-        """, (data['name'], data['endpoint_url'],
-              data.get('score_threshold', 0.7), data.get('model_id', 1),
-              data.get('is_active', True)))
+        """,
+            (
+                data["name"],
+                data["endpoint_url"],
+                data.get("score_threshold", 0.7),
+                data.get("model_id", 1),
+                data.get("is_active", True),
+            ),
+        )
 
         channel_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'id': channel_id})
+        return jsonify({"success": True, "id": channel_id})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/channels/<int:channel_id>', methods=['PUT'])
+@settings_bp.route("/api/settings/channels/<int:channel_id>", methods=["PUT"])
 @admin_required
 def api_update_channel(channel_id):
     """Update a channel."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE channels
             SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s
             WHERE id = %s
-        """, (data['name'], data['endpoint_url'],
-              data.get('score_threshold', 0.7), data.get('model_id', 1),
-              data.get('is_active', True), channel_id))
+        """,
+            (
+                data["name"],
+                data["endpoint_url"],
+                data.get("score_threshold", 0.7),
+                data.get("model_id", 1),
+                data.get("is_active", True),
+                channel_id,
+            ),
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/channels/<int:channel_id>', methods=['DELETE'])
+@settings_bp.route("/api/settings/channels/<int:channel_id>", methods=["DELETE"])
 @admin_required
 def api_delete_channel(channel_id):
     """Delete a channel."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
@@ -176,20 +191,20 @@ def api_delete_channel(channel_id):
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Users API endpoints
-@settings_bp.route('/api/settings/users')
+@settings_bp.route("/api/settings/users")
 @admin_required
 def api_get_users():
     """Get all users."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
@@ -202,86 +217,95 @@ def api_get_users():
     cursor.close()
     conn.close()
 
-    return jsonify({'users': users})
+    return jsonify({"users": users})
 
 
-@settings_bp.route('/api/settings/users', methods=['POST'])
+@settings_bp.route("/api/settings/users", methods=["POST"])
 @admin_required
 def api_create_user():
     """Create a new user."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO users (username, password, created, timezone)
             VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
             RETURNING id
-        """, (data['username'], data.get('password', 'default'),
-              data.get('timezone', 'Asia/Seoul')))
+        """,
+            (
+                data["username"],
+                data.get("password", "default"),
+                data.get("timezone", "Asia/Seoul"),
+            ),
+        )
 
         user_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'id': user_id})
+        return jsonify({"success": True, "id": user_id})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/users/<int:user_id>', methods=['PUT'])
+@settings_bp.route("/api/settings/users/<int:user_id>", methods=["PUT"])
 @admin_required
 def api_update_user(user_id):
     """Update a user."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
         # Update query parts
-        update_parts = ['username = %s']
-        update_values = [data['username']]
+        update_parts = ["username = %s"]
+        update_values = [data["username"]]
 
-        if 'timezone' in data:
-            update_parts.append('timezone = %s')
-            update_values.append(data['timezone'])
+        if "timezone" in data:
+            update_parts.append("timezone = %s")
+            update_values.append(data["timezone"])
 
         # Add user_id at the end
         update_values.append(user_id)
 
-        cursor.execute(f"""
+        cursor.execute(
+            f"""
             UPDATE users
-            SET {', '.join(update_parts)}
+            SET {", ".join(update_parts)}
             WHERE id = %s
-        """, update_values)
+        """,
+            update_values,
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/users/<int:user_id>', methods=['DELETE'])
+@settings_bp.route("/api/settings/users/<int:user_id>", methods=["DELETE"])
 @admin_required
 def api_delete_user(user_id):
     """Delete a user."""
     if user_id == 1:
-        return jsonify({'success': False, 'error': 'Cannot delete default user'}), 400
+        return jsonify({"success": False, "error": "Cannot delete default user"}), 400
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
@@ -290,20 +314,20 @@ def api_delete_user(user_id):
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Models API endpoints
-@settings_bp.route('/api/settings/models')
+@settings_bp.route("/api/settings/models")
 @admin_required
 def api_get_models():
     """Get all models."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
@@ -316,86 +340,91 @@ def api_get_models():
     cursor.close()
     conn.close()
 
-    return jsonify({'models': models})
+    return jsonify({"models": models})
 
 
-@settings_bp.route('/api/settings/models', methods=['POST'])
+@settings_bp.route("/api/settings/models", methods=["POST"])
 @admin_required
 def api_create_model():
     """Create a new model."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO models (name, user_id, created, is_active)
             VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
             RETURNING id
-        """, (data['name'], data.get('user_id', 1),
-              data.get('is_active', True)))
+        """,
+            (data["name"], data.get("user_id", 1), data.get("is_active", True)),
+        )
 
         model_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'id': model_id})
+        return jsonify({"success": True, "id": model_id})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/models/<int:model_id>', methods=['PUT'])
+@settings_bp.route("/api/settings/models/<int:model_id>", methods=["PUT"])
 @admin_required
 def api_update_model(model_id):
     """Update a model."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
         # Update query parts
-        update_parts = ['name = %s']
-        update_values = [data['name']]
+        update_parts = ["name = %s"]
+        update_values = [data["name"]]
 
-        if 'is_active' in data:
-            update_parts.append('is_active = %s')
-            update_values.append(data['is_active'])
+        if "is_active" in data:
+            update_parts.append("is_active = %s")
+            update_values.append(data["is_active"])
 
         # Add model_id at the end
         update_values.append(model_id)
 
-        cursor.execute(f"""
+        cursor.execute(
+            f"""
             UPDATE models
-            SET {', '.join(update_parts)}
+            SET {", ".join(update_parts)}
             WHERE id = %s
-        """, update_values)
+        """,
+            update_values,
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/models/<int:model_id>', methods=['DELETE'])
+@settings_bp.route("/api/settings/models/<int:model_id>", methods=["DELETE"])
 @admin_required
 def api_delete_model(model_id):
     """Delete a model."""
     if model_id == 1:
-        return jsonify({'success': False, 'error': 'Cannot delete default model'}), 400
+        return jsonify({"success": False, "error": "Cannot delete default model"}), 400
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
@@ -404,40 +433,43 @@ def api_delete_model(model_id):
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Event logs API endpoints
-@settings_bp.route('/api/settings/events')
+@settings_bp.route("/api/settings/events")
 @admin_required
 def api_get_events():
     """Get event logs with pagination."""
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 50))
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
     offset = (page - 1) * per_page
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
         # Get total count
         cursor.execute("SELECT COUNT(*) as total FROM events")
-        total = cursor.fetchone()['total']
+        total = cursor.fetchone()["total"]
 
         # Get events with feed and user information
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT e.*, f.title as feed_title, u.username
             FROM events e
             LEFT JOIN feeds f ON e.feed_id = f.id
             LEFT JOIN users u ON e.user_id = u.id
             ORDER BY e.occurred DESC
             LIMIT %s OFFSET %s
-        """, (per_page, offset))
+        """,
+            (per_page, offset),
+        )
         events = cursor.fetchall()
 
         cursor.close()
@@ -445,28 +477,30 @@ def api_get_events():
 
         # Convert datetime to ISO format for JSON
         for event in events:
-            if event['occurred']:
-                event['occurred'] = event['occurred'].isoformat()
+            if event["occurred"]:
+                event["occurred"] = event["occurred"].isoformat()
 
-        return jsonify({
-            'events': events,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'has_more': offset + per_page < total
-        })
+        return jsonify(
+            {
+                "events": events,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "has_more": offset + per_page < total,
+            }
+        )
     except Exception as e:
         cursor.close()
         conn.close()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # Broadcast Queue API endpoints
-@settings_bp.route('/api/settings/broadcast-queue')
+@settings_bp.route("/api/settings/broadcast-queue")
 @admin_required
 def api_get_broadcast_queue():
     """Get broadcast queue items across all channels (unbroadcasted only)."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
@@ -496,44 +530,53 @@ def api_get_broadcast_queue():
 
         # Convert datetime to ISO format for JSON
         for item in queue_items:
-            if item['published']:
-                item['published'] = item['published'].isoformat()
+            if item["published"]:
+                item["published"] = item["published"].isoformat()
 
-        return jsonify({'queue_items': queue_items})
+        return jsonify({"queue_items": queue_items})
     except Exception as e:
         cursor.close()
         conn.close()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/broadcast-queue/<int:feed_id>/<int:channel_id>', methods=['DELETE'])
+@settings_bp.route(
+    "/api/settings/broadcast-queue/<int:feed_id>/<int:channel_id>", methods=["DELETE"]
+)
 @admin_required
 def api_remove_from_queue(feed_id, channel_id):
     """Remove item from broadcast queue."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             DELETE FROM broadcasts
             WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
-        """, (feed_id, channel_id))
+        """,
+            (feed_id, channel_id),
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500# Feed Sources API endpoints
-@settings_bp.route('/api/settings/feed-sources')
+        return jsonify(
+            {"success": False, "error": str(e)}
+        ), 500  # Feed Sources API endpoints
+
+
+@settings_bp.route("/api/settings/feed-sources")
 @admin_required
 def api_get_feed_sources():
     """Get all feed sources."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
@@ -550,109 +593,119 @@ def api_get_feed_sources():
 
         # Convert datetime to ISO format for JSON
         for source in feed_sources:
-            if source['added']:
-                source['added'] = source['added'].isoformat()
-            if source['last_updated']:
-                source['last_updated'] = source['last_updated'].isoformat()
-            if source['last_checked']:
-                source['last_checked'] = source['last_checked'].isoformat()
+            if source["added"]:
+                source["added"] = source["added"].isoformat()
+            if source["last_updated"]:
+                source["last_updated"] = source["last_updated"].isoformat()
+            if source["last_checked"]:
+                source["last_checked"] = source["last_checked"].isoformat()
 
-        return jsonify({'feed_sources': feed_sources})
+        return jsonify({"feed_sources": feed_sources})
     except Exception as e:
         cursor.close()
         conn.close()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/feed-sources', methods=['POST'])
+@settings_bp.route("/api/settings/feed-sources", methods=["POST"])
 @admin_required
 def api_create_feed_source():
     """Create a new feed source."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO feed_sources (name, source_type, url)
             VALUES (%s, %s, %s)
             RETURNING id
-        """, (data['name'], data.get('source_type', 'rss'), data.get('url')))
+        """,
+            (data["name"], data.get("source_type", "rss"), data.get("url")),
+        )
 
         source_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'id': source_id})
+        return jsonify({"success": True, "id": source_id})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/feed-sources/<int:source_id>', methods=['PUT'])
+@settings_bp.route("/api/settings/feed-sources/<int:source_id>", methods=["PUT"])
 @admin_required
 def api_update_feed_source(source_id):
     """Update a feed source."""
     data = request.get_json()
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE feed_sources
             SET name = %s, source_type = %s, url = %s
             WHERE id = %s
-        """, (data['name'], data.get('source_type', 'rss'),
-              data.get('url'), source_id))
+        """,
+            (data["name"], data.get("source_type", "rss"), data.get("url"), source_id),
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@settings_bp.route('/api/settings/feed-sources/<int:source_id>', methods=['DELETE'])
+@settings_bp.route("/api/settings/feed-sources/<int:source_id>", methods=["DELETE"])
 @admin_required
 def api_delete_feed_source(source_id):
     """Delete a feed source."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
     try:
         # Check if there are any feeds using this source
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*) FROM feeds
             WHERE origin = (SELECT name FROM feed_sources WHERE id = %s)
-        """, (source_id,))
+        """,
+            (source_id,),
+        )
 
         feed_count = cursor.fetchone()[0]
         if feed_count > 0:
             cursor.close()
             conn.close()
-            return jsonify({
-                'success': False,
-                'error': f'Cannot delete: {feed_count} feeds are using this source'
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Cannot delete: {feed_count} feeds are using this source",
+                }
+            ), 400
 
         cursor.execute("DELETE FROM feed_sources WHERE id = %s", (source_id,))
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

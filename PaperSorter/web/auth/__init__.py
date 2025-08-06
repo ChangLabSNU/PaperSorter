@@ -27,4 +27,4 @@ from .models import User
 from .decorators import admin_required
 from .routes import auth_bp
 
-__all__ = ['User', 'admin_required', 'auth_bp']
+__all__ = ["User", "admin_required", "auth_bp"]

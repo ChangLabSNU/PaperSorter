@@ -33,21 +33,25 @@ from .log import log
 class FeedPredictor:
     """Common functionality for generating embeddings, predicting feed preferences and managing broadcast queues."""
 
-    def __init__(self, feeddb, embeddingdb, config_path='qbio/config.yml'):
+    def __init__(self, feeddb, embeddingdb, config_path="qbio/config.yml"):
         self.feeddb = feeddb
         self.embeddingdb = embeddingdb
         self.config_path = config_path
 
         # Load configuration
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
         # Set up OpenAI client for embeddings
-        embedding_config = self.config.get('embedding_api', {})
-        self.api_key = embedding_config.get('api_key')
-        self.api_url = embedding_config.get('api_url', 'https://api.openai.com/v1')
-        self.embedding_model = embedding_config.get('model', 'text-embedding-3-large')
-        self.openai_client = openai.OpenAI(api_key=self.api_key, base_url=self.api_url) if self.api_key else None
+        embedding_config = self.config.get("embedding_api", {})
+        self.api_key = embedding_config.get("api_key")
+        self.api_url = embedding_config.get("api_url", "https://api.openai.com/v1")
+        self.embedding_model = embedding_config.get("model", "text-embedding-3-large")
+        self.openai_client = (
+            openai.OpenAI(api_key=self.api_key, base_url=self.api_url)
+            if self.api_key
+            else None
+        )
 
     def generate_embeddings_batch(self, feed_ids, batch_size=100):
         """
@@ -73,7 +77,9 @@ class FeedPredictor:
         for feed_id in feed_ids:
             # Check if embedding exists by trying to get it
             try:
-                self.embeddingdb.cursor.execute('SELECT 1 FROM embeddings WHERE feed_id = %s', (feed_id,))
+                self.embeddingdb.cursor.execute(
+                    "SELECT 1 FROM embeddings WHERE feed_id = %s", (feed_id,)
+                )
                 if not self.embeddingdb.cursor.fetchone():
                     feeds_needing_embeddings.append(feed_id)
             except Exception:
@@ -89,7 +95,7 @@ class FeedPredictor:
 
         # Process in batches
         for i in range(0, len(feeds_needing_embeddings), batch_size):
-            batch = feeds_needing_embeddings[i:i + batch_size]
+            batch = feeds_needing_embeddings[i : i + batch_size]
 
             # Get formatted items for this batch
             formatted_items = []
@@ -109,8 +115,7 @@ class FeedPredictor:
             try:
                 # Generate embeddings for the batch
                 response = self.openai_client.embeddings.create(
-                    input=formatted_items,
-                    model=self.embedding_model
+                    input=formatted_items, model=self.embedding_model
                 )
 
                 # Store embeddings
@@ -118,15 +123,20 @@ class FeedPredictor:
                     if idx in feed_id_map:
                         feed_id = feed_id_map[idx]
                         # Store embedding in database
-                        self.embeddingdb.cursor.execute('''
+                        self.embeddingdb.cursor.execute(
+                            """
                             INSERT INTO embeddings (feed_id, embedding)
                             VALUES (%s, %s)
                             ON CONFLICT (feed_id) DO UPDATE
                             SET embedding = EXCLUDED.embedding
-                        ''', (feed_id, np.array(embedding_data.embedding)))
+                        """,
+                            (feed_id, np.array(embedding_data.embedding)),
+                        )
                         successful_feeds.append(feed_id)
 
-                log.info(f"Generated embeddings for batch of {len(response.data)} items")
+                log.info(
+                    f"Generated embeddings for batch of {len(response.data)} items"
+                )
 
             except Exception as e:
                 log.error(f"Failed to generate embeddings for batch: {e}")
@@ -137,7 +147,9 @@ class FeedPredictor:
 
         return successful_feeds
 
-    def predict_and_queue_feeds(self, feed_ids, model_dir, force_rescore=False, batch_size=100):
+    def predict_and_queue_feeds(
+        self, feed_ids, model_dir, force_rescore=False, batch_size=100
+    ):
         """
         Predict preferences for feeds and add high-scoring ones to broadcast queues.
         Automatically generates embeddings for feeds that don't have them.
@@ -159,12 +171,12 @@ class FeedPredictor:
         feeds_with_embeddings = self.generate_embeddings_batch(feed_ids, batch_size)
 
         # Get active channels and their associated models
-        self.feeddb.cursor.execute('''
+        self.feeddb.cursor.execute("""
             SELECT c.*, m.id as model_id, m.name as model_name
             FROM channels c
             LEFT JOIN models m ON c.model_id = m.id
             WHERE c.is_active = true
-        ''')
+        """)
         active_channels = self.feeddb.cursor.fetchall()
 
         if not active_channels:
@@ -174,7 +186,7 @@ class FeedPredictor:
         # Group channels by model
         channels_by_model = {}
         for channel in active_channels:
-            model_id = channel['model_id'] or 1  # Default to model 1 if not specified
+            model_id = channel["model_id"] or 1  # Default to model 1 if not specified
             if model_id not in channels_by_model:
                 channels_by_model[model_id] = []
             channels_by_model[model_id].append(channel)
@@ -182,12 +194,16 @@ class FeedPredictor:
         # Get embeddings for feeds that have them
         embeddings_map = {}
         for feed_id in feeds_with_embeddings:
-            self.embeddingdb.cursor.execute('SELECT embedding FROM embeddings WHERE feed_id = %s', (feed_id,))
+            self.embeddingdb.cursor.execute(
+                "SELECT embedding FROM embeddings WHERE feed_id = %s", (feed_id,)
+            )
             result = self.embeddingdb.cursor.fetchone()
             if result:
-                embeddings_map[feed_id] = np.array(result['embedding'])
+                embeddings_map[feed_id] = np.array(result["embedding"])
             else:
-                log.warning(f"No embedding found for feed {feed_id} even after generation")
+                log.warning(
+                    f"No embedding found for feed {feed_id} even after generation"
+                )
 
         if not embeddings_map:
             log.warning("No embeddings found for any of the provided feeds")
@@ -197,28 +213,37 @@ class FeedPredictor:
         for model_id, channels in channels_by_model.items():
             try:
                 # Load model
-                model_file = os.path.join(model_dir, f'model-{model_id}.pkl')
+                model_file = os.path.join(model_dir, f"model-{model_id}.pkl")
                 if not os.path.exists(model_file):
                     log.warning(f"Model file not found: {model_file}")
                     continue
 
-                with open(model_file, 'rb') as f:
+                with open(model_file, "rb") as f:
                     model_data = pickle.load(f)
 
-                model = model_data['model']
-                scaler = model_data['scaler']
+                model = model_data["model"]
+                scaler = model_data["scaler"]
 
                 # Check which feeds need predictions for this model
                 feeds_to_predict = []
                 if not force_rescore:
-                    self.feeddb.cursor.execute('''
+                    self.feeddb.cursor.execute(
+                        """
                         SELECT feed_id
                         FROM predicted_preferences
                         WHERE model_id = %s AND feed_id = ANY(%s)
-                    ''', (model_id, list(embeddings_map.keys())))
+                    """,
+                        (model_id, list(embeddings_map.keys())),
+                    )
 
-                    already_predicted = {row['feed_id'] for row in self.feeddb.cursor.fetchall()}
-                    feeds_to_predict = [fid for fid in embeddings_map.keys() if fid not in already_predicted]
+                    already_predicted = {
+                        row["feed_id"] for row in self.feeddb.cursor.fetchall()
+                    }
+                    feeds_to_predict = [
+                        fid
+                        for fid in embeddings_map.keys()
+                        if fid not in already_predicted
+                    ]
                 else:
                     feeds_to_predict = list(embeddings_map.keys())
 
@@ -227,7 +252,9 @@ class FeedPredictor:
                     continue
 
                 # Prepare embeddings for prediction
-                embeddings_array = np.array([embeddings_map[fid] for fid in feeds_to_predict])
+                embeddings_array = np.array(
+                    [embeddings_map[fid] for fid in feeds_to_predict]
+                )
                 embeddings_scaled = scaler.transform(embeddings_array)
 
                 # Predict
@@ -236,36 +263,47 @@ class FeedPredictor:
 
                 # Store predictions
                 for feed_id, score in zip(feeds_to_predict, predictions):
-                    self.feeddb.cursor.execute('''
+                    self.feeddb.cursor.execute(
+                        """
                         INSERT INTO predicted_preferences (feed_id, model_id, score)
                         VALUES (%s, %s, %s)
                         ON CONFLICT (feed_id, model_id) DO UPDATE
                         SET score = EXCLUDED.score
-                    ''', (feed_id, model_id, float(score)))
+                    """,
+                        (feed_id, model_id, float(score)),
+                    )
 
                 # Check each channel's threshold and add to broadcast queue
                 for channel in channels:
-                    score_threshold = channel['score_threshold'] or 0.7
-                    channel_id = channel['id']
+                    score_threshold = channel["score_threshold"] or 0.7
+                    channel_id = channel["id"]
 
                     for feed_id, score in zip(feeds_to_predict, predictions):
                         if score >= score_threshold:
                             # Check if already broadcasted
-                            self.feeddb.cursor.execute('''
+                            self.feeddb.cursor.execute(
+                                """
                                 SELECT 1 FROM broadcasts
                                 WHERE feed_id = %s AND channel_id = %s
-                            ''', (feed_id, channel_id))
+                            """,
+                                (feed_id, channel_id),
+                            )
 
                             if not self.feeddb.cursor.fetchone():
                                 self.feeddb.add_to_broadcast_queue(feed_id, channel_id)
 
                                 # Get feed info for logging
-                                self.feeddb.cursor.execute('''
+                                self.feeddb.cursor.execute(
+                                    """
                                     SELECT title FROM feeds WHERE id = %s
-                                ''', (feed_id,))
+                                """,
+                                    (feed_id,),
+                                )
                                 feed_info = self.feeddb.cursor.fetchone()
                                 if feed_info:
-                                    log.info(f'Added to channel {channel["name"]} queue: {feed_info["title"]}')
+                                    log.info(
+                                        f"Added to channel {channel['name']} queue: {feed_info['title']}"
+                                    )
 
             except Exception as e:
                 log.error(f"Failed to process model {model_id}: {e}")
@@ -289,10 +327,12 @@ class FeedPredictor:
         # Convert external IDs to feed IDs
         feed_ids = []
         for ext_id in external_ids:
-            self.feeddb.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (ext_id,))
+            self.feeddb.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s", (ext_id,)
+            )
             result = self.feeddb.cursor.fetchone()
             if result:
-                feed_ids.append(result['id'])
+                feed_ids.append(result["id"])
 
         if feed_ids:
             self.predict_and_queue_feeds(feed_ids, model_dir, force_rescore)

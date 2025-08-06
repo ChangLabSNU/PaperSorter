@@ -25,51 +25,55 @@ import psycopg2
 import psycopg2.extras
 import yaml
 
+
 class BroadcastChannels:
     """Manages broadcast channel configurations."""
 
-    def __init__(self, config_path='qbio/config.yml'):
+    def __init__(self, config_path="qbio/config.yml"):
         # Load database configuration
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        db_config = config['db']
+        db_config = config["db"]
 
         # Connect to PostgreSQL
         self.db = psycopg2.connect(
-            host=db_config['host'],
-            database=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password']
+            host=db_config["host"],
+            database=db_config["database"],
+            user=db_config["user"],
+            password=db_config["password"],
         )
         self.db.autocommit = False
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     def __del__(self):
-        if hasattr(self, 'db'):
+        if hasattr(self, "db"):
             self.db.close()
 
     def get_channel(self, channel_id):
         """Get a specific channel's configuration."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             SELECT id, name, endpoint_url, score_threshold, model_id
             FROM channels
             WHERE id = %s
-        ''', (channel_id,))
+        """,
+            (channel_id,),
+        )
         return self.cursor.fetchone()
 
     def get_all_channels(self):
         """Get all channels with their settings."""
-        self.cursor.execute('''
+        self.cursor.execute("""
             SELECT id, name, endpoint_url, score_threshold, model_id
             FROM channels
             ORDER BY id
-        ''')
+        """)
         return self.cursor.fetchall()
 
     def update_channel(self, channel_id, **kwargs):
         """Update channel settings."""
-        allowed_fields = ['name', 'endpoint_url', 'score_threshold', 'model_id']
+        allowed_fields = ["name", "endpoint_url", "score_threshold", "model_id"]
         updates = []
         values = []
 
@@ -80,27 +84,33 @@ class BroadcastChannels:
 
         if updates:
             values.append(channel_id)
-            self.cursor.execute(f'''
+            self.cursor.execute(
+                f"""
                 UPDATE channels
-                SET {', '.join(updates)}
+                SET {", ".join(updates)}
                 WHERE id = %s
-            ''', values)
+            """,
+                values,
+            )
             self.db.commit()
 
     def create_channel(self, name, endpoint_url, score_threshold=0.7, model_id=1):
         """Create a new broadcast channel."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             INSERT INTO channels (name, endpoint_url, score_threshold, model_id)
             VALUES (%s, %s, %s, %s)
             RETURNING id
-        ''', (name, endpoint_url, score_threshold, model_id))
+        """,
+            (name, endpoint_url, score_threshold, model_id),
+        )
         result = self.cursor.fetchone()
         self.db.commit()
-        return result['id']
+        return result["id"]
 
     def delete_channel(self, channel_id):
         """Delete a channel."""
-        self.cursor.execute('DELETE FROM channels WHERE id = %s', (channel_id,))
+        self.cursor.execute("DELETE FROM channels WHERE id = %s", (channel_id,))
         self.db.commit()
 
     def commit(self):

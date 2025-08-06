@@ -30,10 +30,12 @@ from flask_login import login_required, current_user
 
 def admin_required(f):
     """Decorator to require admin privileges for a route."""
+
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
         if not current_user.is_admin:
             abort(403)  # Forbidden
         return f(*args, **kwargs)
+
     return decorated_function

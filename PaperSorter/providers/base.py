@@ -32,6 +32,7 @@ from dataclasses import dataclass
 @dataclass
 class FeedItem:
     """Represents a single feed item/article."""
+
     external_id: str
     title: str
     content: Optional[str] = None
@@ -53,8 +54,12 @@ class FeedProvider(ABC):
         self.config = config
 
     @abstractmethod
-    def get_items(self, source: Dict[str, Any], limit: Optional[int] = None,
-                  since: Optional[datetime] = None) -> Iterator[List[FeedItem]]:
+    def get_items(
+        self,
+        source: Dict[str, Any],
+        limit: Optional[int] = None,
+        since: Optional[datetime] = None,
+    ) -> Iterator[List[FeedItem]]:
         """
         Retrieve feed items from a source.
 

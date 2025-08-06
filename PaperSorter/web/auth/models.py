@@ -29,12 +29,24 @@ from flask_login import UserMixin
 class User(UserMixin):
     """User model for Flask-Login integration."""
 
-    def __init__(self, id, username, email=None, is_admin=False, timezone='Asia/Seoul', feedlist_minscore=None):
+    def __init__(
+        self,
+        id,
+        username,
+        email=None,
+        is_admin=False,
+        timezone="Asia/Seoul",
+        feedlist_minscore=None,
+    ):
         self.id = id
         self.username = username
         self.email = email
         self.is_admin = is_admin
         self.timezone = timezone
         # Store the integer value from DB, convert to decimal for internal use
-        self.feedlist_minscore_int = feedlist_minscore if feedlist_minscore is not None else 25
-        self.feedlist_minscore = self.feedlist_minscore_int / 100.0  # Convert to decimal (e.g., 25 -> 0.25)
+        self.feedlist_minscore_int = (
+            feedlist_minscore if feedlist_minscore is not None else 25
+        )
+        self.feedlist_minscore = (
+            self.feedlist_minscore_int / 100.0
+        )  # Convert to decimal (e.g., 25 -> 0.25)

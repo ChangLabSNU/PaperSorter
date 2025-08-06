@@ -26,21 +26,23 @@ import logging
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 
-log = logging.getLogger('PaperSorter')
+log = logging.getLogger("PaperSorter")
 log.setLevel(logging.INFO)
 log.addHandler(console)
 
-def initialize_logging(task='', logfile=None, quiet=False):
+
+def initialize_logging(task="", logfile=None, quiet=False):
     if logfile is not None:
-        formatter = logging.Formatter(f'[%(asctime)s/{task}] %(message)s',
-                                      '%Y-%m-%d %H:%M:%S')
-        logf_handler = logging.FileHandler(logfile, mode='a')
+        formatter = logging.Formatter(
+            f"[%(asctime)s/{task}] %(message)s", "%Y-%m-%d %H:%M:%S"
+        )
+        logf_handler = logging.FileHandler(logfile, mode="a")
         logf_handler.setLevel(logging.INFO)
         logf_handler.setFormatter(formatter)
-        logf_handler.addFilter(lambda record:
-                               not record.name.endswith('TheOldReaderConnection'))
+        logf_handler.addFilter(
+            lambda record: not record.name.endswith("TheOldReaderConnection")
+        )
         log.addHandler(logf_handler)
 
     if quiet:
         console.setLevel(logging.WARNING)
-

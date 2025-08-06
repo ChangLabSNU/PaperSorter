@@ -30,71 +30,87 @@ import unicodedata
 from difflib import SequenceMatcher
 from .log import log
 
+
 class FeedDatabase:
+    dbfields = [
+        "id",
+        "starred",
+        "title",
+        "content",
+        "author",
+        "origin",
+        "published",
+        "link",
+        "mediaUrl",
+        "label",
+        "score",
+        "broadcasted",
+        "tldr",
+    ]
 
-    dbfields = ['id', 'starred', 'title', 'content', 'author', 'origin',
-                'published', 'link', 'mediaUrl', 'label', 'score', 'broadcasted',
-                'tldr']
-
-    def __init__(self, config_path='qbio/config.yml'):
+    def __init__(self, config_path="qbio/config.yml"):
         # Load database configuration
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        db_config = config['db']
+        db_config = config["db"]
 
         # Connect to PostgreSQL
         self.db = psycopg2.connect(
-            host=db_config['host'],
-            database=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password']
+            host=db_config["host"],
+            database=db_config["database"],
+            user=db_config["user"],
+            password=db_config["password"],
         )
         self.db.autocommit = False
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.update_idcache()
 
     def __del__(self):
-        if hasattr(self, 'db'):
+        if hasattr(self, "db"):
             self.db.close()
 
     def __contains__(self, item):
         # Handle both string IDs and objects with item_id attribute
         if isinstance(item, str):
             return item in self.idcache
-        elif hasattr(item, 'item_id'):
+        elif hasattr(item, "item_id"):
             return item.item_id in self.idcache
-        elif hasattr(item, 'external_id'):
+        elif hasattr(item, "external_id"):
             return item.external_id in self.idcache
         else:
             return False
 
     def __len__(self):
-        self.cursor.execute('SELECT COUNT(*) FROM feeds')
-        return self.cursor.fetchone()['count']
+        self.cursor.execute("SELECT COUNT(*) FROM feeds")
+        return self.cursor.fetchone()["count"]
 
     def __getitem__(self, item_id):
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT * FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT * FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT * FROM feeds WHERE id = %s", (item_id,))
         result = self.cursor.fetchone()
         if result:
             # Map to old field names for compatibility
             return {
-                'id': result['external_id'],
-                'starred': result.get('starred', 0),
-                'title': result['title'],
-                'content': result['content'],
-                'author': result['author'],
-                'origin': result['origin'],
-                'published': int(result['published'].timestamp()) if result['published'] else None,
-                'link': result['link'],
-                'mediaUrl': result['mediaurl'],
-                'label': result.get('label'),
-                'score': result.get('score'),
-                'broadcasted': result.get('broadcasted'),
-                'tldr': result['tldr']
+                "id": result["external_id"],
+                "starred": result.get("starred", 0),
+                "title": result["title"],
+                "content": result["content"],
+                "author": result["author"],
+                "origin": result["origin"],
+                "published": int(result["published"].timestamp())
+                if result["published"]
+                else None,
+                "link": result["link"],
+                "mediaUrl": result["mediaurl"],
+                "label": result.get("label"),
+                "score": result.get("score"),
+                "broadcasted": result.get("broadcasted"),
+                "tldr": result["tldr"],
             }
         return None
 
@@ -102,8 +118,10 @@ class FeedDatabase:
         return self.idcache
 
     def update_idcache(self):
-        self.cursor.execute('SELECT external_id FROM feeds WHERE external_id IS NOT NULL')
-        self.idcache = set([row['external_id'] for row in self.cursor.fetchall()])
+        self.cursor.execute(
+            "SELECT external_id FROM feeds WHERE external_id IS NOT NULL"
+        )
+        self.idcache = set([row["external_id"] for row in self.cursor.fetchall()])
 
     def commit(self):
         self.db.commit()
@@ -115,84 +133,119 @@ class FeedDatabase:
         user_id = 1  # Default user
 
         # Insert into feeds table
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             INSERT INTO feeds (external_id, title, content, author, origin, published, link, mediaurl, tldr)
             VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s, %s)
             ON CONFLICT (external_id) DO NOTHING
             RETURNING id
-        ''', (item.item_id, item.title, content, item.author,
-              item.origin, item.published, item.href, item.mediaUrl, tldr))
+        """,
+            (
+                item.item_id,
+                item.title,
+                content,
+                item.author,
+                item.origin,
+                item.published,
+                item.href,
+                item.mediaUrl,
+                tldr,
+            ),
+        )
 
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
+            feed_id = result["id"]
 
             # Insert starred status as preference if starred
             if starred:
                 # Check if preference already exists before inserting
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     SELECT id FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                ''', (feed_id, user_id))
+                """,
+                    (feed_id, user_id),
+                )
 
                 if not self.cursor.fetchone():
-                    self.cursor.execute('''
+                    self.cursor.execute(
+                        """
                         INSERT INTO preferences (feed_id, user_id, time, score, source)
                         VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
-                    ''', (feed_id, user_id))
+                    """,
+                        (feed_id, user_id),
+                    )
 
             # Insert broadcast log if broadcasted
             if broadcasted is not None:
                 channel_id = 1  # Default channel
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                     VALUES (%s, %s, to_timestamp(%s))
                     ON CONFLICT DO NOTHING
-                ''', (feed_id, channel_id, broadcasted))
+                """,
+                    (feed_id, channel_id, broadcasted),
+                )
 
             self.idcache.add(item.item_id)
             return feed_id
 
-    def insert_feed_item(self, external_id, title, content=None, author=None,
-                        origin=None, link=None, published=None, tldr=None):
+    def insert_feed_item(
+        self,
+        external_id,
+        title,
+        content=None,
+        author=None,
+        origin=None,
+        link=None,
+        published=None,
+        tldr=None,
+    ):
         """Insert a feed item directly with explicit fields."""
         # Clean content
         if content:
             content = remove_html_tags(content)
 
         # Insert into feeds table
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             INSERT INTO feeds (external_id, title, content, author, origin, published, link, tldr)
             VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s)
             ON CONFLICT (external_id) DO NOTHING
             RETURNING id
-        ''', (external_id, title, content, author, origin, published, link, tldr))
+        """,
+            (external_id, title, content, author, origin, published, link, tldr),
+        )
 
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
+            feed_id = result["id"]
             self.idcache.add(external_id)
             return feed_id
 
     def get_formatted_item(self, item_id):
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT * FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT * FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT * FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT * FROM feeds WHERE id = %s", (item_id,))
         item = self.cursor.fetchone()
         if item:
             parts = []
 
-            if item['title']:
+            if item["title"]:
                 parts.append(f"Title: {item['title']}")
 
-            if item['author']:
+            if item["author"]:
                 parts.append(f"Authors: {item['author']}")
 
-            if item['origin']:
+            if item["origin"]:
                 parts.append(f"Journal/Source: {item['origin']}")
 
-            if item['content']:
+            if item["content"]:
                 parts.append(f"Abstract: {item['content']}")
 
             return "\n\n".join(parts)
@@ -200,31 +253,35 @@ class FeedDatabase:
 
     def build_dataframe_from_results(self, results):
         if not results:
-            return pd.DataFrame(columns=self.dbfields).set_index('id')
+            return pd.DataFrame(columns=self.dbfields).set_index("id")
 
         # Convert results to DataFrame with old field names for compatibility
         data = []
         for row in results:
-            data.append({
-                'id': row['external_id'],
-                'starred': row.get('starred', 0),
-                'title': row['title'],
-                'content': row['content'],
-                'author': row['author'],
-                'origin': row['origin'],
-                'published': int(row['published'].timestamp()) if row['published'] else None,
-                'link': row['link'],
-                'mediaUrl': row['mediaurl'],
-                'label': row.get('label'),
-                'score': row.get('score'),
-                'broadcasted': row.get('broadcasted'),
-                'tldr': row['tldr']
-            })
+            data.append(
+                {
+                    "id": row["external_id"],
+                    "starred": row.get("starred", 0),
+                    "title": row["title"],
+                    "content": row["content"],
+                    "author": row["author"],
+                    "origin": row["origin"],
+                    "published": int(row["published"].timestamp())
+                    if row["published"]
+                    else None,
+                    "link": row["link"],
+                    "mediaUrl": row["mediaurl"],
+                    "label": row.get("label"),
+                    "score": row.get("score"),
+                    "broadcasted": row.get("broadcasted"),
+                    "tldr": row["tldr"],
+                }
+            )
 
-        return pd.DataFrame(data).set_index('id')
+        return pd.DataFrame(data).set_index("id")
 
     def get_metadata(self):
-        self.cursor.execute('''
+        self.cursor.execute("""
             SELECT f.*,
                    CASE WHEN p.score > 0 THEN 1 ELSE 0 END as starred,
                    p.score as label,
@@ -235,7 +292,7 @@ class FeedDatabase:
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
             LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             WHERE f.external_id IS NOT NULL
-        ''')
+        """)
         return self.build_dataframe_from_results(self.cursor.fetchall())
 
     def update_label(self, item_id, label):
@@ -243,95 +300,129 @@ class FeedDatabase:
 
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
+            feed_id = result["id"]
             # First check if a preference already exists
-            self.cursor.execute('''
+            self.cursor.execute(
+                """
                 SELECT id FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-            ''', (feed_id, user_id))
+            """,
+                (feed_id, user_id),
+            )
 
             existing = self.cursor.fetchone()
 
             if existing:
                 # Update existing preference
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     UPDATE preferences
                     SET score = %s, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-                ''', (float(label), feed_id, user_id))
+                """,
+                    (float(label), feed_id, user_id),
+                )
             else:
                 # Insert new preference
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                ''', (feed_id, user_id, float(label)))
+                """,
+                    (feed_id, user_id, float(label)),
+                )
 
     def update_score(self, item_id, score, model_id=1):
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
-            self.cursor.execute('''
+            feed_id = result["id"]
+            self.cursor.execute(
+                """
                 INSERT INTO predicted_preferences (feed_id, model_id, score)
                 VALUES (%s, %s, %s)
                 ON CONFLICT (feed_id, model_id) DO UPDATE SET score = %s
-            ''', (feed_id, model_id, float(score), float(score)))
+            """,
+                (feed_id, model_id, float(score), float(score)),
+            )
 
     def update_broadcasted(self, item_id, timemark):
         channel_id = 1  # Default channel
 
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
-            self.cursor.execute('''
+            feed_id = result["id"]
+            self.cursor.execute(
+                """
                 INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                 VALUES (%s, %s, to_timestamp(%s))
                 ON CONFLICT DO NOTHING
-            ''', (feed_id, channel_id, timemark))
+            """,
+                (feed_id, channel_id, timemark),
+            )
 
     def update_tldr(self, item_id, tldr):
         if isinstance(item_id, str):
-            self.cursor.execute('UPDATE feeds SET tldr = %s WHERE external_id = %s', (tldr, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET tldr = %s WHERE external_id = %s", (tldr, item_id)
+            )
         else:
-            self.cursor.execute('UPDATE feeds SET tldr = %s WHERE id = %s', (tldr, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET tldr = %s WHERE id = %s", (tldr, item_id)
+            )
 
     def update_author(self, item_id, author):
         if isinstance(item_id, str):
-            self.cursor.execute('UPDATE feeds SET author = %s WHERE external_id = %s', (author, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET author = %s WHERE external_id = %s", (author, item_id)
+            )
         else:
-            self.cursor.execute('UPDATE feeds SET author = %s WHERE id = %s', (author, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET author = %s WHERE id = %s", (author, item_id)
+            )
 
     def update_origin(self, item_id, origin):
         if isinstance(item_id, str):
-            self.cursor.execute('UPDATE feeds SET origin = %s WHERE external_id = %s', (origin, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET origin = %s WHERE external_id = %s", (origin, item_id)
+            )
         else:
-            self.cursor.execute('UPDATE feeds SET origin = %s WHERE id = %s', (origin, item_id))
+            self.cursor.execute(
+                "UPDATE feeds SET origin = %s WHERE id = %s", (origin, item_id)
+            )
 
     def get_unscored_items(self):
         # Get active model IDs
-        self.cursor.execute('SELECT id FROM models WHERE is_active = TRUE')
-        active_model_ids = [row['id'] for row in self.cursor.fetchall()]
+        self.cursor.execute("SELECT id FROM models WHERE is_active = TRUE")
+        active_model_ids = [row["id"] for row in self.cursor.fetchall()]
         active_model_count = len(active_model_ids)
 
         if active_model_count == 0:
             return []
 
-        placeholders = ','.join(['%s'] * active_model_count)
-        self.cursor.execute(f'''
+        placeholders = ",".join(["%s"] * active_model_count)
+        self.cursor.execute(
+            f"""
             SELECT f.external_id
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
@@ -339,9 +430,10 @@ class FeedDatabase:
             WHERE f.external_id IS NOT NULL
             GROUP BY f.id, f.external_id
             HAVING COUNT(pp.score) < %s
-        ''', (*active_model_ids, active_model_count))
-        return [row['external_id'] for row in self.cursor.fetchall()]
-
+        """,
+            (*active_model_ids, active_model_count),
+        )
+        return [row["external_id"] for row in self.cursor.fetchall()]
 
     def filter_duplicates(self, matches, remove_duplicated):
         if len(matches) == 0:
@@ -359,7 +451,8 @@ class FeedDatabase:
         return matches
 
     def get_newly_starred_items(self, since, remove_duplicated=None):
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             SELECT f.*,
                    1 as starred,
                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
@@ -368,7 +461,9 @@ class FeedDatabase:
             LEFT JOIN broadcasts bl ON f.id = bl.feed_id
             WHERE f.published >= to_timestamp(%s) AND bl.broadcasted_time IS NULL
                   AND f.external_id IS NOT NULL
-        ''', (since,))
+        """,
+            (since,),
+        )
         matches = self.build_dataframe_from_results(self.cursor.fetchall())
         return self.filter_duplicates(matches, remove_duplicated)
 
@@ -378,86 +473,111 @@ class FeedDatabase:
         else:
             where_clause = "a.id = %s"
 
-        self.cursor.execute(f'''
+        self.cursor.execute(
+            f"""
             SELECT COUNT(*) as count
             FROM feeds a
             JOIN feeds b ON a.title = b.title AND a.id != b.id
             JOIN broadcasts bl ON b.id = bl.feed_id
             WHERE {where_clause} AND b.published >= to_timestamp(%s)
                   AND bl.broadcasted_time IS NOT NULL
-        ''', (item_id, since))
-        dup_broadcasted = self.cursor.fetchone()['count']
+        """,
+            (item_id, since),
+        )
+        dup_broadcasted = self.cursor.fetchone()["count"]
 
         if dup_broadcasted > 0:
             # Mark duplicates as blacklisted
             channel_id = 1  # Default channel
             if isinstance(item_id, str):
-                self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+                self.cursor.execute(
+                    "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
+                )
             else:
-                self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
+                self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
             result = self.cursor.fetchone()
             if result:
-                feed_id = result['id']
-                self.cursor.execute('''
+                feed_id = result["id"]
+                self.cursor.execute(
+                    """
                     INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                     VALUES (%s, %s, to_timestamp(0))
                     ON CONFLICT DO NOTHING
-                ''', (feed_id, channel_id))
+                """,
+                    (feed_id, channel_id),
+                )
                 self.commit()
 
         return dup_broadcasted > 0
 
     def get_star_status(self, since, till):
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             SELECT f.external_id, CASE WHEN p.score > 0 THEN true ELSE false END as starred
             FROM feeds f
             LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
             WHERE f.published >= to_timestamp(%s) AND f.published <= to_timestamp(%s)
                   AND f.external_id IS NOT NULL
-        ''', (since, till))
-        return {row['external_id']: row['starred'] for row in self.cursor.fetchall()}
+        """,
+            (since, till),
+        )
+        return {row["external_id"]: row["starred"] for row in self.cursor.fetchall()}
 
     def update_star_status(self, item_id, starred):
         user_id = 1  # Default user
 
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
-            self.cursor.execute('SELECT id FROM feeds WHERE external_id = %s', (item_id,))
+            self.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
+            )
         else:
-            self.cursor.execute('SELECT id FROM feeds WHERE id = %s', (item_id,))
+            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
         result = self.cursor.fetchone()
         if result:
-            feed_id = result['id']
+            feed_id = result["id"]
             score = 1.0 if starred else 0.0
             # First check if a preference already exists
-            self.cursor.execute('''
+            self.cursor.execute(
+                """
                 SELECT id FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-            ''', (feed_id, user_id))
+            """,
+                (feed_id, user_id),
+            )
 
             existing = self.cursor.fetchone()
 
             if existing:
                 # Update existing preference
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     UPDATE preferences
                     SET score = %s, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                ''', (score, feed_id, user_id))
+                """,
+                    (score, feed_id, user_id),
+                )
             else:
                 # Insert new preference
-                self.cursor.execute('''
+                self.cursor.execute(
+                    """
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'feed-star')
-                ''', (feed_id, user_id, score))
+                """,
+                    (feed_id, user_id, score),
+                )
 
     def add_to_broadcast_queue(self, feed_id, channel_id=1):
         """Add an item to the broadcast queue (using merged broadcasts table)."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
             VALUES (%s, %s, NULL)
             ON CONFLICT (feed_id, channel_id) DO NOTHING
-        ''', (feed_id, channel_id))
+        """,
+            (feed_id, channel_id),
+        )
 
     def normalize_title_for_duplicate_detection(self, title):
         """Normalize title for fuzzy duplicate detection.
@@ -472,20 +592,29 @@ class FeedDatabase:
         title = title.lower()
 
         # Remove common academic prefixes in brackets or parentheses
-        title = re.sub(r'^\s*\[[^\]]+\]\s*', '', title)  # Remove [ARTICLE], [PREPRINT], etc.
-        title = re.sub(r'^\s*\([^\)]+\)\s*', '', title)  # Remove (Article), (Letter), etc.
+        title = re.sub(
+            r"^\s*\[[^\]]+\]\s*", "", title
+        )  # Remove [ARTICLE], [PREPRINT], etc.
+        title = re.sub(
+            r"^\s*\([^\)]+\)\s*", "", title
+        )  # Remove (Article), (Letter), etc.
 
         # Remove common suffixes
-        title = re.sub(r'\s*[\(\[]?(preprint|published|article|letter|review|research|paper)[\)\]]?\s*$', '', title, flags=re.IGNORECASE)
+        title = re.sub(
+            r"\s*[\(\[]?(preprint|published|article|letter|review|research|paper)[\)\]]?\s*$",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        )
 
         # Normalize unicode characters (e.g., different types of dashes, quotes)
-        title = unicodedata.normalize('NFKD', title)
+        title = unicodedata.normalize("NFKD", title)
 
         # Replace multiple spaces with single space
-        title = re.sub(r'\s+', ' ', title)
+        title = re.sub(r"\s+", " ", title)
 
         # Remove special characters but keep alphanumeric and basic punctuation
-        title = re.sub(r'[^\w\s\-\:\.\,]', ' ', title)
+        title = re.sub(r"[^\w\s\-\:\.\,]", " ", title)
 
         # Remove extra whitespace
         title = title.strip()
@@ -522,19 +651,19 @@ class FeedDatabase:
                 LIMIT 1
             """)
             result = self.cursor.fetchone()
-            model_id = result['id'] if result else 1
+            model_id = result["id"] if result else 1
 
         # Get unprocessed items from the queue
-        query = '''
+        query = """
             SELECT f.*, pp.score, bl.feed_id as queue_feed_id
             FROM broadcasts bl
             JOIN feeds f ON bl.feed_id = f.id
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
             WHERE bl.channel_id = %s AND bl.broadcasted_time IS NULL
             ORDER BY f.published DESC
-        '''
+        """
         if limit:
-            query += f' LIMIT {limit}'
+            query += f" LIMIT {limit}"
 
         self.cursor.execute(query, (model_id, channel_id))
         items = []
@@ -545,32 +674,41 @@ class FeedDatabase:
         # Convert to DataFrame to match the existing broadcast.py interface
         if items:
             df = pd.DataFrame(items)
-            df.set_index('queue_feed_id', inplace=True)
+            df.set_index("queue_feed_id", inplace=True)
             return df
         else:
             return pd.DataFrame()
 
     def mark_broadcast_queue_processed(self, feed_id, channel_id=1):
         """Mark an item in the broadcast queue as processed (using merged broadcasts table)."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             UPDATE broadcasts
             SET broadcasted_time = CURRENT_TIMESTAMP
             WHERE feed_id = %s AND channel_id = %s
-        ''', (feed_id, channel_id))
+        """,
+            (feed_id, channel_id),
+        )
 
     def clear_old_broadcast_queue(self, days=30):
         """Clear old processed items from the broadcast queue (using merged broadcasts table)."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             DELETE FROM broadcasts
             WHERE broadcasted_time < CURRENT_TIMESTAMP - INTERVAL '%s days'
-        ''', (days,))
+        """,
+            (days,),
+        )
 
     def remove_duplicate_from_queue(self, feed_id, channel_id):
         """Remove an item from the broadcast queue without marking it as broadcasted."""
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             DELETE FROM broadcasts
             WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
-        ''', (feed_id, channel_id))
+        """,
+            (feed_id, channel_id),
+        )
 
     def check_and_remove_duplicate_broadcasts(self, channel_id=1, lookback_months=3):
         """Check for duplicate items in the broadcast queue and remove them.
@@ -578,36 +716,36 @@ class FeedDatabase:
         Returns the number of duplicates removed.
         """
         # First, get recently broadcasted items for duplicate detection
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             SELECT f.id as feed_id, f.title
             FROM broadcasts bl
             JOIN feeds f ON bl.feed_id = f.id
             WHERE bl.channel_id = %s
                 AND bl.broadcasted_time IS NOT NULL
                 AND bl.broadcasted_time >= CURRENT_TIMESTAMP - INTERVAL '%s months'
-        ''', (channel_id, lookback_months))
+        """,
+            (channel_id, lookback_months),
+        )
 
         recent_broadcasts = []
         for row in self.cursor.fetchall():
-            recent_broadcasts.append({
-                'feed_id': row['feed_id'],
-                'title': row['title']
-            })
+            recent_broadcasts.append({"feed_id": row["feed_id"], "title": row["title"]})
 
         # Get unprocessed items from the queue
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
             SELECT f.id as feed_id, f.title
             FROM broadcasts bl
             JOIN feeds f ON bl.feed_id = f.id
             WHERE bl.channel_id = %s AND bl.broadcasted_time IS NULL
-        ''', (channel_id,))
+        """,
+            (channel_id,),
+        )
 
         queue_items = []
         for row in self.cursor.fetchall():
-            queue_items.append({
-                'feed_id': row['feed_id'],
-                'title': row['title']
-            })
+            queue_items.append({"feed_id": row["feed_id"], "title": row["title"]})
 
         # Check each queue item for duplicates
         removed_count = 0
@@ -616,21 +754,26 @@ class FeedDatabase:
 
             # Check against recently broadcasted items
             for recent in recent_broadcasts:
-                if self.titles_are_similar(queue_item['title'], recent['title']):
+                if self.titles_are_similar(queue_item["title"], recent["title"]):
                     is_duplicate = True
-                    log.info(f"Removing duplicate from queue - Feed ID: {queue_item['feed_id']}, "
-                            f"Title: '{queue_item['title'][:80]}...' "
-                            f"(similar to previously broadcasted feed {recent['feed_id']})")
+                    log.info(
+                        f"Removing duplicate from queue - Feed ID: {queue_item['feed_id']}, "
+                        f"Title: '{queue_item['title'][:80]}...' "
+                        f"(similar to previously broadcasted feed {recent['feed_id']})"
+                    )
                     break
 
             if is_duplicate:
-                self.remove_duplicate_from_queue(queue_item['feed_id'], channel_id)
+                self.remove_duplicate_from_queue(queue_item["feed_id"], channel_id)
                 removed_count += 1
 
         if removed_count > 0:
-            log.info(f"Removed {removed_count} duplicate items from broadcast queue for channel {channel_id}")
+            log.info(
+                f"Removed {removed_count} duplicate items from broadcast queue for channel {channel_id}"
+            )
 
         return removed_count
 
-def remove_html_tags(text, pattern=re.compile('<.*?>')):
-    return pattern.sub(' ', text)
+
+def remove_html_tags(text, pattern=re.compile("<.*?>")):
+    return pattern.sub(" ", text)
