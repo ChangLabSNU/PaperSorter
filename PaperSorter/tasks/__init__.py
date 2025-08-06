@@ -1,7 +1,7 @@
 __all__ = [
-    'update',
-    'train',
-    'predict',
-    'broadcast',
-    'serve',
+    "update",
+    "train",
+    "predict",
+    "broadcast",
+    "serve",
 ]

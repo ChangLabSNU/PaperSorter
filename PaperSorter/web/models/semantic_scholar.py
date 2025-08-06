@@ -33,32 +33,35 @@ class SemanticScholarItem(FeedItem):
 
     def __init__(self, paper_info):
         self.paper_info = paper_info
-        article_id = uuid.uuid3(uuid.NAMESPACE_URL, paper_info['url'])
+        article_id = uuid.uuid3(uuid.NAMESPACE_URL, paper_info["url"])
 
         # Extract content with tldr fallback
         tldr = (
-            ('(tl;dr) ' + paper_info['tldr']['text'])
-            if paper_info['tldr'] and paper_info['tldr']['text']
-            else '')
-        content = paper_info['abstract'] or tldr
+            ("(tl;dr) " + paper_info["tldr"]["text"])
+            if paper_info["tldr"] and paper_info["tldr"]["text"]
+            else ""
+        )
+        content = paper_info["abstract"] or tldr
 
         # Parse publication date
         published_datetime = None
-        pdate = paper_info['publicationDate']
+        pdate = paper_info["publicationDate"]
         if pdate is not None:
-            published_datetime = datetime(*list(map(int, paper_info['publicationDate'].split('-'))))
+            published_datetime = datetime(
+                *list(map(int, paper_info["publicationDate"].split("-")))
+            )
         else:
             published_datetime = datetime.now()
 
         # Initialize parent FeedItem
         super().__init__(
             external_id=str(article_id),
-            title=paper_info['title'],
+            title=paper_info["title"],
             content=content,
-            author=', '.join([a['name'] for a in paper_info['authors']]),
+            author=", ".join([a["name"] for a in paper_info["authors"]]),
             origin=self.determine_journal(paper_info),
-            link=paper_info['url'],
-            published=published_datetime
+            link=paper_info["url"],
+            published=published_datetime,
         )
 
         # Store additional attributes for compatibility
@@ -66,11 +69,11 @@ class SemanticScholarItem(FeedItem):
         self.mediaUrl = self.link
 
     def determine_journal(self, paper_info):
-        if paper_info['journal']:
-            return paper_info['journal']['name']
-        elif paper_info['venue']:
-            return paper_info['venue']
-        elif 'ArXiv' in paper_info['externalIds']:
-            return 'arXiv'
+        if paper_info["journal"]:
+            return paper_info["journal"]["name"]
+        elif paper_info["venue"]:
+            return paper_info["venue"]
+        elif "ArXiv" in paper_info["externalIds"]:
+            return "arXiv"
         else:
-            return 'Unknown'
+            return "Unknown"

@@ -42,27 +42,27 @@ from .api import feeds_bp, settings_bp, search_bp, user_bp
 
 def create_app(config_path):
     """Create and configure the Flask application."""
-    app = Flask(__name__, template_folder='../templates')
+    app = Flask(__name__, template_folder="../templates")
 
     # Configure for reverse proxy (fixes HTTPS redirect URIs)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     # Load database configuration
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    db_config = config['db']
-    google_config = config.get('google_oauth', {})
+    db_config = config["db"]
+    google_config = config.get("google_oauth", {})
 
     # Store configurations in app
     app.db_config = db_config
-    app.config['CONFIG_PATH'] = config_path
+    app.config["CONFIG_PATH"] = config_path
 
     # Set up Flask secret key
-    app.secret_key = google_config.get('flask_secret_key', secrets.token_hex(32))
+    app.secret_key = google_config.get("flask_secret_key", secrets.token_hex(32))
 
     # Set session lifetime to 30 days
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 
     # Initialize job queue for poster generation
     app.poster_jobs = {}
@@ -71,13 +71,13 @@ def create_app(config_path):
     # Database connection function
     def get_db_connection():
         return psycopg2.connect(
-            host=db_config['host'],
-            database=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password']
+            host=db_config["host"],
+            database=db_config["database"],
+            user=db_config["user"],
+            password=db_config["password"],
         )
 
-    app.config['get_db_connection'] = get_db_connection
+    app.config["get_db_connection"] = get_db_connection
 
     # Cleanup old jobs every 5 minutes
     def cleanup_old_jobs():
@@ -87,8 +87,9 @@ def create_app(config_path):
                 current_time = time.time()
                 # Remove jobs older than 10 minutes
                 jobs_to_remove = [
-                    job_id for job_id, job_data in app.poster_jobs.items()
-                    if current_time - job_data.get('created_at', 0) > 600
+                    job_id
+                    for job_id, job_data in app.poster_jobs.items()
+                    if current_time - job_data.get("created_at", 0) > 600
                 ]
                 for job_id in jobs_to_remove:
                     log.info(f"Cleaning up old poster job: {job_id}")
@@ -100,34 +101,38 @@ def create_app(config_path):
     # Set up Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
+    login_manager.login_view = "auth.login"
 
     @login_manager.user_loader
     def load_user(user_id):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE id = %s", (int(user_id),))
+        cursor.execute(
+            "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE id = %s",
+            (int(user_id),),
+        )
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
 
         if user_data:
-            return User(user_data['id'], user_data['username'],
-                       is_admin=user_data.get('is_admin', False),
-                       timezone=user_data.get('timezone', 'Asia/Seoul'),
-                       feedlist_minscore=user_data.get('feedlist_minscore'))
+            return User(
+                user_data["id"],
+                user_data["username"],
+                is_admin=user_data.get("is_admin", False),
+                timezone=user_data.get("timezone", "Asia/Seoul"),
+                feedlist_minscore=user_data.get("feedlist_minscore"),
+            )
         return None
 
     # Set up OAuth
     oauth = OAuth(app)
     oauth.register(
-        name='google',
-        client_id=google_config['client_id'],
-        client_secret=google_config['secret'],
-        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-        client_kwargs={
-            'scope': 'openid email profile'
-        }
+        name="google",
+        client_id=google_config["client_id"],
+        client_secret=google_config["secret"],
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
     )
 
     # Register blueprints
@@ -141,6 +146,6 @@ def create_app(config_path):
     # Error handlers
     @app.errorhandler(403)
     def forbidden(e):
-        return render_template('403.html'), 403
+        return render_template("403.html"), 403
 
     return app

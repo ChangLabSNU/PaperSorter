@@ -31,19 +31,19 @@ from flask_login import login_required, current_user
 from ...log import log
 from ..utils.database import get_default_model_id
 
-feeds_bp = Blueprint('feeds', __name__)
+feeds_bp = Blueprint("feeds", __name__)
 
 
-@feeds_bp.route('/api/feeds')
+@feeds_bp.route("/api/feeds")
 @login_required
 def api_feeds():
     """API endpoint to get feeds with pagination."""
-    page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 20))
-    min_score = float(request.args.get('min_score', 0))
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 20))
+    min_score = float(request.args.get("min_score", 0))
     offset = (page - 1) * limit
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get feeds with all the necessary information
@@ -54,7 +54,7 @@ def api_feeds():
     # Get user's bookmark
     cursor.execute("SELECT bookmark FROM users WHERE id = %s", (user_id,))
     bookmark_result = cursor.fetchone()
-    bookmark_id = bookmark_result['bookmark'] if bookmark_result else None
+    bookmark_id = bookmark_result["bookmark"] if bookmark_result else None
 
     # Build WHERE clause based on min_score
     if min_score <= 0:
@@ -64,7 +64,8 @@ def api_feeds():
         where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
         query_params = (user_id, default_model_id, min_score, limit + 1, offset)
 
-    cursor.execute(f"""
+    cursor.execute(
+        f"""
         WITH latest_prefs AS (
             SELECT DISTINCT ON (feed_id, user_id, source)
                 feed_id, user_id, source, score, time
@@ -109,7 +110,9 @@ def api_feeds():
         WHERE {where_clause}
         ORDER BY f.added DESC
         LIMIT %s OFFSET %s
-    """, query_params)
+    """,
+        query_params,
+    )
 
     results = cursor.fetchall()
     cursor.close()
@@ -120,27 +123,26 @@ def api_feeds():
     feeds = results[:limit] if has_more else results
 
     # Include bookmark ID on first page
-    response_data = {
-        'feeds': feeds,
-        'has_more': has_more,
-        'bookmark_id': bookmark_id
-    }
+    response_data = {"feeds": feeds, "has_more": has_more, "bookmark_id": bookmark_id}
 
     return jsonify(response_data)
 
 
-@feeds_bp.route('/api/feeds/<int:feed_id>/content')
+@feeds_bp.route("/api/feeds/<int:feed_id>/content")
 @login_required
 def api_feed_content(feed_id):
     """API endpoint to get feed content."""
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT content, tldr
         FROM feeds
         WHERE id = %s
-    """, (feed_id,))
+    """,
+        (feed_id,),
+    )
 
     result = cursor.fetchone()
     cursor.close()
@@ -149,142 +151,169 @@ def api_feed_content(feed_id):
     if result:
         return jsonify(result)
     else:
-        return jsonify({'error': 'Feed not found'}), 404
+        return jsonify({"error": "Feed not found"}), 404
 
 
-@feeds_bp.route('/api/feeds/<int:feed_id>/star', methods=['POST'])
+@feeds_bp.route("/api/feeds/<int:feed_id>/star", methods=["POST"])
 @login_required
 def api_star_feed(feed_id):
     """API endpoint to star/unstar a feed."""
     user_id = current_user.id
     data = request.get_json() or {}
-    action = data.get('action', 'toggle')  # 'star', 'unstar', or 'toggle'
+    action = data.get("action", "toggle")  # 'star', 'unstar', or 'toggle'
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
         # Check if preference already exists
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT id, score FROM preferences
             WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-        """, (feed_id, user_id))
+        """,
+            (feed_id, user_id),
+        )
 
         existing = cursor.fetchone()
 
-        if action == 'toggle':
+        if action == "toggle":
             # Toggle based on current state
-            if existing and existing['score'] > 0:
-                action = 'unstar'
+            if existing and existing["score"] > 0:
+                action = "unstar"
             else:
-                action = 'star'
+                action = "star"
 
-        if action == 'unstar':
+        if action == "unstar":
             if existing:
                 # Remove the star preference
-                cursor.execute("""
+                cursor.execute(
+                    """
                     DELETE FROM preferences
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """, (feed_id, user_id))
+                """,
+                    (feed_id, user_id),
+                )
         else:  # action == 'star'
             if existing:
                 # Update existing preference to starred
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE preferences
                     SET score = 1.0, time = CURRENT_TIMESTAMP
                     WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """, (feed_id, user_id))
+                """,
+                    (feed_id, user_id),
+                )
             else:
                 # Insert new preference
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
-                """, (feed_id, user_id))
+                """,
+                    (feed_id, user_id),
+                )
 
             # When starring, add to broadcasts table for all active channels
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
                 SELECT %s, id, NULL
                 FROM channels
                 WHERE is_active = TRUE
                 ON CONFLICT (feed_id, channel_id) DO NOTHING
-            """, (feed_id,))
+            """,
+                (feed_id,),
+            )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'action': action})
+        return jsonify({"success": True, "action": action})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@feeds_bp.route('/api/feeds/<int:feed_id>/feedback', methods=['POST'])
+@feeds_bp.route("/api/feeds/<int:feed_id>/feedback", methods=["POST"])
 @login_required
 def api_feedback_feed(feed_id):
     """API endpoint to set feedback (like/dislike) for a feed."""
     user_id = current_user.id
     data = request.get_json()
-    score = data.get('score')
+    score = data.get("score")
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
         if score is None:
             # Remove feedback from both sources
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
-            """, (feed_id, user_id))
+            """,
+                (feed_id, user_id),
+            )
         else:
             # Check if preference already exists from either source
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, source FROM preferences
                 WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
                 ORDER BY time DESC
                 LIMIT 1
-            """, (feed_id, user_id))
+            """,
+                (feed_id, user_id),
+            )
 
             existing = cursor.fetchone()
 
             if existing:
                 # Update existing preference (keep the original source)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE preferences
                     SET score = %s, time = CURRENT_TIMESTAMP
                     WHERE id = %s
-                """, (float(score), existing['id']))
+                """,
+                    (float(score), existing["id"]),
+                )
             else:
                 # Insert new preference with 'interactive' source
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO preferences (feed_id, user_id, time, score, source)
                     VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                """, (feed_id, user_id, float(score)))
+                """,
+                    (feed_id, user_id, float(score)),
+                )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@feeds_bp.route('/similar/<int:feed_id>')
+@feeds_bp.route("/similar/<int:feed_id>")
 @login_required
 def similar_articles(feed_id):
     """Show articles similar to the given feed."""
-    return render_template('similar_articles.html', source_feed_id=feed_id)
+    return render_template("similar_articles.html", source_feed_id=feed_id)
 
 
-@feeds_bp.route('/api/feeds/<int:feed_id>/similar')
+@feeds_bp.route("/api/feeds/<int:feed_id>/similar")
 @login_required
 def api_similar_feeds(feed_id):
     """API endpoint to get similar feeds."""
@@ -292,64 +321,68 @@ def api_similar_feeds(feed_id):
         from ...embedding_database import EmbeddingDatabase
 
         # Load embedding database with config
-        config_path = current_app.config['CONFIG_PATH']
+        config_path = current_app.config["CONFIG_PATH"]
         edb = EmbeddingDatabase(config_path)
 
         # Get similar articles filtered by current user with default model
-        conn = current_app.config['get_db_connection']()
+        conn = current_app.config["get_db_connection"]()
         default_model_id = get_default_model_id(conn)
-        similar_feeds = edb.find_similar(feed_id, limit=30, user_id=current_user.id, model_id=default_model_id)
+        similar_feeds = edb.find_similar(
+            feed_id, limit=30, user_id=current_user.id, model_id=default_model_id
+        )
 
         # Convert to format compatible with feeds list
         feeds = []
         for feed in similar_feeds:
-            feeds.append({
-                'rowid': feed['feed_id'],
-                'external_id': feed['external_id'],
-                'title': feed['title'],
-                'author': feed['author'],
-                'origin': feed['origin'],
-                'link': feed['link'],
-                'published': feed['published'],
-                'score': feed['predicted_score'],
-                'starred': feed['starred'],
-                'broadcasted': feed['broadcasted'],
-                'label': feed['label'],
-                'similarity': float(feed['similarity']),
-                'positive_votes': feed['positive_votes'],
-                'negative_votes': feed['negative_votes']
-            })
+            feeds.append(
+                {
+                    "rowid": feed["feed_id"],
+                    "external_id": feed["external_id"],
+                    "title": feed["title"],
+                    "author": feed["author"],
+                    "origin": feed["origin"],
+                    "link": feed["link"],
+                    "published": feed["published"],
+                    "score": feed["predicted_score"],
+                    "starred": feed["starred"],
+                    "broadcasted": feed["broadcasted"],
+                    "label": feed["label"],
+                    "similarity": float(feed["similarity"]),
+                    "positive_votes": feed["positive_votes"],
+                    "negative_votes": feed["negative_votes"],
+                }
+            )
 
         # Also get the source article info
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT title, author, origin
             FROM feeds
             WHERE id = %s
-        """, (feed_id,))
+        """,
+            (feed_id,),
+        )
         source_article = cursor.fetchone()
         cursor.close()
         conn.close()
 
-        response_data = {
-            'source_article': source_article,
-            'similar_feeds': feeds
-        }
+        response_data = {"source_article": source_article, "similar_feeds": feeds}
 
         return jsonify(response_data)
 
     except Exception as e:
         log.error(f"Error finding similar articles: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@feeds_bp.route('/feedback/<int:feed_id>/interested')
+@feeds_bp.route("/feedback/<int:feed_id>/interested")
 def slack_feedback_interested(feed_id):
     """Handle Slack feedback for interested."""
     return handle_slack_feedback(feed_id, 1)
 
 
-@feeds_bp.route('/feedback/<int:feed_id>/not-interested')
+@feeds_bp.route("/feedback/<int:feed_id>/not-interested")
 def slack_feedback_not_interested(feed_id):
     """Handle Slack feedback for not interested."""
     return handle_slack_feedback(feed_id, 0)
@@ -361,11 +394,11 @@ def handle_slack_feedback(feed_id, score):
 
     # Check if user is logged in, if not, redirect to login
     if not current_user.is_authenticated:
-        return redirect(url_for('auth.login', next=request.path))
+        return redirect(url_for("auth.login", next=request.path))
 
     user_id = current_user.id
 
-    conn = current_app.config['get_db_connection']()
+    conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
@@ -376,32 +409,43 @@ def handle_slack_feedback(feed_id, score):
         if not feed:
             cursor.close()
             conn.close()
-            return render_template('feedback_error.html', message="Article not found"), 404
+            return render_template(
+                "feedback_error.html", message="Article not found"
+            ), 404
 
         # Check if any recent preference exists (within 1 month)
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT id, source FROM preferences
             WHERE feed_id = %s AND user_id = %s
             AND time > CURRENT_TIMESTAMP - INTERVAL '1 month'
             ORDER BY time DESC
             LIMIT 1
-        """, (feed_id, user_id))
+        """,
+            (feed_id, user_id),
+        )
 
         existing = cursor.fetchone()
 
         if existing:
             # Update the existing recent preference (override regardless of source)
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE preferences
                 SET score = %s, time = CURRENT_TIMESTAMP, source = 'alert-feedback'
                 WHERE id = %s
-            """, (float(score), existing['id']))
+            """,
+                (float(score), existing["id"]),
+            )
         else:
             # No recent preference exists, insert new one
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO preferences (feed_id, user_id, time, score, source)
                 VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'alert-feedback')
-            """, (feed_id, user_id, float(score)))
+            """,
+                (feed_id, user_id, float(score)),
+            )
 
         conn.commit()
         cursor.close()
@@ -409,54 +453,70 @@ def handle_slack_feedback(feed_id, score):
 
         # Render feedback confirmation page with similar articles link
         feedback_type = "interested" if score == 1 else "not interested"
-        return render_template('feedback_success.html',
-                             feed_title=feed['title'],
-                             feedback_type=feedback_type,
-                             feed_id=feed_id)
+        return render_template(
+            "feedback_success.html",
+            feed_title=feed["title"],
+            feedback_type=feedback_type,
+            feed_id=feed_id,
+        )
 
     except Exception as e:
         conn.rollback()
         cursor.close()
         conn.close()
         log.error(f"Error recording Slack feedback: {e}")
-        return render_template('feedback_error.html',
-                             message="Error recording feedback. Please try again."), 500
+        return render_template(
+            "feedback_error.html", message="Error recording feedback. Please try again."
+        ), 500
 
 
-@feeds_bp.route('/slack-interactivity', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+@feeds_bp.route(
+    "/slack-interactivity", methods=["GET", "POST", "PUT", "DELETE", "PATCH"]
+)
 def slack_interactivity():
     """Handle Slack interactivity requests."""
-    payload = json.loads(dict(request.form)['payload'])
-    if 'user' in payload and 'actions' in payload:
-        external_id = payload['user']['id']
-        content = payload['user']['name']
+    payload = json.loads(dict(request.form)["payload"])
+    if "user" in payload and "actions" in payload:
+        external_id = payload["user"]["id"]
+        content = payload["user"]["name"]
         # Split from the right to handle actions like "not_interested_12345"
-        value_parts = payload['actions'][0]['value'].rsplit('_', 1)
+        value_parts = payload["actions"][0]["value"].rsplit("_", 1)
         if len(value_parts) == 2:
             action, related_feed_id = value_parts
             try:
                 related_feed_id = int(related_feed_id)
             except ValueError:
-                log.error(f"Invalid feed ID in Slack action: {payload['actions'][0]['value']}")
-                return jsonify({'response_type': 'ephemeral', 'text': 'Invalid feed ID'}), 400
+                log.error(
+                    f"Invalid feed ID in Slack action: {payload['actions'][0]['value']}"
+                )
+                return jsonify(
+                    {"response_type": "ephemeral", "text": "Invalid feed ID"}
+                ), 400
         else:
             log.error(f"Invalid action format: {payload['actions'][0]['value']}")
-            return jsonify({'response_type': 'ephemeral', 'text': 'Invalid action format'}), 400
+            return jsonify(
+                {"response_type": "ephemeral", "text": "Invalid action format"}
+            ), 400
 
         # Insert event into database
-        conn = current_app.config['get_db_connection']()
+        conn = current_app.config["get_db_connection"]()
         cursor = conn.cursor()
         try:
             # Check if feed exists
             cursor.execute("SELECT id FROM feeds WHERE id = %s", (related_feed_id,))
             if cursor.fetchone():
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO events (event_type, external_id, content, feed_id)
                     VALUES (%s, %s, %s, %s)
-                """, ('slack:' + action, external_id, content, related_feed_id))
+                """,
+                    ("slack:" + action, external_id, content, related_feed_id),
+                )
                 conn.commit()
             else:
-                log.warning(f"Feed ID {related_feed_id} not found, skipping event logging")
+                log.warning(
+                    f"Feed ID {related_feed_id} not found, skipping event logging"
+                )
         except Exception as e:
             log.error(f"Failed to log event to database: {e}")
             conn.rollback()
@@ -464,4 +524,4 @@ def slack_interactivity():
             cursor.close()
             conn.close()
 
-    return '', 200
+    return "", 200

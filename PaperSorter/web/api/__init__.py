@@ -28,4 +28,4 @@ from .settings import settings_bp
 from .search import search_bp
 from .user import user_bp
 
-__all__ = ['feeds_bp', 'settings_bp', 'search_bp', 'user_bp']
+__all__ = ["feeds_bp", "settings_bp", "search_bp", "user_bp"]

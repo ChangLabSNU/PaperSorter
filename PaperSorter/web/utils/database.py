@@ -49,7 +49,8 @@ def get_unlabeled_item(conn):
 
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
     default_model_id = get_default_model_id(conn)
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
                pp.score as predicted_score
         FROM labeling_sessions ls
@@ -58,7 +59,9 @@ def get_unlabeled_item(conn):
         WHERE ls.score IS NULL
         ORDER BY RANDOM()
         LIMIT 1
-    """, (default_model_id,))
+    """,
+        (default_model_id,),
+    )
 
     item = cursor.fetchone()
     cursor.close()
@@ -72,7 +75,7 @@ def update_label(conn, session_id, label_value):
 
     cursor.execute(
         "UPDATE labeling_sessions SET score = %s, update_time = CURRENT_TIMESTAMP WHERE id = %s",
-        (float(label_value), session_id)
+        (float(label_value), session_id),
     )
 
     conn.commit()
@@ -95,17 +98,17 @@ def get_labeling_stats(conn):
     cursor.close()
 
     return {
-        'unlabeled': unlabeled,
-        'labeled': labeled,
-        'total': total,
-        'progress': (labeled / total * 100) if total > 0 else 0
+        "unlabeled": unlabeled,
+        "labeled": labeled,
+        "total": total,
+        "progress": (labeled / total * 100) if total > 0 else 0,
     }
 
 
 def generate_short_name(length=8):
     """Generate a random short name with uppercase, lowercase letters and numbers."""
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+    return "".join(random.choice(characters) for _ in range(length))
 
 
 def save_search_query(conn, query, user_id=None):
@@ -126,21 +129,27 @@ def save_search_query(conn, query, user_id=None):
 
     try:
         # First check if this query already exists
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT short_name FROM saved_searches
             WHERE query = %s
             LIMIT 1
-        """, (query,))
+        """,
+            (query,),
+        )
 
         existing = cursor.fetchone()
         if existing:
             # Query already exists, update last_access and return the existing short_name
             short_name = existing[0]
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE saved_searches
                 SET last_access = NOW()
                 WHERE short_name = %s
-            """, (short_name,))
+            """,
+                (short_name,),
+            )
             conn.commit()
             return short_name
 
@@ -150,19 +159,25 @@ def save_search_query(conn, query, user_id=None):
             short_name = generate_short_name()
 
             # Check if this short_name already exists
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 1 FROM saved_searches
                 WHERE short_name = %s
                 LIMIT 1
-            """, (short_name,))
+            """,
+                (short_name,),
+            )
 
             if not cursor.fetchone():
                 # This short_name is unique, insert the new record
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO saved_searches (short_name, query, user_id)
                     VALUES (%s, %s, %s)
                     RETURNING short_name
-                """, (short_name, query, user_id))
+                """,
+                    (short_name, query, user_id),
+                )
 
                 conn.commit()
                 return cursor.fetchone()[0]
