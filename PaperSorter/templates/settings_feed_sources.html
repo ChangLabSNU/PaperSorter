@@ -301,9 +301,9 @@
             <div id="sources-list">
                 <!-- Feed sources will be loaded here -->
                 <div class="empty-state">
-                    <div class="empty-state-icon">📰</div>
-                    <h3>No feed sources configured</h3>
-                    <p>Add a feed source to start collecting articles</p>
+                    <div class="empty-state-icon">⏳</div>
+                    <h3>Loading feed sources...</h3>
+                    <p>Please wait while we fetch your configured feed sources</p>
                 </div>
             </div>
         </div>
@@ -370,6 +370,15 @@
                 return;
             }
 
+            // Sort by last_updated in descending order (most recent first)
+            // Feeds with no last_updated (null) go to the bottom
+            const sortedSources = [...feedSources].sort((a, b) => {
+                if (!a.last_updated && !b.last_updated) return 0;
+                if (!a.last_updated) return 1;
+                if (!b.last_updated) return -1;
+                return new Date(b.last_updated) - new Date(a.last_updated);
+            });
+
             container.innerHTML = `
                 <table class="data-table">
                     <thead>
@@ -385,7 +394,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${feedSources.map(source => `
+                        ${sortedSources.map(source => `
                             <tr>
                                 <td>${source.id}</td>
                                 <td><strong>${source.name}</strong></td>
