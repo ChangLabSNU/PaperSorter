@@ -52,6 +52,45 @@ address as described in the [Slack documentation](https://api.slack.com/messagin
 Store the address securely and set the `PAPERSORTER_WEBHOOK_URL` environment
 variable before running PaperSorter.
 
+### Database Setup
+
+PaperSorter requires PostgreSQL with the pgvector extension for storing article embeddings.
+
+#### Installing pgvector Extension
+
+The pgvector extension must be installed in your PostgreSQL database before initializing PaperSorter. This requires superuser privileges:
+
+```sql
+-- As PostgreSQL superuser:
+CREATE EXTENSION vector;
+```
+
+If you encounter the error `permission denied to create extension "vector"`, you need to install it with superuser privileges:
+
+1. **Install as superuser** (recommended):
+   ```bash
+   sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
+   ```
+
+2. **Have your database administrator install it**:
+   Ask your DBA to run the CREATE EXTENSION command in your database.
+
+**Important**: The pgvector extension must be installed before running `papersorter init`. The extension is installed in the `public` schema and will be available to all schemas in the database.
+
+#### Initializing Database Tables
+
+After the pgvector extension is installed, initialize the PaperSorter database schema:
+
+```bash
+papersorter init
+```
+
+This will create all necessary tables, indexes, and custom types in the `papersorter` schema. If you need to reinitialize the database, use:
+
+```bash
+papersorter init --drop-existing
+```
+
 
 ## Initialization and Training
 
