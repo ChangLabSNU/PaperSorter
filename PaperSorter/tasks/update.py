@@ -370,7 +370,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
 
 @click.option(
-    "--config", default="qbio/config.yml", help="Database configuration file."
+    "--config", default="./config.yml", help="Database configuration file."
 )
 @click.option("--batch-size", default=100, help="Batch size for processing.")
 @click.option(

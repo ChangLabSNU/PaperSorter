@@ -71,7 +71,7 @@ python -m black PaperSorter/         # Code formatting
 ```
 
 ### Task-specific Options
-- All tasks support `--config` (default: `qbio/config.yml`), `--log-file` and `-q/--quiet` options
+- All tasks support `--config` (default: `./config.yml`), `--log-file` and `-q/--quiet` options
 - `update`: `--batch-size`, `--limit-sources` (max sources to scan), `--check-interval-hours` (check interval)
 - `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `--embeddings-table` (default: embeddings)
 - `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
@@ -79,7 +79,7 @@ python -m black PaperSorter/         # Code formatting
 
 ## Configuration
 
-All configuration is stored in `qbio/config.yml`:
+All configuration is stored in `./config.yml`:
 
 ```yaml
 db:
@@ -119,7 +119,7 @@ Note: Slack webhook URLs are stored in the database `channels` table per channel
 
 ## Data Storage
 
-- PostgreSQL database with credentials in `qbio/config.yml`
+- PostgreSQL database with credentials in `./config.yml`
 - `model.pkl`: Trained XGBoost model for interest prediction
 
 ### Database Schema
@@ -143,7 +143,7 @@ The PostgreSQL database includes tables for:
 - LLM input format combines title, authors, source, and abstract
 - XGBoost regression model predicts interest scores from embeddings
 - PostgreSQL database uses pgvector extension for efficient embedding storage and similarity search
-- Database configuration loaded from `qbio/config.yml`
+- Database configuration loaded from `./config.yml`
 - Semantic Scholar API integration for enriching article metadata
 - Support for batch processing to handle rate limits efficiently
 - Maintains backward compatibility with existing SQLite field names through mapping

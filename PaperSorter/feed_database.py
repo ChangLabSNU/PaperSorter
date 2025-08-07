@@ -48,7 +48,7 @@ class FeedDatabase:
         "tldr",
     ]
 
-    def __init__(self, config_path="qbio/config.yml"):
+    def __init__(self, config_path="./config.yml"):
         # Load database configuration
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)

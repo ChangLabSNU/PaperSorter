@@ -211,7 +211,7 @@ def normalize_text(text):
 
 
 @click.option(
-    "--config", default="qbio/config.yml", help="Database configuration file."
+    "--config", default="./config.yml", help="Database configuration file."
 )
 @click.option(
     "--limit",

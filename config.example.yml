@@ -1,6 +1,6 @@
 # PaperSorter Example Configuration File
 # Copy this file to your preferred location and update with your credentials
-# Default location: qbio/config.yml
+# Default location: ./config.yml
 
 # Database configuration
 db:

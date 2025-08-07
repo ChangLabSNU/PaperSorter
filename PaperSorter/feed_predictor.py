@@ -33,7 +33,7 @@ from .log import log
 class FeedPredictor:
     """Common functionality for generating embeddings, predicting feed preferences and managing broadcast queues."""
 
-    def __init__(self, feeddb, embeddingdb, config_path="qbio/config.yml"):
+    def __init__(self, feeddb, embeddingdb, config_path="./config.yml"):
         self.feeddb = feeddb
         self.embeddingdb = embeddingdb
         self.config_path = config_path

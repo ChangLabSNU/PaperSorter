@@ -28,7 +28,7 @@ from ..log import log
 from ..data import schema as db_schema
 
 
-@click.option("--config", "-c", default="qbio/config.yml", help="Config file")
+@click.option("--config", "-c", default="./config.yml", help="Config file")
 @click.option("--schema", default="papersorter", help="Database schema name")
 @click.option("--drop-existing", is_flag=True, help="Drop existing tables first")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress output messages")

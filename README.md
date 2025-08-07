@@ -1,195 +1,268 @@
 # PaperSorter
 
-PaperSorter is an academic paper recommendation system that utilizes
-machine learning techniques to match users' interests. The system
-retrieves article alerts from RSS feeds and processes the title,
-author, journal name, and abstract of each article using
-[Upstage's Solar LLM](https://www.upstage.ai/solar-llm) to generate
-embedding vectors. These vectors serve as input for a regression
-model that predicts the user's level of interest in each paper.
-PaperSorter sends notifications about high-scoring articles to a
-designated Slack channel, enabling timely discussion of relevant
-publications among colleagues. The prediction model can be trained
-incrementally with additional labels for new articles provided by
-user.
+PaperSorter is an intelligent academic paper recommendation system that helps researchers stay up-to-date with relevant publications. It uses machine learning to filter RSS/Atom feeds and predict which papers match your research interests, then sends notifications to Slack for high-scoring articles.
 
 <img src="https://github.com/ChangLabSNU/PaperSorter/assets/1702891/5ef2df1f-610b-4272-b496-ecf2a480dda2" width="660px">
 
-## Installing
+## Key Features
 
-To install PaperSorter, use pip:
+- **Multi-source feed aggregation**: Fetches articles from RSS/Atom feeds (PubMed, arXiv, journal feeds, etc.)
+- **ML-powered filtering**: Uses XGBoost regression on article embeddings to predict interest levels
+- **Flexible embedding generation**: Compatible with OpenAI, Solar LLM, or any OpenAI-compatible embedding API
+- **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
+- **Slack integration**: Automated notifications for interesting papers with customizable thresholds
+- **Semantic Scholar enrichment**: Augments articles with citation counts and additional metadata
+- **Multi-channel support**: Different models and thresholds for different research groups or topics
+- **AI summarization**: Generate concise summaries and visual infographics for article collections
 
+## Installation
+
+Install PaperSorter using pip:
+
+```bash
+git clone https://github.com/ChangLabSNU/PaperSorter.git
+cd PaperSorter
+pip install -e .
 ```
-pip install papersorter
+
+### System Requirements
+
+- Python 3.8+
+- PostgreSQL 12+ with pgvector extension
+- Modern web browser (for labeling interface)
+
+## Configuration
+
+Create a configuration file at `config.yml` (or specify with `--config`):
+
+```yaml
+db:
+  type: postgres
+  host: localhost
+  user: papersorter
+  database: papersorter
+  password: "your_password"
+
+google_oauth:
+  client_id: "your_google_client_id"
+  client_secret: "your_google_client_secret"
+  flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
+
+embedding_api:
+  api_key: "your_api_key"
+  api_url: "https://api.openai.com/v1"  # or custom endpoint
+  model: "text-embedding-3-large"       # or your preferred model
+  dimensions: 1536
+
+summarization_api:
+  api_key: "your_api_key"
+  api_url: "https://generativelanguage.googleapis.com/v1beta/openai"  # For Gemini
+  model: "gemini-2.5-pro"
+
+semanticscholar:
+  api_key: "your_s2_api_key"
+
+web:
+  base_url: "https://your-domain.com"  # base URL for web interface
 ```
 
-## Preparing
+## Database Setup
 
-### TheOldReader
+### 1. Create PostgreSQL Database
 
-PaperSorter uses [TheOldReader](https://theoldreader.com) as its
-feed source. After signing up for TheOldReader, you will receive
-API access using your email and password. Before running PaperSorter,
-make sure to set the `TOR_EMAIL` and `TOR_PASSWORD` environment
-variables with your TheOldReader email and password, respectively.
-This will allow PaperSorter to authenticate and retrieve the necessary
-data from your feeds.
+First, create a database and user for PaperSorter:
 
-### OpenAI Embeddings-Compatible API
-
-Embeddings API such [OpenAI's](https://platform.openai.com/docs/guides/embeddings)
-and [Solar LLM](https://developers.upstage.ai/docs/apis/embeddings)
-converts article titles and contents into numerical vectors.
-Sign up on the [OpenAI API](https://platform.openai.com/) or
-[Upstage console](https://console.upstage.ai/) and create an API key as per the
-documentation. Store the key securely and set the `PAPERSORTER_API_KEY` environment
-variable before running PaperSorter.
-
-### Slack Incoming WebHook
-
-To send notifications to a Slack channel, create an incoming webhook
-address as described in the [Slack documentation](https://api.slack.com/messaging/webhooks).
-Store the address securely and set the `PAPERSORTER_WEBHOOK_URL` environment
-variable before running PaperSorter.
-
-### Database Setup
-
-PaperSorter requires PostgreSQL with the pgvector extension for storing article embeddings.
-
-#### Installing pgvector Extension
-
-The pgvector extension must be installed in your PostgreSQL database before initializing PaperSorter. This requires superuser privileges:
-
-```sql
--- As PostgreSQL superuser:
+```bash
+# As PostgreSQL superuser:
+sudo -u postgres psql <<EOF
+CREATE USER papersorter WITH PASSWORD 'your_password';
+CREATE DATABASE papersorter OWNER papersorter;
+\c papersorter
 CREATE EXTENSION vector;
+GRANT ALL ON SCHEMA public TO papersorter;
+EOF
 ```
 
-If you encounter the error `permission denied to create extension "vector"`, you need to install it with superuser privileges:
+Alternatively, if you have an existing database:
 
-1. **Install as superuser** (recommended):
-   ```bash
-   sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
-   ```
+```bash
+# Connect to your database and install pgvector
+sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
+```
 
-2. **Have your database administrator install it**:
-   Ask your DBA to run the CREATE EXTENSION command in your database.
-
-**Important**: The pgvector extension must be installed before running `papersorter init`. The extension is installed in the `public` schema and will be available to all schemas in the database.
-
-#### Initializing Database Tables
-
-After the pgvector extension is installed, initialize the PaperSorter database schema:
+### 2. Initialize Database Schema
 
 ```bash
 papersorter init
 ```
 
-This will create all necessary tables, indexes, and custom types in the `papersorter` schema. If you need to reinitialize the database, use:
+To reinitialize (drops existing data):
 
 ```bash
 papersorter init --drop-existing
 ```
 
+## Getting Started
 
-## Initialization and Training
+### 1. Add Feed Sources
 
-To train a predictor for your article interests, ensure your
-TheOldReader account contains at least 1000 articles, including at
-least 100 positively labeled articles marked with stars. Ideally,
-aim for around 5000 articles with 500 starred items for optimal
-performance.
+Start the web interface and configure your feed sources:
 
-After populating your TheOldReader account, initialize the feed and
-embedding databases using:
-
-```
-papersorter init
-```
-
-Next, train your first model with:
-
-```
-papersorter train
-```
-
-If the ROCAUC performance metric meets your expectations, you're
-ready to send notifications about new interesting articles.
-
-## Getting Updates and Send Notifications
-
-For the regular updates, this command retrieves updates, converts new
-items to embeddings, and finds interesting articles:
-
-```
-papersorter update
-```
-
-To send notifications for new interesting articles, run:
-
-```
-papersorter broadcast
-```
-
-You will receive formatted notifications in your Slack channel.
-
-## Running as a Cron Job
-
-Here is an example of a shell script that runs PaperSorter's `update`
-and `broadcast` jobs in the background. This script sends notifications
-about new interesting articles between 7 am and 9 pm, while only
-performing updates during the night.
-
-```
-#!/bin/bash
-PAPERSORTER_CMD=/path/to/papersorter
-PAPERSORTER_DATADIR=/path/to/data
-LOGFILE=background-updates.log
-CURRENT_HOUR=$(date +%H)
-
-cd $PAPERSORTER_DATADIR
-$PAPERSORTER_CMD update -q --log-file $LOGFILE
-
-if [ "$CURRENT_HOUR" -ge 7 ] && [ "$CURRENT_HOUR" -le 21 ]; then
-    $PAPERSORTER_CMD broadcast -q --log-file $LOGFILE
-fi
-```
-
-Here is an example line for the crontab. It runs the update script on
-every hour at ten minutes past the hour.
-
-```
-10 * * * * /bin/bash /path/to/run-update.sh
-```
-
-## Feedback and Updating the Model
-
-To improve the model, provide more labels for the articles. First,
-extract the list of articles with the following command:
-
-```
-papersorter train -o model-temporary.pkl -f feedback.xlsx
-```
-
-This generates an Excel file, `feedback.xlsx`, containing titles,
-authors, prediction scores, and other details for manual review.
-
-For labeling articles, you can use the web interface:
-
-```
+```bash
 papersorter serve
 ```
 
-This starts a web server (default: http://localhost:5001) with an interface for labeling articles from the database.
-After labeling, retrain the predictor with the updated labels using:
+Navigate to http://localhost:5001 and:
+- Log in with Google OAuth
+- Go to Settings → Feed Sources
+- Add RSS/Atom feed URLs for journals, preprint servers, or PubMed searches
 
+### 2. Initial Data Collection
+
+Fetch articles from your configured feeds:
+
+```bash
+papersorter update
 ```
+
+### 3. Label Training Data
+
+Use the web interface to label articles:
+- ⭐ Star articles you find interesting
+- 👎 Downvote irrelevant articles
+- Aim for at least 100 starred articles out of 1000+ total for initial training
+
+### 4. Train the Model
+
+Once you have sufficient labeled data:
+
+```bash
 papersorter train
 ```
 
-The new predictor is stored as `model.pkl`, and your next feeds will
-be assessed with the updated model.
+The model performance (ROC-AUC) will be displayed. A score above 0.8 indicates good performance.
+
+### 5. Configure Slack Notifications
+
+In the web interface:
+- Go to Settings → Channels
+- Add a Slack webhook URL
+- Set the score threshold (e.g., 0.7)
+- Select which model to use
+
+### 6. Regular Operation
+
+Set up these commands to run periodically (e.g., via cron):
+
+```bash
+# Fetch new articles and generate predictions (every 3 hours)
+papersorter update
+
+# Send Slack notifications for high-scoring articles (every 3 hours, 7am-9pm)
+papersorter broadcast
+```
+
+Example cron configuration:
+
+```cron
+0 */3 * * * cd /path/to/papersorter && papersorter update -q --log-file update.log
+0 7-21/3 * * * cd /path/to/papersorter && papersorter broadcast -q --log-file broadcast.log
+```
+
+## Command Reference
+
+### Core Commands
+
+- `papersorter init` - Initialize database schema
+- `papersorter update` - Fetch new articles and generate embeddings
+- `papersorter train` - Train or retrain the prediction model
+- `papersorter broadcast` - Send Slack notifications for interesting articles
+- `papersorter serve` - Start the web interface for labeling and configuration
+
+### Common Options
+
+All commands support:
+- `--config PATH` - Configuration file path (default: config.yml)
+- `--log-file PATH` - Log output to file
+- `-q, --quiet` - Suppress console output
+
+### Command-Specific Options
+
+**update:**
+- `--batch-size N` - Processing batch size
+- `--limit-sources N` - Maximum number of feed sources to process
+- `--check-interval-hours N` - Hours between checks for the same feed
+
+**train:**
+- `-r, --rounds N` - XGBoost training rounds (default: 100)
+- `-o, --output PATH` - Model output file (default: model.pkl)
+- `--embeddings-table NAME` - Embeddings table name (default: embeddings)
+
+**broadcast:**
+- `--limit N` - Maximum items to process per channel
+- `--max-content-length N` - Maximum content length for messages
+- `--clear-old-days N` - Clear broadcasts older than N days (default: 30)
+
+**serve:**
+- `--host ADDRESS` - Bind address (default: 0.0.0.0)
+- `--port N` - Port number (default: 5001)
+- `--debug` - Enable Flask debug mode
+
+## Web Interface Features
+
+The web interface (http://localhost:5001) provides:
+
+### Main Feed View
+- Browse all articles with predictions
+- Interactive labeling (star/downvote)
+- Full-text search
+- Filter by date, score, or label status
+
+### Article Features
+- View full abstracts and metadata
+- Find similar articles
+- Direct links to paper PDFs
+- Semantic Scholar integration for citations
+
+### AI-Powered Tools
+- Generate article summaries
+- Create visual infographics for article collections
+- Shareable search URLs
+
+### Admin Settings
+- Manage feed sources
+- Configure notification channels
+- View model performance
+- User management
+- System event logs
+
+## Improving Model Performance
+
+1. **Regular labeling**: Continue labeling new articles through the web interface
+2. **Balanced labels**: Maintain a good ratio of positive/negative examples
+3. **Retrain periodically**: Run `papersorter train` after adding new labels
+4. **Monitor performance**: Check ROC-AUC scores and adjust thresholds accordingly
+
+## Architecture Overview
+
+PaperSorter consists of several key components:
+
+- **Feed Provider System**: Modular architecture for different feed sources
+- **Embedding Pipeline**: Generates vector representations using LLM APIs
+- **ML Predictor**: XGBoost model trained on user preferences
+- **PostgreSQL + pgvector**: Efficient storage and similarity search for embeddings
+- **Flask Web Application**: Modern interface with Google OAuth authentication
+- **Background Jobs**: Asynchronous processing for heavy tasks
+- **Notification System**: Multi-channel Slack integration with queuing
+
+## License
+
+MIT License - see LICENSE file for details
 
 ## Author
 
 Hyeshik Chang <hyeshik@snu.ac.kr>
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests on [GitHub](https://github.com/ChangLabSNU/papersorter).

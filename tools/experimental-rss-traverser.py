@@ -275,8 +275,8 @@ Examples:
     parser.add_argument(
         "-c",
         "--config",
-        default="qbio/config.yml",
-        help="Path to configuration file (default: qbio/config.yml)",
+        default="./config.yml",
+        help="Path to configuration file (default: ./config.yml)",
     )
 
     parser.add_argument(
