@@ -6,7 +6,7 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 
 ## Key Features
 
-- **Multi-source feed aggregation**: Fetches articles from RSS/Atom feeds (PubMed, arXiv, journal feeds, etc.)
+- **Multi-source feed aggregation**: Fetches articles from RSS/Atom feeds (PubMed, bioRxiv, journal feeds, etc.)
 - **ML-powered filtering**: Uses XGBoost regression on article embeddings to predict interest levels
 - **Flexible embedding generation**: Compatible with OpenAI, Solar LLM, or any OpenAI-compatible embedding API
 - **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
@@ -21,6 +21,7 @@ Install PaperSorter using pip:
 
 ```bash
 git clone https://github.com/ChangLabSNU/PaperSorter.git
+
 cd PaperSorter
 pip install -e .
 ```
@@ -142,7 +143,48 @@ papersorter train
 
 The model performance (ROC-AUC) will be displayed. A score above 0.8 indicates good performance.
 
-### 5. Configure Slack Notifications
+### 5. Deploy Web Interface for Production
+
+For production use, deploy the web interface with a proper WSGI server and HTTPS:
+
+#### Production Deployment
+
+```bash
+# Install uWSGI
+pip install uwsgi
+
+# Run with uWSGI
+uwsgi --http :5001 --module PaperSorter.web.app:app --processes 4
+
+# Configure reverse proxy (nginx example) with SSL:
+# server {
+#     listen 443 ssl;
+#     server_name your-domain.com;
+#     ssl_certificate /path/to/cert.pem;
+#     ssl_certificate_key /path/to/key.pem;
+#     
+#     location / {
+#         proxy_pass http://localhost:5001;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#     }
+# }
+```
+
+#### Development/Testing
+
+For local development or testing with external services:
+
+```bash
+# Option 1: Local development
+papersorter serve --port 5001 --debug
+
+# Option 2: Testing with HTTPS (using ngrok)
+papersorter serve --port 5001
+ngrok http 5001  # Creates HTTPS tunnel to your local server
+```
+
+### 6. Configure Slack Notifications
 
 In the web interface:
 - Go to Settings → Channels
@@ -150,7 +192,15 @@ In the web interface:
 - Set the score threshold (e.g., 0.7)
 - Select which model to use
 
-### 6. Regular Operation
+#### Optional: Enable Slack Interactivity
+
+To add interactive buttons to Slack messages:
+
+1. **Create a Slack App** with Interactive Components enabled
+2. **Configure the Request URL** in your Slack App:
+   - Set to: `https://your-domain.com/slack-interactivity` (must be HTTPS)
+
+### 7. Regular Operation
 
 Set up these commands to run periodically (e.g., via cron):
 
@@ -165,8 +215,8 @@ papersorter broadcast
 Example cron configuration:
 
 ```cron
-0 */3 * * * cd /path/to/papersorter && papersorter update -q --log-file update.log
-0 7-21/3 * * * cd /path/to/papersorter && papersorter broadcast -q --log-file broadcast.log
+30 */3 * * * cd /path/to/papersorter && papersorter update -q --log-file update.log
+0 9,13,18 * * * cd /path/to/papersorter && papersorter broadcast -q --log-file broadcast.log
 ```
 
 ## Command Reference
@@ -265,4 +315,4 @@ Hyeshik Chang <hyeshik@snu.ac.kr>
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests on [GitHub](https://github.com/ChangLabSNU/papersorter).
+Contributions are welcome! Please feel free to submit issues or pull requests on [GitHub](https://github.com/ChangLabSNU/PaperSorter).
