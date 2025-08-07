@@ -22,6 +22,8 @@
 #
 
 from ..feed_database import FeedDatabase
+from ..embedding_database import EmbeddingDatabase
+from ..feed_predictor import FeedPredictor
 from ..log import log, initialize_logging
 import xgboost as xgb
 import numpy as np
@@ -31,44 +33,26 @@ import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import yaml
-import openai
-import os
 
 
-def generate_embeddings(feeds_without_embeddings, config_data, feeddb):
-    """Generate embeddings for feeds that don't have them yet."""
-    embedding_config = config_data.get("embedding_api", {})
-
-    # Set up OpenAI client
-    api_key = embedding_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
-    api_url = embedding_config.get("api_url", "https://api.openai.com/v1")
-    model = embedding_config.get("model", "text-embedding-3-large")
-
-    client = openai.OpenAI(api_key=api_key, base_url=api_url)
-
+def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, batch_size):
+    """Generate embeddings using the unified FeedPredictor implementation."""
+    if not feed_ids:
+        return []
+    
+    predictor = FeedPredictor(feeddb, embeddingdb, config_path)
+    successful_feeds = predictor.generate_embeddings_batch(feed_ids, batch_size)
+    
+    # Return the embeddings for successful feeds
     embeddings = []
-    for feed in feeds_without_embeddings:
-        try:
-            # Prepare input text using the same format as update task
-            input_text = feeddb.get_formatted_item(feed["id"])
-
-            # Generate embedding
-            params = {"model": model, "input": input_text}
-
-            # Add dimensions if specified in config
-            dimensions = embedding_config.get("dimensions")
-            if dimensions:
-                params["dimensions"] = dimensions
-
-            response = client.embeddings.create(**params)
-
-            embedding = response.data[0].embedding
-            embeddings.append({"feed_id": feed["id"], "embedding": embedding})
-
-        except Exception as e:
-            log.error(f"Failed to generate embedding for feed {feed['id']}: {e}")
-            continue
-
+    for feed_id in successful_feeds:
+        embeddingdb.cursor.execute(
+            "SELECT embedding FROM embeddings WHERE feed_id = %s", (feed_id,)
+        )
+        result = embeddingdb.cursor.fetchone()
+        if result:
+            embeddings.append({"feed_id": feed_id, "embedding": result["embedding"]})
+    
     return embeddings
 
 
@@ -88,8 +72,9 @@ def main(config, count, batch_size, log_file, quiet):
 
     db_config = config_data["db"]
 
-    # Initialize FeedDatabase for formatted item generation
+    # Initialize FeedDatabase and EmbeddingDatabase
     feeddb = FeedDatabase(config)
+    embeddingdb = EmbeddingDatabase(config)
 
     # Connect to PostgreSQL
     log.info("Connecting to PostgreSQL database...")
@@ -141,34 +126,17 @@ def main(config, count, batch_size, log_file, quiet):
     if feeds_without_embeddings:
         log.info(f"Generating embeddings for {len(feeds_without_embeddings)} feeds...")
 
-        # Process in batches
-        all_new_embeddings = []
-        for i in range(0, len(feeds_without_embeddings), batch_size):
-            batch = feeds_without_embeddings[i : i + batch_size]
-            log.info(
-                f"Processing batch {i // batch_size + 1}/{(len(feeds_without_embeddings) + batch_size - 1) // batch_size}"
-            )
+        # Extract feed IDs
+        feed_ids_without_embeddings = [f["id"] for f in feeds_without_embeddings]
+        
+        # Use FeedPredictor to generate embeddings
+        all_new_embeddings = generate_embeddings_for_feeds(
+            feed_ids_without_embeddings, feeddb, embeddingdb, config, batch_size
+        )
 
-            new_embeddings = generate_embeddings(batch, config_data, feeddb)
-            all_new_embeddings.extend(new_embeddings)
-
-        # Store new embeddings in database
+        # Add newly embedded feeds to the list
         if all_new_embeddings:
-            log.info(f"Storing {len(all_new_embeddings)} new embeddings...")
-            for emb_data in all_new_embeddings:
-                cursor.execute(
-                    """
-                    INSERT INTO embeddings (feed_id, embedding)
-                    VALUES (%s, %s)
-                    ON CONFLICT (feed_id) DO UPDATE
-                    SET embedding = EXCLUDED.embedding
-                """,
-                    (emb_data["feed_id"], emb_data["embedding"]),
-                )
-
-            db.commit()
-
-            # Add newly embedded feeds to the list
+            log.info(f"Successfully generated {len(all_new_embeddings)} embeddings")
             for feed in feeds_without_embeddings:
                 for emb_data in all_new_embeddings:
                     if emb_data["feed_id"] == feed["id"]:
