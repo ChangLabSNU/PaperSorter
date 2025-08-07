@@ -83,6 +83,7 @@ setup(
     },
     install_requires=[
         'click >= 8.0',
+        'feedparser >= 6.0',
         'numpy >= 1.20',
         'openai >= 1.30',
         'pandas >= 2.0',
