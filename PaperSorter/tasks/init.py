@@ -34,16 +34,16 @@ from ..data import schema as db_schema
 @click.option("-q", "--quiet", is_flag=True, help="Suppress output messages")
 def main(config, schema, drop_existing, quiet):
     """Initialize database tables and schema for PaperSorter."""
-    
+
     if not quiet:
         log.info("Initializing PaperSorter database...")
-    
+
     # Load database configuration
     with open(config, "r") as f:
         cfg = yaml.safe_load(f)
-    
+
     db_config = cfg["db"]
-    
+
     # Connect to PostgreSQL
     conn = psycopg2.connect(
         host=db_config["host"],
@@ -53,7 +53,7 @@ def main(config, schema, drop_existing, quiet):
     )
     conn.autocommit = True
     cursor = conn.cursor()
-    
+
     try:
         # Create pgvector extension if not exists
         if not quiet:
@@ -70,7 +70,7 @@ def main(config, schema, drop_existing, quiet):
                 )
             """)
             extension_exists = cursor.fetchone()[0]
-            
+
             if extension_exists:
                 if not quiet:
                     log.info("pgvector extension is already installed.")
@@ -88,24 +88,24 @@ def main(config, schema, drop_existing, quiet):
                 log.error("")
                 log.error("After installing pgvector, run 'papersorter init' again.")
                 return
-        
+
         # Create schema if not exists
         if not quiet:
             log.info(f"Creating schema '{schema}'...")
         cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
         cursor.execute(f"SET search_path TO {schema}, public")
-        
+
         # Drop existing tables if requested
         if drop_existing:
             if not quiet:
                 log.warning("Dropping existing tables...")
             for table in db_schema.DROP_ORDER:
                 cursor.execute(f"DROP TABLE IF EXISTS {schema}.{table} CASCADE")
-            
+
             # Drop custom types
             for type_name in db_schema.CUSTOM_TYPES:
                 cursor.execute(f"DROP TYPE IF EXISTS {schema}.{type_name} CASCADE")
-        
+
         # Create custom types
         if not quiet:
             log.info("Creating custom types...")
@@ -119,34 +119,34 @@ def main(config, schema, drop_existing, quiet):
                         WHEN duplicate_object THEN null;
                     END $$;
                 """)
-        
+
         # Create tables
         if not quiet:
             log.info("Creating tables...")
-        
+
         for table_def in db_schema.TABLES:
             table_name = table_def["name"]
-            
+
             # Build column definitions
             columns = []
             for col_name, col_type in table_def["columns"]:
                 # Replace schema placeholder in column type
                 col_type_formatted = col_type.format(schema=schema)
                 columns.append(f"{col_name} {col_type_formatted}")
-            
+
             # Add composite primary key if specified
             if "primary_key" in table_def:
                 pk_cols = ", ".join(table_def["primary_key"])
                 columns.append(f"PRIMARY KEY ({pk_cols})")
-            
+
             columns_str = ",\n    ".join(columns)
-            
+
             create_sql = f"""
                 CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
                     {columns_str}
                 )
             """
-            
+
             try:
                 cursor.execute(create_sql)
                 if not quiet:
@@ -168,16 +168,16 @@ def main(config, schema, drop_existing, quiet):
                     return
                 else:
                     raise
-        
+
         # Create indexes
         if not quiet:
             log.info("Creating indexes...")
-        
+
         for index_def in db_schema.INDEXES:
             index_name = index_def["name"]
             table_name = index_def["table"]
             columns = ", ".join(index_def["columns"])
-            
+
             if index_def.get("type") == "hnsw":
                 # Special handling for HNSW vector index
                 index_sql = f"""
@@ -191,16 +191,16 @@ def main(config, schema, drop_existing, quiet):
                     CREATE INDEX IF NOT EXISTS {index_name}
                     ON {schema}.{table_name} ({columns})
                 """
-            
+
             cursor.execute(index_sql)
-            
+
             if not quiet:
                 log.debug(f"Created index: {index_name}")
-        
+
         if not quiet:
             log.info("Database initialization complete!")
             log.info(f"Tables created successfully in schema: {schema}")
-            
+
     except Exception as e:
         log.error(f"Error initializing database: {e}")
         raise

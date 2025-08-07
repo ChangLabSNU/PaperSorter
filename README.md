@@ -34,7 +34,7 @@ pip install -e .
 
 ## Configuration
 
-Create a configuration file at `config.yml` (or specify with `--config`):
+Create a configuration file at `config.yml` (or specify with `--config`). See `examples/config.yml` for a complete example:
 
 ```yaml
 db:
@@ -162,7 +162,7 @@ uwsgi --http :5001 --module PaperSorter.web.app:app --processes 4
 #     server_name your-domain.com;
 #     ssl_certificate /path/to/cert.pem;
 #     ssl_certificate_key /path/to/key.pem;
-#     
+#
 #     location / {
 #         proxy_pass http://localhost:5001;
 #         proxy_set_header Host $host;
@@ -212,11 +212,11 @@ papersorter update
 papersorter broadcast
 ```
 
-Example cron configuration:
+Example cron configuration (see `examples/` directory for complete scripts with log rotation):
 
 ```cron
-30 */3 * * * cd /path/to/papersorter && papersorter update -q --log-file update.log
-0 9,13,18 * * * cd /path/to/papersorter && papersorter broadcast -q --log-file broadcast.log
+30 */3 * * * /path/to/papersorter/examples/cron-update.sh
+0 9,13,18 * * * /path/to/papersorter/examples/cron-broadcast.sh
 ```
 
 ## Command Reference
