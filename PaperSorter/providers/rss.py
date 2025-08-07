@@ -231,7 +231,7 @@ class RSSProvider(FeedProvider):
         entries = feed.entries[:limit] if limit else feed.entries
 
         if not entries:
-            log.warning(f"No entries to process from {source['url']}")
+            log.info(f"No entries to process from {source['url']}")
             return
 
         for entry in entries:
