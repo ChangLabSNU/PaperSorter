@@ -25,8 +25,8 @@ from ..providers.rss import RSSProvider
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..broadcast_channels import BroadcastChannels
+from ..feed_predictor import FeedPredictor
 from ..log import log, initialize_logging
-from openai import OpenAI
 import xgboost as xgb
 from datetime import datetime, timedelta
 import time
@@ -35,9 +35,6 @@ import pickle
 import click
 
 FEED_EPOCH = (1980, 1, 1)
-
-OPENAI_API_URL = "https://api.openai.com/v1"
-OPENAI_EMBEDDING_MODEL = "text-embedding-3-large"
 
 S2_VENUE_UPDATE_BLACKLIST = {
     "Molecules and Cells",  # Molecular Cell (Cell Press) is incorrectly matched to this.
@@ -151,7 +148,9 @@ def update_feeds(
     return all_new_items
 
 
-def update_embeddings(embeddingdb, batch_size, api_config, feeddb):
+def update_embeddings(feeddb, embeddingdb, config_path, batch_size):
+    """Update embeddings using the unified FeedPredictor implementation."""
+    # Get items that need embeddings
     keystoupdate = feeddb.keys().copy()
     keystoupdate -= embeddingdb.keys()
 
@@ -165,30 +164,21 @@ def update_embeddings(embeddingdb, batch_size, api_config, feeddb):
 
     log.info("Updating embeddings...")
 
-    api_url = api_config.get("api_url", OPENAI_API_URL)
-    client = OpenAI(api_key=api_config["api_key"], base_url=api_url)
-    model_name = api_config.get("model") or OPENAI_EMBEDDING_MODEL
+    # Convert external_ids to feed_ids
+    feed_ids_to_update = []
+    for external_id in keystoupdate:
+        feeddb.cursor.execute(
+            "SELECT id FROM feeds WHERE external_id = %s", (external_id,)
+        )
+        result = feeddb.cursor.fetchone()
+        if result:
+            feed_ids_to_update.append(result["id"])
 
-    with embeddingdb.write_batch() as writer:
-        for bid, batch in enumerate(batched(keystoupdate, batch_size)):
-            log.debug(f"Updating embedding: batch {bid + 1} ...")
+    # Use FeedPredictor to generate embeddings
+    predictor = FeedPredictor(feeddb, embeddingdb, config_path)
+    successful_feeds = predictor.generate_embeddings_batch(feed_ids_to_update, batch_size)
 
-            items = [feeddb.get_formatted_item(item_id) for item_id in batch]
-
-            # Prepare parameters for embedding creation
-            params = {"model": model_name, "input": items}
-
-            # Add dimensions if specified in config
-            dimensions = api_config.get("dimensions")
-            if dimensions:
-                params["dimensions"] = dimensions
-
-            embresults = client.embeddings.create(**params)
-
-            for item_id, result in zip(batch, embresults.data):
-                writer[item_id] = result.embedding
-
-    return len(keystoupdate)
+    return len(successful_feeds)
 
 
 def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
@@ -437,9 +427,7 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
             traceback.print_exc()
             # Show the exception but proceed to the next job.
 
-    num_updates = update_embeddings(
-        embeddingdb, batch_size, full_config["embedding_api"], feeddb
-    )
+    num_updates = update_embeddings(feeddb, embeddingdb, config, batch_size)
 
     if num_updates > 0:
         model_dir = full_config.get("models", {}).get("path", ".")

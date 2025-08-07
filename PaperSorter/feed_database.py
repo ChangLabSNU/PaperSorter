@@ -132,6 +132,12 @@ class FeedDatabase:
         # Get user_id from preferences table or use default
         user_id = 1  # Default user
 
+        # Convert published to timestamp if it's a datetime object
+        if hasattr(item.published, 'timestamp'):
+            published_ts = item.published.timestamp()
+        else:
+            published_ts = item.published
+
         # Insert into feeds table
         self.cursor.execute(
             """
@@ -146,7 +152,7 @@ class FeedDatabase:
                 content,
                 item.author,
                 item.origin,
-                item.published,
+                published_ts,
                 item.href,
                 item.mediaUrl,
                 tldr,

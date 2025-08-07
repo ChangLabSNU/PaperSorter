@@ -67,6 +67,7 @@ class SemanticScholarItem(FeedItem):
         # Store additional attributes for compatibility
         self.href = self.link
         self.mediaUrl = self.link
+        self.item_id = self.external_id  # Alias for database compatibility
 
     def determine_journal(self, paper_info):
         if paper_info["journal"]:
