@@ -129,9 +129,9 @@ papersorter update
 ### 3. Label Training Data
 
 Use the web interface to label articles:
-- ⭐ Star articles you find interesting
-- 👎 Downvote irrelevant articles
-- Aim for at least 100 starred articles out of 1000+ total for initial training
+- Mark articles as **"Interested"** for papers relevant to your research
+- Mark articles as **"Not Interested"** for irrelevant papers
+- Aim for at least 100 "Interested" articles out of 1000+ total for initial training
 
 ### 4. Train the Model
 
@@ -264,7 +264,7 @@ The web interface (http://localhost:5001) provides:
 
 ### Main Feed View
 - Browse all articles with predictions
-- Interactive labeling (star/downvote)
+- Interactive labeling (Interested/Not Interested)
 - Full-text search
 - Filter by date, score, or label status
 
