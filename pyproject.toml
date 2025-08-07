@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "papersorter"
+version = "0.3.0"
+description = "Intelligent academic paper recommendation system with ML-powered filtering and Slack notifications"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Hyeshik Chang", email = "hyeshik@snu.ac.kr"},
+]
+maintainers = [
+    {name = "Hyeshik Chang", email = "hyeshik@snu.ac.kr"},
+]
+keywords = [
+    "academic papers",
+    "machine learning", 
+    "RSS feed",
+    "research tools",
+    "paper recommendation",
+    "slack integration",
+    "scientific literature"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "click>=8.0",
+    "numpy>=1.20",
+    "openai>=1.30",
+    "pandas>=2.0",
+    "psycopg2-binary>=2.9",
+    "pgvector>=0.2.0",
+    "PyYAML>=6.0",
+    "requests>=2.7.0",
+    "scikit-learn>=1.4",
+    "scipy>=1.10",
+    "xgboost>2.0",
+    "Flask>=2.0",
+    "Flask-Login>=0.6.0",
+    "Authlib>=1.2.0",
+    "markdown2>=2.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ChangLabSNU/papersorter"
+Repository = "https://github.com/ChangLabSNU/papersorter"
+Documentation = "https://github.com/ChangLabSNU/papersorter#readme"
+"Bug Tracker" = "https://github.com/ChangLabSNU/papersorter/issues"
+
+[project.scripts]
+papersorter = "PaperSorter.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0",
+]
+server = [
+    "uwsgi>=2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["PaperSorter*"]
+exclude = ["tests*", "notebook*", "tools*", "old*"]
+
+[tool.setuptools.package-data]
+PaperSorter = ["templates/*.html", "data/*.sql"]
