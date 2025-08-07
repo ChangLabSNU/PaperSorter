@@ -51,9 +51,9 @@ google_oauth:
 
 embedding_api:
   api_key: "your_api_key"
-  api_url: "https://api.openai.com/v1"  # or custom endpoint
-  model: "text-embedding-3-large"       # or your preferred model
-  dimensions: 1536
+  api_url: "https://api.upstage.ai/v1"       # or your preferred provider
+  model: "solar-embedding-1-large-passage"   # or your preferred model
+  dimensions: 4096
 
 summarization_api:
   api_key: "your_api_key"
@@ -61,7 +61,7 @@ summarization_api:
   model: "gemini-2.5-pro"
 
 semanticscholar:
-  api_key: "your_s2_api_key"
+  api_key: "your_semantic_scholar_api_key"
 
 web:
   base_url: "https://your-domain.com"  # base URL for web interface
@@ -265,7 +265,8 @@ The web interface (http://localhost:5001) provides:
 ### Main Feed View
 - Browse all articles with predictions
 - Interactive labeling (Interested/Not Interested)
-- Full-text search
+- Semantic article search
+- Shareable search URLs
 - Filter by date, score, or label status
 
 ### Article Features
@@ -277,7 +278,6 @@ The web interface (http://localhost:5001) provides:
 ### AI-Powered Tools
 - Generate article summaries
 - Create visual infographics for article collections
-- Shareable search URLs
 
 ### Admin Settings
 - Manage feed sources
