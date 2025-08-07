@@ -57,7 +57,7 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 
 
 @click.option(
-    "--config", default="qbio/config.yml", help="Database configuration file."
+    "--config", default="./config.yml", help="Database configuration file."
 )
 @click.option("--count", default=500, help="Number of recent feeds to process.")
 @click.option("--batch-size", default=100, help="Batch size for embedding generation.")

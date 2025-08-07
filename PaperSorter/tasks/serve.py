@@ -29,7 +29,7 @@ from ..web import create_app
 
 
 @click.option(
-    "--config", default="qbio/config.yml", help="Database configuration file."
+    "--config", default="./config.yml", help="Database configuration file."
 )
 @click.option("--host", default="0.0.0.0", help="Host to bind to.")
 @click.option("--port", default=5001, help="Port to bind to.")

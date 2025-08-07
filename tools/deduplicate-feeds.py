@@ -178,7 +178,7 @@ def delete_related_records(conn, feed_id):
 def main():
     parser = argparse.ArgumentParser(description="Deduplicate feed items by title")
     parser.add_argument(
-        "--config", default="qbio/config.yml", help="Path to config file"
+        "--config", default="./config.yml", help="Path to config file"
     )
     parser.add_argument(
         "--dry-run",
