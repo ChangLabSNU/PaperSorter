@@ -8,12 +8,12 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 
 - **Multi-source feed aggregation**: Fetches articles from RSS/Atom feeds (PubMed, bioRxiv, journal feeds, etc.)
 - **ML-powered filtering**: Uses XGBoost regression on article embeddings to predict interest levels
-- **Flexible embedding generation**: Compatible with OpenAI, Solar LLM, or any OpenAI-compatible embedding API
+- **Flexible AI integration**: Compatible with Solar LLM, Gemini, or any OpenAI-compatible generative AI API
 - **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
 - **Slack integration**: Automated notifications for interesting papers with customizable thresholds
 - **Semantic Scholar enrichment**: Augments articles with citation counts and additional metadata
 - **Multi-channel support**: Different models and thresholds for different research groups or topics
-- **AI summarization**: Generate concise summaries and visual infographics for article collections
+- **AI-powered content generation**: Create concise summaries and visual infographics for article collections
 
 ## Installation
 
