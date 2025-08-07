@@ -34,7 +34,7 @@ def find_duplicates(conn, dry_run=True):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         # Find all items with id >= 50000 that have potential duplicates with id < 50000
         query = """
-            SELECT 
+            SELECT
                 new.id as new_id,
                 new.external_id as new_external_id,
                 new.title,
@@ -45,7 +45,7 @@ def find_duplicates(conn, dry_run=True):
                 old.published as old_published
             FROM papersorter.feeds new
             INNER JOIN papersorter.feeds old ON new.title = old.title
-            WHERE new.id >= 50000 
+            WHERE new.id >= 50000
               AND old.id < 50000
             ORDER BY new.id, old.id DESC
         """
@@ -125,8 +125,8 @@ def find_duplicates(conn, dry_run=True):
                 # Step 3: Update the older item with the new external_id
                 cur.execute(
                     """
-                    UPDATE papersorter.feeds 
-                    SET external_id = %s 
+                    UPDATE papersorter.feeds
+                    SET external_id = %s
                     WHERE id = %s
                 """,
                     (new_external_id, old_id),

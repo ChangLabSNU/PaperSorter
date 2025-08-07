@@ -39,10 +39,10 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     """Generate embeddings using the unified FeedPredictor implementation."""
     if not feed_ids:
         return []
-    
+
     predictor = FeedPredictor(feeddb, embeddingdb, config_path)
     successful_feeds = predictor.generate_embeddings_batch(feed_ids, batch_size)
-    
+
     # Return the embeddings for successful feeds
     embeddings = []
     for feed_id in successful_feeds:
@@ -52,7 +52,7 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
         result = embeddingdb.cursor.fetchone()
         if result:
             embeddings.append({"feed_id": feed_id, "embedding": result["embedding"]})
-    
+
     return embeddings
 
 
@@ -128,7 +128,7 @@ def main(config, count, batch_size, log_file, quiet):
 
         # Extract feed IDs
         feed_ids_without_embeddings = [f["id"] for f in feeds_without_embeddings]
-        
+
         # Use FeedPredictor to generate embeddings
         all_new_embeddings = generate_embeddings_for_feeds(
             feed_ids_without_embeddings, feeddb, embeddingdb, config, batch_size

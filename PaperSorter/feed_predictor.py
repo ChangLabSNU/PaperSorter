@@ -116,11 +116,11 @@ class FeedPredictor:
             try:
                 # Generate embeddings for the batch
                 params = {"input": formatted_items, "model": self.embedding_model}
-                
+
                 # Add dimensions if specified in config
                 if self.embedding_dimensions:
                     params["dimensions"] = self.embedding_dimensions
-                    
+
                 response = self.openai_client.embeddings.create(**params)
 
                 # Store embeddings

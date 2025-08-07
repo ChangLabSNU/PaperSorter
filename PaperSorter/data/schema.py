@@ -199,7 +199,7 @@ INDEXES = [
         "type": "hnsw",
         "columns": ["embedding public.vector_cosine_ops"],
     },
-    
+
     # Feeds indexes
     {"name": "idx_feeds_external_id", "table": "feeds", "columns": ["external_id"]},
     {"name": "idx_feeds_added", "table": "feeds", "columns": ["added"]},
@@ -207,7 +207,7 @@ INDEXES = [
     {"name": "idx_feeds_title", "table": "feeds", "columns": ["title"]},
     {"name": "idx_feeds_link", "table": "feeds", "columns": ["link"]},
     {"name": "idx_feeds_mediaurl", "table": "feeds", "columns": ["mediaurl"]},
-    
+
     # Articles indexes (legacy compatibility)
     {"name": "idx_articles_external_id", "table": "articles", "columns": ["external_id"]},
     {"name": "idx_articles_added", "table": "articles", "columns": ["added"]},
@@ -215,28 +215,28 @@ INDEXES = [
     {"name": "idx_articles_title", "table": "articles", "columns": ["title"]},
     {"name": "idx_articles_link", "table": "articles", "columns": ["link"]},
     {"name": "idx_articles_mediaurl", "table": "articles", "columns": ["mediaurl"]},
-    
+
     # Preferences indexes
     {"name": "idx_preferences_feed_id", "table": "preferences", "columns": ["feed_id"]},
     {"name": "idx_preferences_user_id", "table": "preferences", "columns": ["user_id"]},
     {"name": "idx_preferences_score", "table": "preferences", "columns": ["score"]},
     {"name": "idx_preferences_time", "table": "preferences", "columns": ["time"]},
-    
+
     # Events indexes
     {"name": "idx_events_occurred", "table": "events", "columns": ["occurred"]},
     {"name": "idx_events_type", "table": "events", "columns": ["event_type"]},
     {"name": "idx_events_feed", "table": "events", "columns": ["feed_id"]},
-    
+
     # Broadcasts indexes
     {"name": "idx_broadcasts_time", "table": "broadcasts", "columns": ["broadcasted_time"]},
-    
+
     # Feed sources indexes
     {"name": "idx_feed_sources_last_checked", "table": "feed_sources", "columns": ["last_checked"]},
-    
+
     # Labeling sessions indexes
     {"name": "idx_labeling_sessions_user", "table": "labeling_sessions", "columns": ["user_id"]},
     {"name": "idx_labeling_sessions_score", "table": "labeling_sessions", "columns": ["user_id", "score"]},
-    
+
     # Models indexes
     {"name": "idx_models_user", "table": "models", "columns": ["user_id"]},
 ]
