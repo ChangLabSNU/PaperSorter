@@ -25,7 +25,7 @@ embedding_api:
   api_url: "https://api.openai.com/v1"
   # Optional: model name (defaults to text-embedding-3-large)
   model: "text-embedding-3-large"
-  # Optional: embedding dimensions
+  # Embedding dimensions
   dimensions: 3072
 
 # Summarization API configuration
@@ -37,12 +37,6 @@ summarization_api:
   # Optional: model name for summarization
   model: "gpt-4o-mini"
 
-# Feed sources are now configured via the web interface or database
-# RSS feeds can be added through:
-# - Web interface at /settings/feed-sources
-# - OPML import using tools/import-opml.py
-# - Direct database insertion
-
 # Semantic Scholar API configuration
 # Used for enriching article metadata
 semanticscholar:
@@ -52,6 +46,11 @@ semanticscholar:
 web:
   # Base URL for web interface (used for "More Like This" links in Slack)
   base_url: "https://your-domain.example.com"
+
+# Storage configuration
+storage:
+  # Directory for storing AI-generated poster images
+  ai_poster_dir: "./ai_posters"
 
 # Note: Slack webhook URLs are configured per channel in the database
 # Use the web interface or direct database access to configure channels
