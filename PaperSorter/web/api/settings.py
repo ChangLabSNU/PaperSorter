@@ -90,7 +90,7 @@ def api_get_channels():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, name, endpoint_url, score_threshold, model_id, is_active
+        SELECT id, name, endpoint_url, score_threshold, model_id, is_active, broadcast_limit
         FROM channels
         ORDER BY id
     """)
@@ -114,8 +114,8 @@ def api_create_channel():
     try:
         cursor.execute(
             """
-            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active, broadcast_limit)
+            VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -124,6 +124,7 @@ def api_create_channel():
                 data.get("score_threshold", 0.7),
                 data.get("model_id", 1),
                 data.get("is_active", True),
+                data.get("broadcast_limit", 20),
             ),
         )
 
@@ -153,7 +154,7 @@ def api_update_channel(channel_id):
         cursor.execute(
             """
             UPDATE channels
-            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s
+            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s, broadcast_limit = %s
             WHERE id = %s
         """,
             (
@@ -162,6 +163,7 @@ def api_update_channel(channel_id):
                 data.get("score_threshold", 0.7),
                 data.get("model_id", 1),
                 data.get("is_active", True),
+                data.get("broadcast_limit", 20),
                 channel_id,
             ),
         )
