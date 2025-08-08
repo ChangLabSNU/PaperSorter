@@ -110,6 +110,7 @@ TABLES = [
             ("score_threshold", "double precision"),
             ("model_id", "integer REFERENCES {schema}.models(id) ON UPDATE CASCADE ON DELETE CASCADE"),
             ("is_active", "boolean DEFAULT true NOT NULL"),
+            ("broadcast_limit", "integer DEFAULT 20"),
         ]
     },
     {

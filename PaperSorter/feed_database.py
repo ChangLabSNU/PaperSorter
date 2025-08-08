@@ -659,14 +659,14 @@ class FeedDatabase:
             result = self.cursor.fetchone()
             model_id = result["id"] if result else 1
 
-        # Get unprocessed items from the queue
+        # Get unprocessed items from the queue (FIFO - oldest added first)
         query = """
             SELECT f.*, pp.score, bl.feed_id as queue_feed_id
             FROM broadcasts bl
             JOIN feeds f ON bl.feed_id = f.id
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
             WHERE bl.channel_id = %s AND bl.broadcasted_time IS NULL
-            ORDER BY f.published DESC
+            ORDER BY f.added ASC
         """
         if limit:
             query += f" LIMIT {limit}"

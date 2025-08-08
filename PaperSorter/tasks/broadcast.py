@@ -214,12 +214,6 @@ def normalize_text(text):
     "--config", default="./config.yml", help="Database configuration file."
 )
 @click.option(
-    "--limit",
-    default=None,
-    type=int,
-    help="Maximum number of items to process per channel.",
-)
-@click.option(
     "--max-content-length", default=400, help="Maximum length of the content."
 )
 @click.option(
@@ -229,7 +223,7 @@ def normalize_text(text):
 )
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
-def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
+def main(config, max_content_length, clear_old_days, log_file, quiet):
     initialize_logging(task="broadcast", logfile=log_file, quiet=quiet)
 
     # Load configuration to get base URL
@@ -250,7 +244,8 @@ def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
 
     # Get all active channels
     feeddb.cursor.execute("""
-        SELECT c.id, c.name, c.endpoint_url, c.model_id, m.name as model_name
+        SELECT c.id, c.name, c.endpoint_url, c.model_id, c.broadcast_limit,
+               m.name as model_name
         FROM channels c
         LEFT JOIN models m ON c.model_id = m.id
         WHERE c.is_active = TRUE AND c.endpoint_url IS NOT NULL
@@ -287,8 +282,10 @@ def main(config, limit, max_content_length, clear_old_days, log_file, quiet):
             )
 
         # Get items from the broadcast queue for this channel
+        # Use channel-specific broadcast_limit
+        channel_limit = channel.get("broadcast_limit", 20)  # Default to 20 if not set
         queue_items = feeddb.get_broadcast_queue_items(
-            channel_id=channel_id, limit=limit, model_id=model_id
+            channel_id=channel_id, limit=channel_limit, model_id=model_id
         )
 
         if len(queue_items) == 0:
