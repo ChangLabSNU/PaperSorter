@@ -28,6 +28,8 @@ import os
 import yaml
 import openai
 from .log import log
+import time
+import random
 
 
 class FeedPredictor:
@@ -113,38 +115,56 @@ class FeedPredictor:
             if not formatted_items:
                 continue
 
-            try:
-                # Generate embeddings for the batch
-                params = {"input": formatted_items, "model": self.embedding_model}
+            # Retry logic for handling overloaded model errors
+            max_retries = 5
+            retry_count = 0
 
-                # Add dimensions if specified in config
-                if self.embedding_dimensions:
-                    params["dimensions"] = self.embedding_dimensions
+            while retry_count < max_retries:
+                try:
+                    # Generate embeddings for the batch
+                    params = {"input": formatted_items, "model": self.embedding_model}
 
-                response = self.openai_client.embeddings.create(**params)
+                    # Add dimensions if specified in config
+                    if self.embedding_dimensions:
+                        params["dimensions"] = self.embedding_dimensions
 
-                # Store embeddings
-                for idx, embedding_data in enumerate(response.data):
-                    if idx in feed_id_map:
-                        feed_id = feed_id_map[idx]
-                        # Store embedding in database
-                        self.embeddingdb.cursor.execute(
-                            """
-                            INSERT INTO embeddings (feed_id, embedding)
-                            VALUES (%s, %s)
-                            ON CONFLICT (feed_id) DO UPDATE
-                            SET embedding = EXCLUDED.embedding
-                        """,
-                            (feed_id, np.array(embedding_data.embedding)),
-                        )
-                        successful_feeds.append(feed_id)
+                    response = self.openai_client.embeddings.create(**params)
 
-                log.info(
-                    f"Generated embeddings for batch of {len(response.data)} items"
-                )
+                    # Store embeddings
+                    for idx, embedding_data in enumerate(response.data):
+                        if idx in feed_id_map:
+                            feed_id = feed_id_map[idx]
+                            # Store embedding in database
+                            self.embeddingdb.cursor.execute(
+                                """
+                                INSERT INTO embeddings (feed_id, embedding)
+                                VALUES (%s, %s)
+                                ON CONFLICT (feed_id) DO UPDATE
+                                SET embedding = EXCLUDED.embedding
+                            """,
+                                (feed_id, np.array(embedding_data.embedding)),
+                            )
+                            successful_feeds.append(feed_id)
 
-            except Exception as e:
-                log.error(f"Failed to generate embeddings for batch: {e}")
+                    log.info(
+                        f"Generated embeddings for batch of {len(response.data)} items"
+                    )
+                    break  # Success, exit retry loop
+
+                except Exception as e:
+                    error_str = str(e)
+                    # Check if it's a 503 overloaded error
+                    if "503" in error_str and "overloaded" in error_str.lower():
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            sleep_time = random.uniform(5, 20)
+                            log.warning(f"Model overloaded, retrying in {sleep_time:.1f} seconds (attempt {retry_count}/{max_retries})")
+                            time.sleep(sleep_time)
+                        else:
+                            log.error(f"Failed to generate embeddings for batch after {max_retries} retries: {e}")
+                    else:
+                        log.error(f"Failed to generate embeddings for batch: {e}")
+                        break  # Non-retryable error, exit
 
         # Commit all embeddings
         if successful_feeds:
