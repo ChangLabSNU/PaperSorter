@@ -57,6 +57,21 @@ CREATE TYPE papersorter.preferences_source AS ENUM (
 );
 
 
+
+CREATE FUNCTION papersorter.propagate_feed_source_name_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$BEGIN
+    IF NEW.name <> OLD.name THEN
+        UPDATE papersorter.feeds
+        SET origin = NEW.name
+        WHERE origin = OLD.name;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -106,7 +121,9 @@ CREATE TABLE papersorter.channels (
     endpoint_url text,
     score_threshold double precision,
     model_id integer,
-    is_active boolean DEFAULT true NOT NULL
+    is_active boolean DEFAULT true NOT NULL,
+    broadcast_limit integer DEFAULT 20 NOT NULL,
+    CONSTRAINT broadcast_limit_check CHECK (((broadcast_limit >= 1) AND (broadcast_limit <= 100)))
 );
 
 
@@ -220,13 +237,6 @@ CREATE TABLE papersorter.labeling_sessions (
     user_id bigint NOT NULL,
     score double precision,
     update_time timestamp with time zone
-);
-
-
-
-CREATE TABLE papersorter.migrtmp_rss_dup_check (
-    external_id text NOT NULL,
-    added timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -430,11 +440,6 @@ ALTER TABLE ONLY papersorter.models
 
 
 
-ALTER TABLE ONLY papersorter.migrtmp_rss_dup_check
-    ADD CONSTRAINT migrtmp_rss_dup_check_pkey PRIMARY KEY (external_id);
-
-
-
 ALTER TABLE ONLY papersorter.models
     ADD CONSTRAINT models_pkey PRIMARY KEY (id);
 
@@ -572,6 +577,10 @@ CREATE INDEX idx_user_id ON papersorter.preferences USING btree (user_id);
 
 
 CREATE INDEX pk_articles_primary_articles_id ON papersorter.articles USING btree (external_id);
+
+
+
+CREATE TRIGGER trg_feed_source_name_update AFTER UPDATE ON papersorter.feed_sources FOR EACH ROW EXECUTE FUNCTION papersorter.propagate_feed_source_name_update();
 
 
 
