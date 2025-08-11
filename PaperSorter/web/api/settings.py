@@ -680,26 +680,6 @@ def api_delete_feed_source(source_id):
     cursor = conn.cursor()
 
     try:
-        # Check if there are any feeds using this source
-        cursor.execute(
-            """
-            SELECT COUNT(*) FROM feeds
-            WHERE origin = (SELECT name FROM feed_sources WHERE id = %s)
-        """,
-            (source_id,),
-        )
-
-        feed_count = cursor.fetchone()[0]
-        if feed_count > 0:
-            cursor.close()
-            conn.close()
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"Cannot delete: {feed_count} feeds are using this source",
-                }
-            ), 400
-
         cursor.execute("DELETE FROM feed_sources WHERE id = %s", (source_id,))
         conn.commit()
         cursor.close()

@@ -497,7 +497,7 @@
             const source = feedSources.find(s => s.id === id);
             if (!source) return;
 
-            if (!confirm(`Are you sure you want to delete "${source.name}"?\nThis source has ${source.feed_count || 0} feeds.`)) {
+            if (!confirm(`Are you sure you want to delete "${source.name}"?`)) {
                 return;
             }
 
