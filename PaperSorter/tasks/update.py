@@ -203,7 +203,12 @@ def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
     for feed_info in feed_infos:
         feed_id = feed_info["id"]
         title = feed_info["title"]
-        pubdate = datetime.fromtimestamp(feed_info["published"])
+        # Handle both datetime objects and timestamps for backward compatibility
+        published = feed_info["published"]
+        if isinstance(published, datetime):
+            pubdate = published
+        else:
+            pubdate = datetime.fromtimestamp(published)
 
         # Search for matching article
         article = provider.match_by_title(
