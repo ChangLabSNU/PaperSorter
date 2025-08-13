@@ -37,10 +37,29 @@ summarization_api:
   # Optional: model name for summarization
   model: "gpt-4o-mini"
 
-# Semantic Scholar API configuration
-# Used for enriching article metadata
-semanticscholar:
-  api_key: "your_semanticscholar_api_key"
+# Scholarly database configuration
+# Choose between Semantic Scholar and OpenAlex for enriching article metadata
+scholarly_database:
+  # Provider to use: "semantic_scholar" or "openalex"
+  provider: "semantic_scholar"
+  
+  # Semantic Scholar configuration (if provider is semantic_scholar)
+  semantic_scholar:
+    api_key: "your_semanticscholar_api_key"
+    # Optional: custom API URL
+    # api_url: "https://api.semanticscholar.org/graph/v1/paper"
+    # Optional: throttle between requests in seconds (default: 1)
+    # throttle: 1
+  
+  # OpenAlex configuration (if provider is openalex)
+  openalex:
+    # OpenAlex requires a VALID email address for polite access (no API key needed)
+    # Note: test@example.com and similar fake emails will NOT work
+    email: "your_real_email@domain.com"
+    # Optional: custom API URL
+    # api_url: "https://api.openalex.org"
+    # Optional: throttle between requests in seconds (default: 0.1)
+    # throttle: 0.1
 
 # Web interface configuration
 web:

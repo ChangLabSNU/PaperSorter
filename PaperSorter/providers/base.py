@@ -108,3 +108,4 @@ class FeedProvider(ABC):
             True if valid, False otherwise
         """
         return True
+

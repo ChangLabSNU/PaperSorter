@@ -22,21 +22,20 @@
 #
 
 from ..providers.rss import RSSProvider
+from ..providers.factory import ScholarlyDatabaseFactory
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..broadcast_channels import BroadcastChannels
 from ..feed_predictor import FeedPredictor
 from ..log import log, initialize_logging
 import xgboost as xgb
-from datetime import datetime, timedelta
-import time
-import requests
+from datetime import datetime
 import pickle
 import click
 
 FEED_EPOCH = (1980, 1, 1)
 
-S2_VENUE_UPDATE_BLACKLIST = {
+VENUE_UPDATE_BLACKLIST = {
     "Molecules and Cells",  # Molecular Cell (Cell Press) is incorrectly matched to this.
 }
 
@@ -181,79 +180,60 @@ def update_embeddings(feeddb, embeddingdb, config_path, batch_size):
     return len(successful_feeds)
 
 
-def update_s2_info(feeddb, s2_config, new_item_ids, dateoffset=60):
-    if not new_item_ids:
+def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
+    """Update article information from scholarly database provider."""
+    if not new_item_ids or not provider:
         return
 
-    api_headers = {"X-API-KEY": s2_config["S2_API_KEY"]}
-    api_base_url = s2_config.get(
-        "S2_API_URL", "https://api.semanticscholar.org/graph/v1/paper"
-    )
-    api_url = f"{api_base_url}/search/match"
-
     log.info(
-        f"Retrieving Semantic Scholar information for {len(new_item_ids)} new items..."
+        f"Retrieving {provider.name} information for {len(new_item_ids)} new items..."
     )
 
-    # Convert external_ids to feed_ids
-    feed_ids = []
+    # Convert external_ids to feed_ids with their info
+    feed_infos = []
     for external_id in new_item_ids:
         feeddb.cursor.execute(
-            "SELECT id FROM feeds WHERE external_id = %s", (external_id,)
+            "SELECT id, title, published FROM feeds WHERE external_id = %s",
+            (external_id,)
         )
         result = feeddb.cursor.fetchone()
         if result:
-            feed_ids.append(result["id"])
+            feed_infos.append(result)
 
-    for feed_id in feed_ids:
-        time.sleep(s2_config["S2_THROTTLE"])
+    for feed_info in feed_infos:
+        feed_id = feed_info["id"]
+        title = feed_info["title"]
+        pubdate = datetime.fromtimestamp(feed_info["published"])
 
-        feedinfo = feeddb[feed_id]
-        if not feedinfo:
-            continue
-
-        pubdate = datetime.fromtimestamp(feedinfo["published"])
-
-        date_from = pubdate - timedelta(days=dateoffset)
-        date_to = pubdate + timedelta(days=dateoffset)
-        date_range = (
-            f"{date_from.year}-{date_from.month:02d}-{date_from.day:02d}:"
-            f"{date_to.year}-{date_to.month:02d}-{date_to.day:02d}"
+        # Search for matching article
+        article = provider.match_by_title(
+            title,
+            publication_date=pubdate,
+            date_tolerance_days=dateoffset
         )
 
-        search_query = {
-            "query": feedinfo["title"],
-            "publicationDateOrYear": date_range,
-            "fields": "title,url,authors,venue,publicationDate,tldr",
-        }
-        r = requests.get(api_url, headers=api_headers, params=search_query).json()
-        if "data" not in r or not r["data"]:
+        if not article:
             continue
 
-        s2feed = r["data"][0]
-        if s2feed["tldr"] and s2feed["tldr"].get("text"):
-            feeddb.update_tldr(feed_id, s2feed["tldr"]["text"])
-        if s2feed["authors"]:
-            feeddb.update_author(feed_id, format_authors(s2feed["authors"]))
+        # Update feed information
+        if article.tldr:
+            feeddb.update_tldr(feed_id, article.tldr)
+
+        # Update abstract/content if available (especially important for OpenAlex)
+        if article.abstract:
+            feeddb.update_content(feed_id, article.abstract)
+
+        if article.authors:
+            feeddb.update_author(feed_id, article.format_authors())
+
         if (
-            s2feed.get("venue") is not None
-            and s2feed["venue"].strip()
-            and s2feed["venue"] not in S2_VENUE_UPDATE_BLACKLIST
+            article.venue is not None
+            and article.venue.strip()
+            and article.venue not in VENUE_UPDATE_BLACKLIST
         ):
-            feeddb.update_origin(feed_id, s2feed["venue"])
+            feeddb.update_origin(feed_id, article.venue)
 
         feeddb.commit()
-
-
-def format_authors(authors, max_authors=4):
-    assert max_authors >= 3
-
-    if len(authors) <= max_authors:
-        return ", ".join(author["name"] for author in authors)
-    else:
-        first_authors = ", ".join(a["name"] for a in authors[: max_authors - 2])
-        last_authors = ", ".join(a["name"] for a in authors[-2:])
-        return first_authors + ", ..., " + last_authors
 
 
 def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
@@ -410,22 +390,32 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
         check_interval_hours=check_interval_hours,
     )
 
-    # Update Semantic Scholar info if configured
-    if "semanticscholar" in full_config and full_config["semanticscholar"].get(
-        "api_key"
-    ):
-        s2_config = {
-            "S2_API_KEY": full_config["semanticscholar"]["api_key"],
-            "S2_API_URL": full_config["semanticscholar"].get("api_url"),
-            "S2_THROTTLE": full_config["semanticscholar"].get("throttle", 1),
-        }
-        try:
-            update_s2_info(feeddb, s2_config, new_item_ids)
-        except requests.exceptions.ConnectionError:
-            import traceback
+    # Update scholarly database info if configured
+    scholarly_config = full_config.get("scholarly_database", {})
 
-            traceback.print_exc()
-            # Show the exception but proceed to the next job.
+    # Backward compatibility: use semanticscholar config if new config doesn't exist
+    if not scholarly_config and "semanticscholar" in full_config:
+        scholarly_config = {
+            "provider": "semantic_scholar",
+            "semantic_scholar": full_config["semanticscholar"]
+        }
+
+    if scholarly_config:
+        provider_name = scholarly_config.get("provider", "semantic_scholar")
+        provider_config = scholarly_config.get(provider_name, {})
+
+        # Create provider
+        provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
+
+        if provider:
+            try:
+                update_scholarly_info(feeddb, provider, new_item_ids)
+            except Exception as e:
+                log.error(f"Failed to update {provider.name} info: {e}")
+        else:
+            log.warning(f"Failed to create {provider_name} provider - skipping scholarly database updates")
+    else:
+        log.debug("No scholarly database configured - skipping metadata enrichment")
 
     num_updates = update_embeddings(feeddb, embeddingdb, config, batch_size)
 

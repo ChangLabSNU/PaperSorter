@@ -926,7 +926,7 @@
                 </button>
                 {% if current_user.is_admin %}
                 <button id="searchToggleBtn" class="user-info" onclick="toggleSemanticSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
-                    <span style="margin-left: 0;">🔬 S2</span>
+                    <span style="margin-left: 0;">🔬 Add</span>
                 </button>
                 <a href="/settings" class="nav-link">⚙️ Settings</a>
                 {% endif %}
@@ -988,10 +988,10 @@
             </div>
         </div>
 
-        <!-- Semantic Scholar Search Interface -->
+        <!-- Scholarly Database Search Interface -->
         <div id="semanticSearchContainer" style="display: none;">
             <div class="search-interface">
-                <input type="text" id="semanticSearchInput" placeholder="Search for papers on Semantic Scholar..." class="search-input">
+                <input type="text" id="semanticSearchInput" placeholder="Search for papers in scholarly database..." class="search-input">
                 <button onclick="performSemanticSearch()" class="btn btn-primary">🔍 Search</button>
                 <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
             </div>
@@ -1000,7 +1000,7 @@
         <!-- Search Results Container -->
         <div id="searchResultsContainer" style="display: none;">
             <div class="search-results-header">
-                <h2>Semantic Scholar Search Results</h2>
+                <h2 id="searchResultsTitle">Scholarly Database Search Results</h2>
                 <button onclick="backToSearchInput()" class="btn btn-secondary">← Back to Search</button>
                 <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
             </div>
@@ -1829,9 +1829,10 @@
             document.getElementById('searchResultsContainer').style.display = 'block';
 
             const resultsDiv = document.getElementById('searchResults');
-            resultsDiv.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching Semantic Scholar...</div>';
+            resultsDiv.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching scholarly database...</div>';
 
-            fetch('/api/semantic-scholar/search', {
+            // Try new endpoint first, fall back to legacy endpoint
+            fetch('/api/scholarly-database/search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1849,13 +1850,35 @@
             })
             .then(data => {
                 if (data.success && data.papers) {
+                    // Update title with provider name if available
+                    if (data.provider) {
+                        document.getElementById('searchResultsTitle').textContent = `${data.provider} Search Results`;
+                    }
                     displaySearchResults(data.papers);
                 } else {
                     resultsDiv.innerHTML = '<div class="loading">No results found</div>';
                 }
             })
             .catch(error => {
-                resultsDiv.innerHTML = `<div class="loading" style="color: #e74c3c;">Error: ${error.message}</div>`;
+                // Try legacy endpoint as fallback
+                return fetch('/api/semantic-scholar/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.papers) {
+                        displaySearchResults(data.papers);
+                    } else {
+                        resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                    }
+                })
+                .catch(fallbackError => {
+                    resultsDiv.innerHTML = `<div class="loading" style="color: #e74c3c;">Error: ${fallbackError.message}</div>`;
+                });
             });
         }
 
@@ -1911,7 +1934,8 @@
             buttonElement.disabled = true;
             buttonElement.textContent = 'Adding...';
 
-            fetch('/api/semantic-scholar/add', {
+            // Try new endpoint first, fall back to legacy endpoint
+            fetch('/api/scholarly-database/add', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

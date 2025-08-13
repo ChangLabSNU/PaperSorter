@@ -108,6 +108,15 @@ summarization_api:
 # Feed sources are configured via web interface or database
 # No feed_service configuration needed anymore
 
+# Scholarly database configuration (choose between Semantic Scholar and OpenAlex)
+scholarly_database:
+  provider: "semantic_scholar"  # or "openalex"
+  semantic_scholar:
+    api_key: "your_s2_api_key"
+  openalex:
+    email: "your_real_email@domain.com"  # MUST be a valid email (test@example.com won't work)
+
+# Legacy configuration (for backward compatibility)
 semanticscholar:
   api_key: "your_s2_api_key"
 
@@ -144,7 +153,7 @@ The PostgreSQL database includes tables for:
 - XGBoost regression model predicts interest scores from embeddings
 - PostgreSQL database uses pgvector extension for efficient embedding storage and similarity search
 - Database configuration loaded from `./config.yml`
-- Semantic Scholar API integration for enriching article metadata
+- Scholarly database integration (Semantic Scholar or OpenAlex) for enriching article metadata
 - Support for batch processing to handle rate limits efficiently
 - Maintains backward compatibility with existing SQLite field names through mapping
 - Google OAuth authentication for web interface access
