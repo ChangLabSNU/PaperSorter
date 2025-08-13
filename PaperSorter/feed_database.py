@@ -417,6 +417,17 @@ class FeedDatabase:
                 "UPDATE feeds SET origin = %s WHERE id = %s", (origin, item_id)
             )
 
+    def update_content(self, item_id, content):
+        """Update the content (abstract) field of a feed item."""
+        if isinstance(item_id, str):
+            self.cursor.execute(
+                "UPDATE feeds SET content = %s WHERE external_id = %s", (content, item_id)
+            )
+        else:
+            self.cursor.execute(
+                "UPDATE feeds SET content = %s WHERE id = %s", (content, item_id)
+            )
+
     def get_unscored_items(self):
         # Get active model IDs
         self.cursor.execute("SELECT id FROM models WHERE is_active = TRUE")

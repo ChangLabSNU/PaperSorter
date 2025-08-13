@@ -503,3 +503,4 @@ class RSSProvider(FeedProvider):
 
         # Default to current time only if no date found
         return datetime.now(timezone.utc)
+

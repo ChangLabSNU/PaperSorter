@@ -84,7 +84,7 @@ def main(config, schema, drop_existing, quiet):
                 log.error(f"   sudo -u postgres psql -d {db_config['database']} -c 'CREATE EXTENSION vector;'")
                 log.error("")
                 log.error("2. Ask your database administrator to run:")
-                log.error(f"   CREATE EXTENSION vector;")
+                log.error("   CREATE EXTENSION vector;")
                 log.error("")
                 log.error("After installing pgvector, run 'papersorter init' again.")
                 return
@@ -162,7 +162,7 @@ def main(config, schema, drop_existing, quiet):
                     log.error(f"   sudo -u postgres psql -d {db_config['database']} -c 'CREATE EXTENSION vector;'")
                     log.error("")
                     log.error("2. Ask your database administrator to run:")
-                    log.error(f"   CREATE EXTENSION vector;")
+                    log.error("   CREATE EXTENSION vector;")
                     log.error("")
                     log.error("After installing pgvector, run 'papersorter init' again.")
                     return

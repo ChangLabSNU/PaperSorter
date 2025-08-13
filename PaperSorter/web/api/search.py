@@ -24,9 +24,7 @@
 """Search API endpoints."""
 
 import json
-import uuid
 import yaml
-import requests
 import markdown2
 import psycopg2
 import psycopg2.extras
@@ -38,7 +36,8 @@ from ...embedding_database import EmbeddingDatabase
 from ...feed_database import FeedDatabase
 from ...feed_predictor import FeedPredictor
 from ..auth.decorators import admin_required
-from ..models.semantic_scholar import SemanticScholarItem
+from ..models.scholarly_article import ScholarlyArticleItem
+from ...providers.factory import ScholarlyDatabaseFactory
 from ..utils.database import get_default_model_id, save_search_query
 
 search_bp = Blueprint("search", __name__)
@@ -318,10 +317,10 @@ Keep your response focused and actionable, using clear Markdown formatting. When
         return jsonify({"error": "Failed to generate summary"}), 500
 
 
-@search_bp.route("/api/semantic-scholar/search", methods=["POST"])
+@search_bp.route("/api/scholarly-database/search", methods=["POST"])
 @admin_required
-def api_semantic_scholar_search():
-    """Search for papers on Semantic Scholar (admin only)."""
+def api_scholarly_database_search():
+    """Search for papers in the configured scholarly database (admin only)."""
     data = request.get_json()
     query = data.get("query", "").strip()
 
@@ -329,88 +328,131 @@ def api_semantic_scholar_search():
         return jsonify({"error": "Query is required"}), 400
 
     try:
-        # Load Semantic Scholar configuration
+        # Load configuration and create provider
         config_path = current_app.config["CONFIG_PATH"]
         with open(config_path, "r") as f:
             config_yaml = yaml.safe_load(f)
 
-        s2_config = config_yaml.get("semanticscholar", {})
-        api_key = s2_config.get("api_key")
-        api_base_url = s2_config.get(
-            "api_url", "https://api.semanticscholar.org/graph/v1/paper"
-        )
-        api_url = f"{api_base_url}/search"
+        # Get scholarly database configuration
+        scholarly_config = config_yaml.get("scholarly_database", {})
 
-        if not api_key:
-            return jsonify({"error": "Semantic Scholar API key not configured"}), 500
+        # Backward compatibility: use semanticscholar config if new config doesn't exist
+        if not scholarly_config:
+            s2_config = config_yaml.get("semanticscholar", {})
+            if s2_config:
+                scholarly_config = {
+                    "provider": "semantic_scholar",
+                    "semantic_scholar": s2_config
+                }
+            else:
+                return jsonify({"error": "No scholarly database configured"}), 500
 
-        # Search Semantic Scholar
-        fields = "title,year,url,authors,abstract,venue,journal,publicationDate,externalIds,tldr"
-        api_headers = {"X-API-KEY": api_key}
-        params = {
-            "query": query,
-            "fields": fields,
-            "year": "2023-",  # Only recent papers
-            "limit": 20,
-        }
+        # Get provider name and config
+        provider_name = scholarly_config.get("provider", "semantic_scholar")
+        provider_config = scholarly_config.get(provider_name, {})
 
-        response = requests.get(api_url, headers=api_headers, params=params)
-        response.raise_for_status()
+        # Create provider
+        provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
+        if not provider:
+            return jsonify({"error": f"Failed to create {provider_name} provider"}), 500
 
-        result = response.json()
-        papers = result.get("data", [])
+        # Search using the provider
+        # Don't filter by year for the "Add" interface - users want to add any paper
+        articles = provider.search(query, limit=20)
 
         # Check which papers already exist in our database
         conn = current_app.config["get_db_connection"]()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        for paper in papers:
-            # Generate the same ID that SemanticScholarItem would generate
-            article_id = str(uuid.uuid3(uuid.NAMESPACE_URL, paper["url"]))
+        papers = []
+        for article in articles:
+            paper_dict = article.to_dict()
 
             # Check if this paper already exists
             cursor.execute(
                 """
                 SELECT id FROM feeds WHERE external_id = %s
             """,
-                (article_id,),
+                (article.unique_id,),
             )
 
             existing = cursor.fetchone()
-            paper["already_added"] = existing is not None
-            paper["article_id"] = article_id
+            paper_dict["already_added"] = existing is not None
+            paper_dict["article_id"] = article.unique_id
+            papers.append(paper_dict)
 
         cursor.close()
         conn.close()
 
-        return jsonify({"success": True, "papers": papers, "total": len(papers)})
+        return jsonify({
+            "success": True,
+            "papers": papers,
+            "total": len(papers),
+            "provider": provider.name
+        })
 
-    except requests.RequestException as e:
-        log.error(f"Semantic Scholar API error: {e}")
-        return jsonify({"error": "Failed to search Semantic Scholar"}), 500
     except Exception as e:
-        log.error(f"Error in Semantic Scholar search: {e}")
-        return jsonify({"error": "An error occurred"}), 500
+        log.error(f"Error in scholarly database search: {e}")
+        return jsonify({"error": "Failed to search scholarly database"}), 500
 
-
-@search_bp.route("/api/semantic-scholar/add", methods=["POST"])
+# Keep old endpoint for backward compatibility
+@search_bp.route("/api/semantic-scholar/search", methods=["POST"])
 @admin_required
-def api_semantic_scholar_add():
-    """Add a paper from Semantic Scholar to the database (admin only)."""
-    data = request.get_json()
-    paper_data = data.get("paper")
+def api_semantic_scholar_search():
+    """Legacy endpoint - redirects to scholarly database search."""
+    return api_scholarly_database_search()
 
-    if not paper_data:
+
+@search_bp.route("/api/scholarly-database/add", methods=["POST"])
+@admin_required
+def api_scholarly_database_add():
+    """Add a paper from scholarly database to the database (admin only)."""
+    data = request.get_json()
+    article_data = data.get("paper")  # Keep "paper" for backward compatibility
+
+    if not article_data:
         return jsonify({"error": "Paper data is required"}), 400
 
     try:
-        # Create SemanticScholarItem
-        item = SemanticScholarItem(paper_data)
-
-        # Load database configuration
+        # Load configuration
         config_path = current_app.config["CONFIG_PATH"]
         with open(config_path, "r") as f:
             config_yaml = yaml.safe_load(f)
+
+        # Get scholarly database configuration
+        scholarly_config = config_yaml.get("scholarly_database", {})
+
+        # Backward compatibility
+        if not scholarly_config:
+            scholarly_config = {
+                "provider": "semantic_scholar",
+                "semantic_scholar": config_yaml.get("semanticscholar", {})
+            }
+
+        # Get provider name and config
+        provider_name = scholarly_config.get("provider", "semantic_scholar")
+        provider_config = scholarly_config.get(provider_name, {})
+
+        # Create provider to parse the article data
+        provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
+        if not provider:
+            return jsonify({"error": f"Failed to create {provider_name} provider"}), 500
+
+        # Create ScholarlyArticle from raw data
+        # This assumes the data is in the provider's format
+        if provider_name == "semantic_scholar" or provider_name == "semanticscholar":
+            from ...providers.semantic_scholar import SemanticScholarProvider
+            temp_provider = SemanticScholarProvider({})
+            article = temp_provider._parse_article(article_data)
+        elif provider_name == "openalex":
+            from ...providers.openalex import OpenAlexProvider
+            temp_provider = OpenAlexProvider({})
+            article = temp_provider._parse_article(article_data)
+        else:
+            return jsonify({"error": f"Unknown provider: {provider_name}"}), 500
+
+        # Create FeedItem from ScholarlyArticle
+        item = ScholarlyArticleItem(article)
 
         # Create database connection
         db = FeedDatabase(config_path)
@@ -446,5 +488,12 @@ def api_semantic_scholar_add():
             ), 409
 
     except Exception as e:
-        log.error(f"Error adding Semantic Scholar paper: {e}")
+        log.error(f"Error adding paper from scholarly database: {e}")
         return jsonify({"error": "Failed to add paper"}), 500
+
+# Keep old endpoint for backward compatibility
+@search_bp.route("/api/semantic-scholar/add", methods=["POST"])
+@admin_required
+def api_semantic_scholar_add():
+    """Legacy endpoint - redirects to scholarly database add."""
+    return api_scholarly_database_add()

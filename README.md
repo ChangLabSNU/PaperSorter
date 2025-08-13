@@ -11,7 +11,7 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 - **Flexible AI integration**: Compatible with Solar LLM, Gemini, or any OpenAI-compatible generative AI API
 - **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
 - **Slack integration**: Automated notifications for interesting papers with customizable thresholds
-- **Semantic Scholar enrichment**: Augments articles with citation counts and additional metadata
+- **Scholarly database integration**: Choose between Semantic Scholar (with TL;DR summaries) or OpenAlex (no API key needed) for metadata enrichment
 - **Multi-channel support**: Different models and thresholds for different research groups or topics
 - **AI-powered content generation**: Create concise summaries and visual infographics for article collections
 
@@ -60,8 +60,17 @@ summarization_api:
   api_url: "https://generativelanguage.googleapis.com/v1beta/openai"  # For Gemini
   model: "gemini-2.5-pro"
 
-semanticscholar:
-  api_key: "your_semantic_scholar_api_key"
+# Scholarly database configuration (choose one provider)
+scholarly_database:
+  provider: "semantic_scholar"  # or "openalex"
+  
+  # Option 1: Semantic Scholar (provides TL;DR summaries, requires API key)
+  semantic_scholar:
+    api_key: "your_semantic_scholar_api_key"
+  
+  # Option 2: OpenAlex (no API key needed, just email)
+  openalex:
+    email: "your_email@example.com"  # Must be a valid email address
 
 web:
   base_url: "https://your-domain.com"  # base URL for web interface
@@ -218,6 +227,40 @@ Example cron configuration (see `examples/` directory for complete scripts with 
 30 */3 * * * /path/to/papersorter/examples/cron-update.sh
 0 9,13,18 * * * /path/to/papersorter/examples/cron-broadcast.sh
 ```
+
+## Scholarly Database Providers
+
+PaperSorter can enrich article metadata using either Semantic Scholar or OpenAlex:
+
+### Semantic Scholar
+- **Pros**: Provides TL;DR summaries, comprehensive metadata
+- **Cons**: Requires API key (free with registration)
+- **Best for**: Users who want article summaries
+- **Configuration**:
+  ```yaml
+  scholarly_database:
+    provider: "semantic_scholar"
+    semantic_scholar:
+      api_key: "your_api_key"
+  ```
+
+### OpenAlex
+- **Pros**: No API key required, just email address; larger database
+- **Cons**: No TL;DR summaries
+- **Best for**: Quick setup, broader coverage
+- **Configuration**:
+  ```yaml
+  scholarly_database:
+    provider: "openalex"
+    openalex:
+      email: "your_email@example.com"  # Must be valid
+  ```
+
+Both providers will enrich your RSS feed articles with:
+- Corrected author names
+- Journal/venue information
+- Full abstracts
+- Publication dates
 
 ## Command Reference
 
