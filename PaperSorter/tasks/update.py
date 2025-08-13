@@ -404,12 +404,17 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
         provider_name = scholarly_config.get("provider", "semantic_scholar")
         provider_config = scholarly_config.get(provider_name, {})
 
+        # Get date tolerance for automatic matching (default to 60 days)
+        # This only affects the update task's automatic metadata enrichment,
+        # NOT the web interface search functionality
+        match_date_tolerance = scholarly_config.get("match_date_tolerance_days", 60)
+
         # Create provider
         provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
 
         if provider:
             try:
-                update_scholarly_info(feeddb, provider, new_item_ids)
+                update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=match_date_tolerance)
             except Exception as e:
                 log.error(f"Failed to update {provider.name} info: {e}")
         else:

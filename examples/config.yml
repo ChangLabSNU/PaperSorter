@@ -42,7 +42,14 @@ summarization_api:
 scholarly_database:
   # Provider to use: "semantic_scholar" or "openalex"
   provider: "semantic_scholar"
-  
+
+  # Date tolerance for automatic article matching during update task (in days)
+  # When the update task tries to match RSS articles with scholarly database entries,
+  # it will only consider articles published within this many days of the RSS date.
+  # This does NOT affect web interface search functionality.
+  # Default: 60
+  match_date_tolerance_days: 60
+
   # Semantic Scholar configuration (if provider is semantic_scholar)
   semantic_scholar:
     api_key: "your_semanticscholar_api_key"
@@ -50,7 +57,7 @@ scholarly_database:
     # api_url: "https://api.semanticscholar.org/graph/v1/paper"
     # Optional: throttle between requests in seconds (default: 1)
     # throttle: 1
-  
+
   # OpenAlex configuration (if provider is openalex)
   openalex:
     # OpenAlex requires a VALID email address for polite access (no API key needed)
