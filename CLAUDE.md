@@ -89,10 +89,17 @@ db:
   database: papersorter
   password: "your_password"
 
-google_oauth:
-  client_id: "your_google_client_id"
-  secret: "your_google_client_secret"
+web:
+  base_url: "https://reader.qbio.io"  # Base URL for web interface (used for "More Like This" links in Slack)
   flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
+
+oauth:
+  google:
+    client_id: "your_google_client_id"
+    secret: "your_google_client_secret"
+  github:
+    client_id: "your_github_client_id"
+    secret: "your_github_client_secret"
 
 embedding_api:
   api_key: "your_api_key"
@@ -119,12 +126,11 @@ scholarly_database:
 # Legacy configuration (for backward compatibility)
 semanticscholar:
   api_key: "your_s2_api_key"
-
-web:
-  base_url: "https://reader.qbio.io"  # Base URL for web interface (used for "More Like This" links in Slack)
 ```
 
-Note: Slack webhook URLs are stored in the database `channels` table per channel.
+Note: 
+- Slack webhook URLs are stored in the database `channels` table per channel.
+- The system maintains backward compatibility with old config format (`google_oauth`)
 
 ## Data Storage
 
@@ -156,7 +162,7 @@ The PostgreSQL database includes tables for:
 - Scholarly database integration (Semantic Scholar or OpenAlex) for enriching article metadata
 - Support for batch processing to handle rate limits efficiently
 - Maintains backward compatibility with existing SQLite field names through mapping
-- Google OAuth authentication for web interface access
+- Google and GitHub OAuth authentication for web interface access
 - Session management with Flask-Login
 - Protected routes require authentication
 - Broadcast queue mechanism: items are queued during update phase based on score threshold and processed during broadcast phase

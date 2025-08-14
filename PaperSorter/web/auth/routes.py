@@ -51,9 +51,35 @@ def login():
             return redirect(next_page)
         return redirect(url_for("main.index"))
 
+    # Check which OAuth providers are properly configured
+    oauth_providers = current_app.extensions.get("authlib.integrations.flask_client")
+    
+    # Check if Google OAuth is configured and not using example values
+    has_google = False
+    if oauth_providers and hasattr(oauth_providers, 'google'):
+        google_client = oauth_providers.google
+        if google_client and google_client.client_id:
+            # Check if it's not an example value
+            if not google_client.client_id.startswith("your-") and \
+               not google_client.client_id.startswith("your_"):
+                has_google = True
+    
+    # Check if GitHub OAuth is configured and not using example values
+    has_github = False
+    if oauth_providers and hasattr(oauth_providers, 'github'):
+        github_client = oauth_providers.github
+        if github_client and github_client.client_id:
+            # Check if it's not an example value
+            if not github_client.client_id.startswith("your-") and \
+               not github_client.client_id.startswith("your_"):
+                has_github = True
+
     # Get the next parameter from the request
     next_page = request.args.get("next")
-    return render_template("login.html", next=next_page)
+    return render_template("login.html", 
+                         next=next_page, 
+                         has_google=has_google, 
+                         has_github=has_github)
 
 
 @auth_bp.route("/login/google")
@@ -67,6 +93,19 @@ def google_login():
     google = current_app.extensions.get("authlib.integrations.flask_client").google
     redirect_uri = url_for("auth.google_callback", _external=True)
     return google.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route("/login/github")
+def github_login():
+    """Initiate GitHub OAuth login."""
+    # Store the next parameter in session to preserve it through OAuth flow
+    next_page = request.args.get("next")
+    if next_page:
+        session["next_page"] = next_page
+
+    github = current_app.extensions.get("authlib.integrations.flask_client").github
+    redirect_uri = url_for("auth.github_callback", _external=True)
+    return github.authorize_redirect(redirect_uri)
 
 
 @auth_bp.route("/callback")
@@ -141,6 +180,95 @@ def google_callback():
     except Exception as e:
         log.error(f"OAuth callback error: {e}")
         return redirect(url_for("auth.login", error="Authentication failed"))
+
+
+@auth_bp.route("/callback/github")
+def github_callback():
+    """Handle GitHub OAuth callback."""
+    try:
+        github = current_app.extensions.get("authlib.integrations.flask_client").github
+        token = github.authorize_access_token()
+        
+        # Get user info from GitHub
+        resp = github.get("user", token=token)
+        user_info = resp.json()
+        
+        # Get primary email if not public
+        if not user_info.get("email"):
+            emails_resp = github.get("user/emails", token=token)
+            emails = emails_resp.json()
+            # Find primary email
+            for email_data in emails:
+                if email_data.get("primary") and email_data.get("verified"):
+                    user_info["email"] = email_data["email"]
+                    break
+        
+        if user_info and user_info.get("email"):
+            email = user_info["email"]
+            
+            conn = current_app.config["get_db_connection"]()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Check if user exists
+            cursor.execute(
+                "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
+                (email,),
+            )
+            user_data = cursor.fetchone()
+            
+            if not user_data:
+                # Create new user (non-admin by default)
+                cursor.execute(
+                    """
+                    INSERT INTO users (username, password, created, is_admin, timezone)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
+                    RETURNING id, username, is_admin, timezone
+                """,
+                    (email, "oauth"),
+                )
+                user_data = cursor.fetchone()
+                conn.commit()
+            
+            # Update last login
+            cursor.execute(
+                """
+                UPDATE users SET lastlogin = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """,
+                (user_data["id"],),
+            )
+            conn.commit()
+            
+            cursor.close()
+            conn.close()
+            
+            # Log the user in
+            user = User(
+                user_data["id"],
+                user_data["username"],
+                email,
+                is_admin=user_data.get("is_admin", False),
+                timezone=user_data.get("timezone", "Asia/Seoul"),
+                feedlist_minscore=user_data.get("feedlist_minscore"),
+            )
+            login_user(user)
+            
+            # Make the session permanent
+            session.permanent = True
+            
+            # Redirect to the original requested page or home
+            next_page = session.pop("next_page", None) or request.args.get("next")
+            if next_page and next_page.startswith("/"):
+                return redirect(next_page)
+            else:
+                return redirect(url_for("main.index"))
+        else:
+            log.error("No email found in GitHub account")
+            return redirect(url_for("auth.login", error="No email associated with GitHub account"))
+            
+    except Exception as e:
+        log.error(f"GitHub OAuth callback error: {e}")
+        return redirect(url_for("auth.login", error="GitHub authentication failed"))
 
 
 @auth_bp.route("/logout")
