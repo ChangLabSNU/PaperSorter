@@ -20,6 +20,7 @@ parts/
 sdist/
 var/
 wheels/
+qtest/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -40,6 +41,7 @@ notebook/
 old/
 qbio/
 run-update.sh
+run-broadcast.sh
 
 # Data files
 *.tsv
@@ -47,6 +49,7 @@ run-update.sh
 *.json
 search-dump.json
 sqlnotes.txt
+dbbackup-*
 
 # Model comparison files
 model_comparison.tsv
