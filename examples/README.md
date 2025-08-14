@@ -12,7 +12,7 @@ Example configuration file for PaperSorter. Copy this to your working directory 
 These scripts provide automated execution with log rotation:
 
 - **cron-update.sh** - Runs the update task to fetch new articles
-- **cron-broadcast.sh** - Runs the broadcast task to send Slack notifications (with time-based filtering)
+- **cron-broadcast.sh** - Runs the broadcast task to send notifications
 - **cron-combined.sh** - Runs both update and broadcast in sequence
 
 To use these scripts:
@@ -55,5 +55,6 @@ Example crontab entries showing different scheduling strategies for running Pape
 ## Notes
 
 - The cron scripts include automatic log rotation to prevent logs from growing too large
-- Broadcast scripts include time-based filtering to only send notifications during working hours
-- Adjust the schedules and time windows according to your preferences and timezone
+- Broadcast hours are now configured per channel in the web interface settings
+- The broadcast task can run every hour and will automatically respect each channel's configured hours
+- Adjust the update schedule according to your preferences

@@ -51,20 +51,12 @@ $PAPERSORTER_CMD update \
     --limit-sources 20 \
     --check-interval-hours 3
 
-# Check current hour for time-based broadcasting
-CURRENT_HOUR=$(date +%H)
-
-# Only broadcast during working hours (7 AM to 9 PM)
-# Adjust these hours based on your preferences
-if [ "$CURRENT_HOUR" -ge 7 ] && [ "$CURRENT_HOUR" -le 21 ]; then
-    echo "$(date): Starting broadcast task" >> "$LOGFILE"
-    $PAPERSORTER_CMD broadcast \
-        --config "$CONFIG_FILE" \
-        --log-file "$LOGFILE" \
-        --quiet
-else
-    echo "$(date): Skipping broadcast outside of working hours (current hour: $CURRENT_HOUR)" >> "$LOGFILE"
-fi
+# Run broadcast task (channels have their own hour restrictions)
+echo "$(date): Starting broadcast task" >> "$LOGFILE"
+$PAPERSORTER_CMD broadcast \
+    --config "$CONFIG_FILE" \
+    --log-file "$LOGFILE" \
+    --quiet
 
 # Rotate logs if needed
 rotate_logs
