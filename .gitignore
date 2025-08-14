@@ -65,3 +65,6 @@ plot_model_comparisons.py
 # Temporary scripts
 recreate_embeddings_vertex.py
 openai-google-embedding.py
+
+# prevent credentials from being committed
+config.yml
