@@ -44,10 +44,27 @@ db:
   database: papersorter
   password: "your_password"
 
-google_oauth:
-  client_id: "your_google_client_id"
-  client_secret: "your_google_client_secret"
+web:
+  base_url: "https://your-domain.com"  # base URL for web interface
   flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
+
+# OAuth configuration - configure one or more providers
+oauth:
+  # Google OAuth
+  google:
+    client_id: "your_google_client_id.apps.googleusercontent.com"
+    secret: "your_google_client_secret"
+  
+  # GitHub OAuth  
+  github:
+    client_id: "your_github_oauth_client_id"
+    secret: "your_github_oauth_client_secret"
+  
+  # ORCID OAuth (essential for academic users)
+  orcid:
+    client_id: "your_orcid_oauth_client_id"
+    secret: "your_orcid_client_secret"
+    sandbox: false  # Set to true for testing with sandbox.orcid.org
 
 embedding_api:
   api_key: "your_api_key"
@@ -71,9 +88,6 @@ scholarly_database:
   # Option 2: OpenAlex (no API key needed, just email)
   openalex:
     email: "your_email@example.com"  # Must be a valid email address
-
-web:
-  base_url: "https://your-domain.com"  # base URL for web interface
 ```
 
 ## Database Setup
@@ -123,7 +137,7 @@ papersorter serve
 ```
 
 Navigate to http://localhost:5001 and:
-- Log in with Google OAuth
+- Log in with your preferred OAuth provider (ORCID, Google, or GitHub)
 - Go to Settings → Feed Sources
 - Add RSS/Atom feed URLs for journals, preprint servers, or PubMed searches
 
@@ -344,7 +358,7 @@ PaperSorter consists of several key components:
 - **Embedding Pipeline**: Generates vector representations using LLM APIs
 - **ML Predictor**: XGBoost model trained on user preferences
 - **PostgreSQL + pgvector**: Efficient storage and similarity search for embeddings
-- **Flask Web Application**: Modern interface with Google OAuth authentication
+- **Flask Web Application**: Modern interface with OAuth authentication (ORCID, Google, GitHub)
 - **Background Jobs**: Asynchronous processing for heavy tasks
 - **Notification System**: Multi-channel Slack integration with queuing
 
