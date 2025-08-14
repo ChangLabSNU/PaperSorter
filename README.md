@@ -1,6 +1,6 @@
 # PaperSorter
 
-PaperSorter is an intelligent academic paper recommendation system that helps researchers stay up-to-date with relevant publications. It uses machine learning to filter RSS/Atom feeds and predict which papers match your research interests, then sends notifications to Slack for high-scoring articles.
+PaperSorter is an intelligent academic paper recommendation system that helps researchers stay up-to-date with relevant publications. It uses machine learning to filter RSS/Atom feeds and predict which papers match your research interests, then sends notifications to Slack or Discord for high-scoring articles.
 
 <img src="https://github.com/ChangLabSNU/PaperSorter/assets/1702891/5ef2df1f-610b-4272-b496-ecf2a480dda2" width="660px">
 
@@ -10,7 +10,7 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 - **ML-powered filtering**: Uses XGBoost regression on article embeddings to predict interest levels
 - **Flexible AI integration**: Compatible with Solar LLM, Gemini, or any OpenAI-compatible generative AI API
 - **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
-- **Slack integration**: Automated notifications for interesting papers with customizable thresholds
+- **Slack & Discord integration**: Automated notifications for interesting papers with customizable thresholds
 - **Scholarly database integration**: Choose between Semantic Scholar (with TL;DR summaries) or OpenAlex (no API key needed) for metadata enrichment
 - **Multi-channel support**: Different models and thresholds for different research groups or topics
 - **AI-powered content generation**: Create concise summaries and visual infographics for article collections
@@ -207,21 +207,46 @@ papersorter serve --port 5001
 ngrok http 5001  # Creates HTTPS tunnel to your local server
 ```
 
-### 6. Configure Slack Notifications
+### 6. Configure Notifications (Slack or Discord)
 
 In the web interface:
 - Go to Settings → Channels
-- Add a Slack webhook URL
+- Add a webhook URL (Slack or Discord)
 - Set the score threshold (e.g., 0.7)
 - Select which model to use
 
-#### Optional: Enable Slack Interactivity
+The system automatically detects the webhook type based on the URL:
+- **Slack webhooks**: URLs ending with `slack.com`
+- **Discord webhooks**: URLs ending with `discord.com` or `discordapp.com`
+
+#### For Slack
+
+Get a webhook URL from your Slack workspace:
+1. Go to your Slack App settings or create a new app
+2. Enable Incoming Webhooks
+3. Create a webhook for your desired channel
+4. Copy the webhook URL (format: `https://hooks.slack.com/services/...`)
+
+**Optional: Enable Slack Interactivity**
 
 To add interactive buttons to Slack messages:
-
 1. **Create a Slack App** with Interactive Components enabled
 2. **Configure the Request URL** in your Slack App:
    - Set to: `https://your-domain.com/slack-interactivity` (must be HTTPS)
+
+#### For Discord
+
+Get a webhook URL from your Discord server:
+1. Go to your Discord channel settings
+2. Navigate to Integrations → Webhooks
+3. Create a new webhook or use an existing one
+4. Copy the webhook URL (format: `https://discord.com/api/webhooks/...`)
+
+Discord notifications include:
+- Rich embeds with color-coded scores (green/yellow/red)
+- Visual score indicators (🟢🟡🔴)
+- Markdown-formatted action links
+- Timestamp and model information
 
 ### 7. Regular Operation
 
@@ -231,7 +256,7 @@ Set up these commands to run periodically (e.g., via cron):
 # Fetch new articles and generate predictions (every 3 hours)
 papersorter update
 
-# Send Slack notifications for high-scoring articles (every 3 hours, 7am-9pm)
+# Send notifications for high-scoring articles (every 3 hours, 7am-9pm)
 papersorter broadcast
 ```
 
@@ -283,7 +308,7 @@ Both providers will enrich your RSS feed articles with:
 - `papersorter init` - Initialize database schema
 - `papersorter update` - Fetch new articles and generate embeddings
 - `papersorter train` - Train or retrain the prediction model
-- `papersorter broadcast` - Send Slack notifications for interesting articles
+- `papersorter broadcast` - Send notifications (Slack/Discord) for interesting articles
 - `papersorter serve` - Start the web interface for labeling and configuration
 
 ### Common Options
@@ -360,7 +385,7 @@ PaperSorter consists of several key components:
 - **PostgreSQL + pgvector**: Efficient storage and similarity search for embeddings
 - **Flask Web Application**: Modern interface with OAuth authentication (ORCID, Google, GitHub)
 - **Background Jobs**: Asynchronous processing for heavy tasks
-- **Notification System**: Multi-channel Slack integration with queuing
+- **Notification System**: Multi-channel Slack and Discord integration with queuing
 
 ## License
 

@@ -23,17 +23,10 @@
 
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
-import requests
+from ..notification import create_notification_provider, NotificationError
 import click
 import re
 import yaml
-
-SLACK_ENDPOINT_KEY = "PAPERSORTER_WEBHOOK_URL"
-SLACK_HEADER_MAX_LENGTH = 150
-
-
-class SlackNotificationError(Exception):
-    pass
 
 
 def normalize_item_for_display(item, max_content_length):
@@ -58,161 +51,11 @@ def limit_text_length(text, limit):
     return text
 
 
-def send_slack_notification(endpoint_url, item, msgopts, base_url=None):
-    header = {"Content-type": "application/json"}
-
-    # Add title block
-    title = normalize_text(item["title"])
-    blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": limit_text_length(title, SLACK_HEADER_MAX_LENGTH),
-            },
-        },
-    ]
-
-    # Add predicted score block if score is available
-    if item.get("score") is not None:
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f":heart_decoration: QBio "
-                        f"Score: *{int(item['score'] * 100)}*",
-                    }
-                ],
-            }
-        )
-
-    # Add source block
-    origin = normalize_text(item["origin"])
-    if origin:
-        if item["link"]:
-            origin = f"<{item['link']}|{origin}>"
-
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {"type": "mrkdwn", "text": f":inbox_tray: Source: *{origin}*"}
-                ],
-            }
-        )
-
-    # Add authors block
-    authors = normalize_text(item["author"])
-    if authors:
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [{"type": "mrkdwn", "text": f":black_nib: *{authors}*"}],
-            }
-        )
-
-    if item["content"].strip():
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": item["content"].strip()},
-            },
-        )
-
-    # Add buttons block
-    button_elements = []
-
-    # Read button
-    if item["link"]:
-        button_elements.append(
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Read", "emoji": True},
-                "value": f"read_{item['id']}",
-                "url": item["link"],
-                "action_id": "read-action",
-            }
-        )
-
-    # More Like This button
-    if base_url and "id" in item:
-        similar_url = f"{base_url.rstrip('/')}/similar/{item['id']}"
-        button_elements.append(
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "More Like This", "emoji": True},
-                "value": f"similar_{item['id']}",
-                "url": similar_url,
-                "action_id": "similar-action",
-            }
-        )
-
-        # Interested button
-        interested_url = f"{base_url.rstrip('/')}/feedback/{item['id']}/interested"
-        button_elements.append(
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Interested", "emoji": True},
-                "value": f"interested_{item['id']}",
-                "url": interested_url,
-                "action_id": "interested-action",
-            }
-        )
-
-        # Not Interested button
-        not_interested_url = (
-            f"{base_url.rstrip('/')}/feedback/{item['id']}/not-interested"
-        )
-        button_elements.append(
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Not Interested", "emoji": True},
-                "value": f"not_interested_{item['id']}",
-                "url": not_interested_url,
-                "action_id": "not-interested-action",
-            }
-        )
-
-    if button_elements:
-        blocks.append({"type": "actions", "elements": button_elements})
-
-    data = {
-        "blocks": blocks,
-        "unfurl_links": False,
-        "unfurl_media": False,
-    }
-
-    response = requests.post(endpoint_url, headers=header, json=data)
-
-    if response.status_code == 200:
-        pass
-    elif response.status_code in (400, 500):
-        import pprint
-
-        log.error(
-            "There was an error in Slack webhook. "
-            f"status:{response.status_code} reason:{response.text}\n"
-            + pprint.pformat(data)
-        )
-
-        raise SlackNotificationError(response.status_code)
-    else:
-        log.error(
-            "There was an unexpected error in the Slack webhook. Status code: "
-            f"{response.status_code}"
-        )
-        raise SlackNotificationError
-
-
 def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-@click.option(
-    "--config", default="./config.yml", help="Database configuration file."
-)
+@click.option("--config", default="./config.yml", help="Database configuration file.")
 @click.option(
     "--max-content-length", default=400, help="Maximum length of the content."
 )
@@ -269,6 +112,7 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
 
         message_options = {
             "model_name": model_name,
+            "channel_name": channel_name,
         }
 
         # Check and remove duplicates from the broadcast queue for this channel
@@ -298,6 +142,13 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
             f'Found {len(queue_items)} items in broadcast queue for channel "{channel_name}" (id={channel_id}).'
         )
 
+        # Create notification provider based on webhook URL
+        try:
+            provider = create_notification_provider(endpoint)
+        except ValueError as e:
+            log.error(f'Invalid webhook URL for channel "{channel_name}": {e}')
+            continue
+
         for feed_id, info in queue_items.iterrows():
             log.info(
                 f'Sending notification to channel "{channel_name}": "{info["title"]}"'
@@ -306,9 +157,9 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
             info["id"] = feed_id
             normalize_item_for_display(info, max_content_length)
             try:
-                send_slack_notification(endpoint, info, message_options, base_url)
-            except SlackNotificationError:
-                pass
+                provider.send_notification(info, message_options, base_url)
+            except NotificationError as e:
+                log.error(f"Failed to send notification: {e}")
             else:
                 # Mark as processed in the merged broadcasts table
                 feeddb.mark_broadcast_queue_processed(feed_id, channel_id)
