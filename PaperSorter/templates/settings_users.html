@@ -381,7 +381,6 @@
                             <th>Username</th>
                             <th>Created</th>
                             <th>Last Login</th>
-                            <th>Timezone</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -391,8 +390,7 @@
                                 <td>${user.id}</td>
                                 <td><strong>${user.username}</strong></td>
                                 <td>${user.created ? new Date(user.created).toLocaleDateString() : '-'}</td>
-                                <td>${user.lastlogin ? new Date(user.lastlogin).toLocaleDateString() : 'Never'}</td>
-                                <td>${user.timezone || 'Asia/Seoul'}</td>
+                                <td>${user.lastlogin ? new Date(user.lastlogin).toLocaleString() : 'Never'}</td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editUser(${user.id})">Edit</button>
