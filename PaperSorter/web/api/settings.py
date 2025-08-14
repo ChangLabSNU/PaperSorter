@@ -93,7 +93,7 @@ def api_get_channels():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, name, endpoint_url, score_threshold, model_id, is_active, 
+        SELECT id, name, endpoint_url, score_threshold, model_id, is_active,
                broadcast_limit, broadcast_hours
         FROM channels
         ORDER BY id
@@ -105,7 +105,7 @@ def api_get_channels():
     for channel in channels:
         # Convert broadcast_hours to checkbox array for UI
         channel["broadcast_hours_array"] = hours_to_checkbox_array(channel.get("broadcast_hours"))
-        
+
         if channel["endpoint_url"]:
             try:
                 # Check for email endpoints first
@@ -138,9 +138,9 @@ def api_get_channels():
 def api_create_channel():
     """Create a new channel."""
     from ...utils.broadcast_hours import checkbox_array_to_hours
-    
+
     data = request.get_json()
-    
+
     # Convert broadcast hours array to string format
     broadcast_hours = None
     if "broadcast_hours_array" in data:
@@ -152,7 +152,7 @@ def api_create_channel():
     try:
         cursor.execute(
             """
-            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active, 
+            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active,
                                 broadcast_limit, broadcast_hours)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
@@ -186,9 +186,9 @@ def api_create_channel():
 def api_update_channel(channel_id):
     """Update a channel."""
     from ...utils.broadcast_hours import checkbox_array_to_hours
-    
+
     data = request.get_json()
-    
+
     # Convert broadcast hours array to string format
     broadcast_hours = None
     if "broadcast_hours_array" in data:
@@ -201,7 +201,7 @@ def api_update_channel(channel_id):
         cursor.execute(
             """
             UPDATE channels
-            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s, 
+            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s,
                 broadcast_limit = %s, broadcast_hours = %s
             WHERE id = %s
         """,
@@ -310,10 +310,10 @@ def api_test_channel(channel_id):
 
         # Create provider and send notification
         provider = create_notification_provider(channel["endpoint_url"], config_path)
-        
+
         # Use batch interface - send as a list with one item
         results = provider.send_notifications([test_item], message_options, base_url)
-        
+
         # Check if the test was successful
         if not results or not results[0][1]:
             raise NotificationError("Test notification failed")

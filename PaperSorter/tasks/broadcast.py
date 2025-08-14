@@ -103,7 +103,7 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
         return
 
     log.info(f"Processing broadcast queue for {len(channels)} active channels.")
-    
+
     # Get current time for checking broadcast hours
     current_time = datetime.now()
 
@@ -115,7 +115,7 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
         model_id = channel["model_id"]
         model_name = channel["model_name"] or "Default"
         broadcast_hours = channel.get("broadcast_hours")
-        
+
         # Check if broadcasting is allowed at current time
         if not is_broadcast_allowed(broadcast_hours, current_time):
             log.info(
@@ -178,21 +178,21 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
         try:
             # Send all items as a batch
             results = provider.send_notifications(items_to_send, message_options, base_url)
-            
+
             # Process results and mark successful items as processed
             for item_id, success in results:
                 if success:
                     feeddb.mark_broadcast_queue_processed(item_id, channel_id)
                 else:
                     log.warning(f"Failed to send item {item_id} to channel {channel_name}")
-            
+
             feeddb.commit()
-            
+
             successful_count = sum(1 for _, success in results if success)
             log.info(
                 f'Successfully sent {successful_count}/{len(items_to_send)} items to channel "{channel_name}"'
             )
-            
+
         except NotificationError as e:
             log.error(f"Failed to send notifications to channel {channel_name}: {e}")
 

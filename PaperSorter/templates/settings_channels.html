@@ -498,10 +498,10 @@
         function initHoursGrid() {
             const header = document.getElementById('hoursHeader');
             const grid = document.getElementById('hoursGrid');
-            
+
             header.innerHTML = '';
             grid.innerHTML = '';
-            
+
             // Create header with hour numbers
             for (let hour = 0; hour < 24; hour++) {
                 const div = document.createElement('div');
@@ -509,12 +509,12 @@
                 div.textContent = hour.toString();
                 header.appendChild(div);
             }
-            
+
             // Create checkboxes without labels
             for (let hour = 0; hour < 24; hour++) {
                 const div = document.createElement('div');
                 div.className = 'hour-cell';
-                
+
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = `hour_${hour}`;
@@ -522,7 +522,7 @@
                 checkbox.value = hour;
                 checkbox.checked = true; // Default to all hours allowed
                 checkbox.title = `Hour ${hour}:00-${hour}:59`;
-                
+
                 div.appendChild(checkbox);
                 grid.appendChild(div);
             }
@@ -538,7 +538,7 @@
                 }
                 return;
             }
-            
+
             for (let hour = 0; hour < 24; hour++) {
                 const checkbox = document.getElementById(`hour_${hour}`);
                 if (checkbox) checkbox.checked = hoursArray[hour];
@@ -682,10 +682,10 @@
             document.getElementById('channelModelId').value = channel.model_id || 1;
             document.getElementById('channelBroadcastLimit').value = channel.broadcast_limit || 20;
             document.getElementById('channelIsActive').checked = channel.is_active !== false;
-            
+
             // Set broadcast hours
             setHoursFromArray(channel.broadcast_hours_array);
-            
+
             document.getElementById('channelModal').style.display = 'block';
         }
 
