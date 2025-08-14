@@ -1,11 +1,12 @@
 # Setting Up Notifications in PaperSorter
 
-PaperSorter supports sending notifications to both Slack and Discord channels using webhooks. The system automatically detects the webhook type based on the URL and formats messages accordingly.
+PaperSorter supports sending notifications to Slack, Discord, and Email. The system automatically detects the notification type based on the URL and formats messages accordingly.
 
 ## Table of Contents
 - [Quick Start](#quick-start)
 - [Slack Setup](#slack-setup)
 - [Discord Setup](#discord-setup)
+- [Email Setup](#email-setup)
 - [Channel Configuration](#channel-configuration)
 - [Testing Webhooks](#testing-webhooks)
 - [Notification Features](#notification-features)
@@ -13,14 +14,18 @@ PaperSorter supports sending notifications to both Slack and Discord channels us
 
 ## Quick Start
 
-1. **Get a webhook URL** from either Slack or Discord (see platform-specific instructions below)
-2. **Add the webhook** to PaperSorter via the web interface:
+1. **Choose notification type**: Slack, Discord, or Email
+2. **Configure endpoint**:
+   - **Slack/Discord**: Get a webhook URL (see platform-specific instructions below)
+   - **Email**: Use `mailto:` format (e.g., `mailto:user@example.com`)
+3. **Add the channel** to PaperSorter via the web interface:
    - Navigate to Settings → Channels
    - Click "Add Channel"
-   - Enter the webhook URL (auto-detects Slack vs Discord)
+   - Enter the webhook URL or email address
    - Set score threshold (e.g., 0.7)
+   - Configure broadcast hours (optional)
    - Save and test
-3. **Run broadcast** to send notifications:
+4. **Run broadcast** to send notifications:
    ```bash
    papersorter broadcast
    ```
@@ -120,6 +125,88 @@ When PaperSorter sends to Discord, you get:
 - **Author field** with paper authors
 - **Metadata fields** showing score, source, and model
 
+## Email Setup
+
+### Configuring Email Notifications
+
+Email notifications send newsletter-style digests containing multiple papers in a single email.
+
+#### 1. SMTP Server Configuration
+
+Add SMTP settings to your `config.yml`:
+
+```yaml
+smtp:
+  host: "smtp.gmail.com"  # Your SMTP server
+  port: 587               # Usually 587 for TLS, 465 for SSL
+  use_tls: true          # Enable TLS/STARTTLS
+  username: "your-email@gmail.com"  # Optional: for authentication
+  password: "your-app-password"     # Optional: for authentication
+```
+
+**For Gmail users**:
+- Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
+- Enable "Less secure app access" or use OAuth2
+
+**For other providers**:
+- **Outlook/Office365**: smtp.office365.com:587
+- **Yahoo**: smtp.mail.yahoo.com:587
+- **SendGrid**: smtp.sendgrid.net:587
+- **AWS SES**: email-smtp.[region].amazonaws.com:587
+
+#### 2. Adding Email Channels
+
+1. Navigate to Settings → Channels
+2. Click "Add Channel"
+3. Enter email in `mailto:` format:
+   ```
+   mailto:researcher@university.edu
+   ```
+4. Configure settings:
+   - **Channel Name**: e.g., "Daily Digest"
+   - **Score Threshold**: Papers above this score
+   - **Broadcast Limit**: Max papers per email (default: 20)
+   - **Broadcast Hours**: When to send emails
+
+#### 3. Email Subject Configuration
+
+Customize the email subject in `config.yml`:
+
+```yaml
+email:
+  subject_template: "Research Papers Digest - {date:%B %d, %Y}"
+```
+
+The `{date}` placeholder supports Python datetime formatting.
+
+### Email Notification Features
+
+- **Newsletter format**: Multiple papers in one email
+- **Responsive HTML design**: Works on desktop and mobile
+- **Plain text fallback**: For email clients that don't support HTML
+- **Paper cards** with:
+  - Title with link to paper
+  - Authors and source
+  - Publication date
+  - Relevance score with color coding
+  - Abstract or summary
+  - "More Like This" button (if base_url configured)
+- **Channel name** in email header
+- **Summary statistics**: Number of papers and sources
+
+### Email Template Customization
+
+Templates are located in `PaperSorter/templates/email/`:
+- `newsletter.html`: HTML version
+- `newsletter.txt`: Plain text version
+
+You can customize these templates using Jinja2 syntax. Available variables:
+- `papers`: List of paper objects
+- `channel_name`: Name of the channel
+- `date`: Current date
+- `base_url`: Web interface URL (if configured)
+- `source_count`: Number of unique sources
+
 ## Channel Configuration
 
 1. **Access Settings**:
@@ -131,10 +218,11 @@ When PaperSorter sends to Discord, you get:
    - Click "Add Channel"
    - Fill in the form:
      - **Channel Name**: Descriptive name (e.g., "ML Papers", "Biology Research")
-     - **Endpoint URL**: Your webhook URL (Slack or Discord)
+     - **Endpoint URL**: Your webhook URL (Slack/Discord) or email (mailto:address)
      - **Score Threshold**: Minimum score to send (0.0 to 1.0)
      - **Model ID**: Which trained model to use
      - **Broadcast Limit**: Max notifications per broadcast run
+     - **Broadcast Hours**: Select hours when notifications are allowed (24/7 if all selected)
 
 3. **Channel Settings Explained**:
    - **Score Threshold**: Only papers scoring above this value are sent
@@ -144,20 +232,29 @@ When PaperSorter sends to Discord, you get:
      - <0.5 = Include everything (not recommended)
    - **Broadcast Limit**: Prevents notification spam (default: 20)
    - **Model ID**: Use different models for different topics
+   
+   - **Broadcast Hours**: Time restrictions for sending notifications
+     - Select individual hours when broadcasting is allowed
+     - All selected = 24/7 broadcasting
+     - Use preset buttons for common patterns:
+       - Business (9-17): Working hours only
+       - Every morning: 8am only
+       - After meals: 8am, 12pm, 5pm
 
 ## Testing Webhooks
 
 1. Go to Settings → Channels
 2. Click "Test" button next to any channel
-3. Check your Slack/Discord for test message
+3. Check your Slack/Discord/Email for test message
 
 ## Notification Features
 
 ### Automatic Webhook Detection
 
-PaperSorter automatically detects the webhook type based on hostname:
-- URLs ending with `slack.com` → Slack formatting
-- URLs ending with `discord.com` or `discordapp.com` → Discord formatting
+PaperSorter automatically detects the notification type based on the URL:
+- URLs containing `slack.com` → Slack formatting
+- URLs containing `discord.com` or `discordapp.com` → Discord formatting  
+- URLs starting with `mailto:` → Email newsletter
 - Unknown URLs → Default to Slack formatting
 
 ### Message Content
@@ -240,6 +337,31 @@ Slack is more generous but still has limits:
 - **1 message per second** sustained
 - Burst capability for short periods
 
+#### Email Troubleshooting
+
+Common email issues and solutions:
+
+1. **Connection errors**:
+   - Check SMTP host and port settings
+   - Verify firewall allows outbound SMTP
+   - Try telnet: `telnet smtp.gmail.com 587`
+
+2. **Authentication failures**:
+   - Gmail: Use App Password, not regular password
+   - Enable "Less secure apps" if needed
+   - Check username format (full email address)
+
+3. **TLS/SSL errors**:
+   - Set `use_tls: true` for port 587
+   - Try `use_tls: false` for port 465 (SSL)
+   - Update certificates if expired
+
+4. **Emails not received**:
+   - Check spam/junk folder
+   - Verify recipient address
+   - Check SMTP server logs
+   - Test with simple subject/content first
+
 ### Error Messages
 
 | Error | Cause | Solution |
@@ -294,18 +416,14 @@ UPDATE channels SET model_id = 3 WHERE name = 'Bio Research';
 
 ### Scheduled Broadcasts
 
-Set up cron jobs for regular notifications:
+Set up a cron job to run every hour:
 
 ```bash
-# Morning digest at 9 AM
-0 9 * * * /path/to/papersorter broadcast --config /path/to/config.yml
-
-# Afternoon update at 3 PM
-0 15 * * * /path/to/papersorter broadcast --config /path/to/config.yml
-
-# Evening summary at 8 PM (weekdays only)
-0 20 * * 1-5 /path/to/papersorter broadcast --config /path/to/config.yml
+# Run broadcast every hour (channels have individual hour restrictions)
+0 * * * * /path/to/papersorter broadcast --config /path/to/config.yml
 ```
+
+The broadcast task will automatically respect each channel's configured broadcast hours. Configure hours per channel in the web interface (Settings → Channels).
 
 ### Filtering by Date
 
