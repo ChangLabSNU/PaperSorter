@@ -31,6 +31,12 @@ oauth:
   github:
     client_id: "your_github_oauth_client_id"
     secret: "your_github_oauth_client_secret"
+  
+  # ORCID OAuth configuration (essential for academic users)
+  orcid:
+    client_id: "your_orcid_oauth_client_id"
+    secret: "your_orcid_client_secret"
+    sandbox: false  # Set to true for testing with sandbox.orcid.org
 
 # Embedding API configuration
 # Supports OpenAI-compatible APIs (OpenAI, Solar LLM, Google Vertex AI via Gemini, etc.)
