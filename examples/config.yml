@@ -89,11 +89,38 @@ scholarly_database:
     # Optional: throttle between requests in seconds (default: 0.1)
     # throttle: 0.1
 
+# SMTP configuration for email notifications
+# Used when channel endpoint URLs start with "mailto:"
+smtp:
+  # SMTP server hostname
+  host: "smtp.example.com"
+  # SMTP server port (25 for plain, 587 for STARTTLS, 465 for SSL/TLS)
+  port: 25
+  # Enable STARTTLS (for port 587)
+  use_tls: false
+  # Enable SSL/TLS (for port 465)
+  use_ssl: false
+  # Connection timeout in seconds
+  timeout: 30
+  # Note: Authentication support will be added in a future version
+
+# Email notification configuration
+email:
+  # Sender email address
+  from_address: "papersorter@example.com"
+  # Sender display name
+  from_name: "PaperSorter Newsletter"
+  # Email subject template (Python f-string format, can use {date} variable)
+  subject_template: "Research Papers Digest - {date:%Y-%m-%d}"
+
 # Storage configuration
 storage:
   # Directory for storing AI-generated poster images
   ai_poster_dir: "./ai_posters"
 
-# Note: Webhook URLs (Slack/Discord) are configured per channel in the database
+# Note: Channel endpoints are configured per channel in the database
 # Use the web interface or direct database access to configure channels
-# The system auto-detects webhook type based on the URL hostname
+# The system auto-detects notification type based on the endpoint URL:
+#   - mailto:user@example.com -> Email notifications (batched newsletter)
+#   - https://hooks.slack.com/... -> Slack notifications (individual messages)
+#   - https://discord.com/api/webhooks/... -> Discord notifications (individual embeds)

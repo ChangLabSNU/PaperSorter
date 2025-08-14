@@ -37,11 +37,11 @@ class NotificationProvider(ABC):
     """Abstract base class for notification providers."""
 
     @abstractmethod
-    def send_notification(self, item, message_options, base_url=None):
-        """Send a notification for the given item.
+    def send_notifications(self, items, message_options, base_url=None):
+        """Send notifications for a batch of items.
 
         Args:
-            item: Dictionary containing article information with keys:
+            items: List of dictionaries, each containing article information with keys:
                 - id: Article ID
                 - title: Article title
                 - content: Article content/abstract
@@ -54,8 +54,11 @@ class NotificationProvider(ABC):
                 - channel_name: Name of the channel
             base_url: Base URL for web interface links
 
+        Returns:
+            List of (item_id, success) tuples indicating which items were sent successfully
+
         Raises:
-            NotificationError: If sending fails
+            NotificationError: If sending fails completely
         """
         pass
 
