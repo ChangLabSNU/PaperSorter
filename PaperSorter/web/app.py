@@ -108,10 +108,24 @@ def create_app(config_path):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
-            "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE id = %s",
+            """SELECT id, username, is_admin, timezone, feedlist_minscore,
+                      lastlogin,
+                      EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(lastlogin, TIMESTAMP '1970-01-01'))) as seconds_since_login
+               FROM users WHERE id = %s""",
             (int(user_id),),
         )
         user_data = cursor.fetchone()
+
+        if user_data:
+            # Update last login timestamp only if it's stale (>10 minutes old)
+            seconds_since_login = user_data.get('seconds_since_login', float('inf'))
+            if seconds_since_login > 600:  # 600 seconds = 10 minutes
+                cursor.execute(
+                    "UPDATE users SET lastlogin = CURRENT_TIMESTAMP WHERE id = %s",
+                    (int(user_id),),
+                )
+                conn.commit()
+
         cursor.close()
         conn.close()
 
