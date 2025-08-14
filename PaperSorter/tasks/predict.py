@@ -64,6 +64,7 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, count, batch_size, log_file, quiet):
+    """Predict preferences for feeds using trained models."""
     initialize_logging(task="predict", logfile=log_file, quiet=quiet)
 
     # Load configuration

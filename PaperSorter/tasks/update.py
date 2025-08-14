@@ -32,6 +32,7 @@ import xgboost as xgb
 from datetime import datetime
 import pickle
 import click
+from tqdm import tqdm
 
 FEED_EPOCH = (1980, 1, 1)
 
@@ -200,7 +201,7 @@ def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
         if result:
             feed_infos.append(result)
 
-    for feed_info in feed_infos:
+    for feed_info in tqdm(feed_infos, desc="Processing additional feed data"):
         feed_id = feed_info["id"]
         title = feed_info["title"]
         # Handle both datetime objects and timestamps for backward compatibility
@@ -373,6 +374,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
+    """Update feeds and embeddings from RSS sources."""
     initialize_logging(task="update", logfile=log_file, quiet=quiet)
 
     # Load configuration
