@@ -123,6 +123,7 @@ CREATE TABLE papersorter.channels (
     model_id integer,
     is_active boolean DEFAULT true NOT NULL,
     broadcast_limit integer DEFAULT 20 NOT NULL,
+    broadcast_hours text,
     CONSTRAINT broadcast_limit_check CHECK (((broadcast_limit >= 1) AND (broadcast_limit <= 100)))
 );
 

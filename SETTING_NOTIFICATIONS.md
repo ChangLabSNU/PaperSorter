@@ -147,29 +147,9 @@ When PaperSorter sends to Discord, you get:
 
 ## Testing Webhooks
 
-### Method 1: Web Interface Test Button
-
 1. Go to Settings → Channels
 2. Click "Test" button next to any channel
 3. Check your Slack/Discord for test message
-
-### Method 2: Command Line Test Script
-
-```bash
-# Test a Discord webhook
-python test_discord_webhook.py "https://discord.com/api/webhooks/YOUR_WEBHOOK"
-
-# Test a Slack webhook
-python test_discord_webhook.py "https://hooks.slack.com/services/YOUR_WEBHOOK"
-```
-
-### Method 3: Manual API Test
-
-```bash
-# Test via API endpoint
-curl -X POST http://localhost:5001/api/settings/channels/1/test \
-     -H "Content-Type: application/json"
-```
 
 ## Notification Features
 
@@ -338,17 +318,6 @@ papersorter broadcast --clear-old-days 7  # Only last week's papers
 ## Security Considerations
 
 1. **Keep webhooks private**: Never commit webhook URLs to version control
-2. **Use environment variables** for sensitive data if needed:
-   ```bash
-   export SLACK_WEBHOOK="https://hooks.slack.com/..."
-   ```
-3. **Rotate webhooks periodically**: Delete and recreate if compromised
-4. **Limit webhook permissions**: Use dedicated channels for notifications
-5. **Monitor usage**: Check for unexpected notification patterns
-
-## Support
-
-For issues or questions:
-- Check the [main README](README.md)
-- Review logs in the broadcast task
-- Open an issue on [GitHub](https://github.com/ChangLabSNU/PaperSorter)
+2. **Rotate webhooks periodically**: Delete and recreate if compromised
+3. **Limit webhook permissions**: Use dedicated channels for notifications
+4. **Monitor usage**: Check for unexpected notification patterns
