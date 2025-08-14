@@ -38,7 +38,7 @@ The system consists of several key components:
 - **Providers** (`providers/`): Feed provider implementations
   - `base.py`: Abstract base class for feed providers
   - `rss.py`: RSS/Atom feed provider
-- **__main__.py**: Dynamic CLI command loader that imports all tasks from `tasks/__init__.py`
+- **`__main__.py`**: Dynamic CLI command loader that imports all tasks from `tasks/__init__.py`
 
 ## Common Commands
 
