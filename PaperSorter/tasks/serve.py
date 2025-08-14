@@ -24,8 +24,47 @@
 """Web server task for PaperSorter."""
 
 import click
+import threading
+import time
+from rich import box
+from rich.align import Align
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 from ..log import log, initialize_logging
 from ..web import create_app
+
+
+def print_server_box(port):
+    """Print a beautiful boxed display of the server URL using Rich."""
+    console = Console()
+    url = f"http://localhost:{port}"
+    
+    # Create a beautiful panel with gradient-like styling
+    title = Text("🚀 PaperSorter Web Interface", style="bold blue")
+    url_text = Text(url, style="bold green")
+    instruction = Text("Press Ctrl+C to stop server", style="dim italic")
+    
+    # Create a table for better layout
+    table = Table(show_header=False, box=box.ROUNDED, show_edge=False)
+    table.add_column("Content", justify="center")
+    table.add_row(title)
+    table.add_row(url_text)
+    table.add_row(instruction)
+    
+    # Create the panel with the table
+    panel = Panel(
+        Align.center(table),
+        border_style="bright_blue",
+        padding=(1, 2),
+        title="[bold cyan]Server Ready[/bold cyan]",
+        title_align="center"
+    )
+    
+    console.print()
+    console.print(panel)
+    console.print()
 
 
 @click.option(
@@ -44,5 +83,18 @@ def main(config, host, port, debug, log_file, quiet):
 
     app = create_app(config)
 
-    # Run the Flask app
-    app.run(host=host, port=port, debug=debug)
+    # Print the server box after a short delay to ensure Flask has started
+    def print_box_delayed():
+        time.sleep(0.5)  # Small delay to ensure Flask output appears first
+        print_server_box(port)
+    
+    # Start the box printing in a separate thread
+    box_thread = threading.Thread(target=print_box_delayed, daemon=True)
+    box_thread.start()
+
+    # Run the Flask app with suppressed output if not in debug mode
+    if debug:
+        app.run(host=host, port=port, debug=debug)
+    else:
+        # Suppress Flask's default output by setting use_reloader=False
+        app.run(host=host, port=port, debug=False, use_reloader=False)
