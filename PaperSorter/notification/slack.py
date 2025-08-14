@@ -38,14 +38,14 @@ class SlackProvider(NotificationProvider):
 
     def send_notifications(self, items, message_options, base_url=None):
         """Send Slack notifications for a batch of items.
-        
+
         Slack sends individual notifications for each item.
-        
+
         Args:
             items: List of paper dictionaries
             message_options: Additional options
             base_url: Base URL for web interface links
-            
+
         Returns:
             List of (item_id, success) tuples
         """

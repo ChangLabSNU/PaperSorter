@@ -50,7 +50,7 @@ def create_notification_provider(webhook_url, config_path="./config.yml"):
     """
     if not webhook_url:
         raise ValueError("Webhook URL cannot be empty")
-    
+
     # Check for mailto: URLs first
     if webhook_url.startswith("mailto:"):
         log.debug(f"Detected email notification: {webhook_url}")

@@ -6,13 +6,13 @@
     <h2 class="paper-title">
         <a href="{{ paper.link }}" target="_blank">{{ paper.title }}</a>
     </h2>
-    
+
     {% if paper.author %}
     <div class="paper-meta paper-authors">
         {{ paper.author }}
     </div>
     {% endif %}
-    
+
     <div class="paper-meta">
         {% if paper.origin %}
             <strong>{{ paper.origin }}</strong>
@@ -21,7 +21,7 @@
             • Published: {{ paper.published.strftime('%Y-%m-%d') }}
         {% endif %}
     </div>
-    
+
     {% if paper.score is defined %}
     <div class="paper-meta">
         <span class="paper-score {% if paper.score >= 0.8 %}score-high{% elif paper.score >= 0.5 %}score-medium{% else %}score-low{% endif %}">
@@ -29,7 +29,7 @@
         </span>
     </div>
     {% endif %}
-    
+
     {% if paper.content %}
     <div class="paper-abstract">
         {{ paper.content|truncate(500) }}
@@ -39,7 +39,7 @@
         <em>Summary:</em> {{ paper.tldr }}
     </div>
     {% endif %}
-    
+
     {% if base_url %}
     <div class="paper-links">
         <a href="{{ paper.link }}" target="_blank">📄 Full Paper</a>

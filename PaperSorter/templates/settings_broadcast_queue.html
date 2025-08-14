@@ -160,7 +160,7 @@
             position: relative;
             color: #2c3e50;
         }
-        
+
         .channel-header-name {
             font-size: 16px;
             font-weight: 600;
@@ -394,15 +394,15 @@
 
         function getChannelTypeClass(endpoint) {
             if (!endpoint) return 'channel-unknown';
-            
+
             if (endpoint.startsWith('mailto:')) {
                 return 'channel-email';
             }
-            
+
             try {
                 const url = new URL(endpoint);
                 const hostname = url.hostname.toLowerCase();
-                
+
                 if (hostname.includes('discord.com') || hostname.includes('discordapp.com')) {
                     return 'channel-discord';
                 } else if (hostname.includes('slack.com')) {
@@ -411,21 +411,21 @@
             } catch (e) {
                 // Invalid URL
             }
-            
+
             return 'channel-unknown';
         }
 
         function getChannelTypeLabel(endpoint) {
             if (!endpoint) return 'Unknown';
-            
+
             if (endpoint.startsWith('mailto:')) {
                 return 'Email';
             }
-            
+
             try {
                 const url = new URL(endpoint);
                 const hostname = url.hostname.toLowerCase();
-                
+
                 if (hostname.includes('discord.com') || hostname.includes('discordapp.com')) {
                     return 'Discord';
                 } else if (hostname.includes('slack.com')) {
@@ -434,7 +434,7 @@
             } catch (e) {
                 // Invalid URL
             }
-            
+
             return 'Unknown';
         }
 
@@ -468,7 +468,7 @@
 
             // Build HTML with channel groups
             let showGroups = Object.keys(channelGroups).length > 1;
-            
+
             if (showGroups) {
                 // Multiple channels - show grouped layout
                 let groupsHtml = Object.values(channelGroups).map(channel => `
@@ -513,7 +513,7 @@
                         </table>
                     </div>
                 `).join('');
-                
+
                 container.innerHTML = groupsHtml;
             } else {
                 // Single channel - show regular table
