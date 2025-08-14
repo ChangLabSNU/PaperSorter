@@ -1,0 +1,201 @@
+# OAuth Setup Guide
+
+PaperSorter supports authentication via Google OAuth and GitHub OAuth. You can configure either one or both providers.
+
+## Configuration Structure
+
+OAuth settings are configured in `config.yml` under the following structure:
+
+```yaml
+web:
+  flask_secret_key: "your-secret-key"  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+  base_url: "https://yourdomain.com"   # Your application's base URL
+
+oauth:
+  google:
+    client_id: "your-client-id.apps.googleusercontent.com"
+    secret: "your-client-secret"
+  github:
+    client_id: "your-github-client-id"
+    secret: "your-github-client-secret"
+```
+
+## Google OAuth Setup
+
+### 1. Create a Google Cloud Project
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google+ API for your project
+
+### 2. Configure OAuth Consent Screen
+
+1. In the Google Cloud Console, go to "APIs & Services" > "OAuth consent screen"
+2. Choose "External" user type (unless you're using Google Workspace)
+3. Fill in the required information:
+   - App name: PaperSorter
+   - User support email: Your email
+   - Developer contact information: Your email
+4. Add scopes: `openid`, `email`, `profile`
+5. Save and continue
+
+### 3. Create OAuth 2.0 Credentials
+
+1. Go to "APIs & Services" > "Credentials"
+2. Click "Create Credentials" > "OAuth client ID"
+3. Choose "Web application" as the application type
+4. Add authorized redirect URIs:
+   - `http://localhost:5001/callback` (for development)
+   - `https://yourdomain.com/callback` (for production)
+5. Save the credentials and copy the Client ID and Client Secret
+
+## GitHub OAuth Setup
+
+### 1. Create a GitHub OAuth App
+
+1. Go to GitHub Settings > Developer settings > [OAuth Apps](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Fill in the application details:
+   - Application name: PaperSorter
+   - Homepage URL: `https://yourdomain.com` (or `http://localhost:5001` for development)
+   - Authorization callback URL: 
+     - `http://localhost:5001/callback/github` (for development)
+     - `https://yourdomain.com/callback/github` (for production)
+4. Click "Register application"
+
+### 2. Get Client Credentials
+
+1. After creating the app, you'll see your Client ID
+2. Click "Generate a new client secret"
+3. Copy the Client ID and Client Secret immediately (the secret won't be shown again)
+
+## Configuration File Setup
+
+### 1. Create or Update config.yml
+
+Add the OAuth configuration to your `config.yml` file:
+
+```yaml
+# Database configuration
+db:
+  type: postgres
+  host: localhost
+  database: papersorter
+  user: papersorter
+  password: "your-db-password"
+
+# Web configuration
+web:
+  flask_secret_key: "your-generated-secret-key"
+  base_url: "https://yourdomain.com"
+
+# OAuth configuration (configure one or both providers)
+oauth:
+  google:
+    client_id: "your-client-id.apps.googleusercontent.com"
+    secret: "your-google-client-secret"
+  github:
+    client_id: "your-github-client-id"
+    secret: "your-github-client-secret"
+```
+
+### 2. Generate Flask Secret Key
+
+Generate a secure secret key for Flask sessions:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+## Running the Application
+
+After configuring OAuth:
+
+```bash
+papersorter serve
+```
+
+Navigate to `http://localhost:5001` and you should see login options for the configured OAuth providers.
+
+## Backward Compatibility
+
+The system maintains backward compatibility with older configuration formats:
+
+```yaml
+# Old format (still supported)
+google_oauth:
+  client_id: "your-client-id"
+  secret: "your-client-secret"
+  flask_secret_key: "your-secret-key"
+
+# Note: github_oauth format is no longer supported
+# Use the oauth.github format shown above
+```
+
+## Security Best Practices
+
+1. **Never commit credentials to version control**
+   - Add `config.yml` to `.gitignore`
+   - Use environment-specific configuration files
+
+2. **Use HTTPS in production**
+   - OAuth redirects require secure connections
+   - Protects session cookies from interception
+
+3. **Rotate credentials regularly**
+   - Change OAuth client secrets periodically
+   - Update Flask secret key if compromised
+
+4. **Restrict OAuth app permissions**
+   - Only request necessary scopes
+   - For GitHub: only `user:email` scope is needed
+   - For Google: only `openid`, `email`, `profile` are needed
+
+## Troubleshooting
+
+### "Authentication failed" Error
+
+**For Google OAuth:**
+- Verify redirect URI exactly matches: `https://yourdomain.com/callback`
+- Check that Google+ API is enabled in your project
+- Ensure client ID and secret are correctly copied
+
+**For GitHub OAuth:**
+- Verify callback URL exactly matches: `https://yourdomain.com/callback/github`
+- Check that the OAuth app is not in suspended state
+- Ensure client ID and secret are correctly copied
+
+### "No email associated with GitHub account" Error
+
+- The user's GitHub account must have a verified email address
+- The email can be private, but must be verified
+- Check GitHub Settings > Emails to verify email status
+
+### Users Not Persisting Between Sessions
+
+- Verify PostgreSQL database is properly configured
+- Check that the `users` table exists with correct schema
+- Ensure database write permissions are set correctly
+- Verify `web.flask_secret_key` is set and consistent across restarts
+
+### Multiple OAuth Providers Not Showing
+
+- Ensure both providers are configured in `config.yml`
+- Check application logs for configuration errors
+- Verify that client IDs and secrets are present for each provider
+
+## Database Schema
+
+OAuth users are stored in the `users` table with the following relevant fields:
+
+- `username`: The user's email address from OAuth provider
+- `password`: Set to "oauth" for OAuth users
+- `lastlogin`: Automatically updated on login and during active sessions
+- `created`: Timestamp of first login
+- `is_admin`: Admin status (default: false)
+
+Admin privileges must be granted manually via database update:
+
+```sql
+UPDATE users SET is_admin = true WHERE username = 'admin@example.com';
+```

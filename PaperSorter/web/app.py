@@ -52,14 +52,26 @@ def create_app(config_path):
         config = yaml.safe_load(f)
 
     db_config = config["db"]
-    google_config = config.get("google_oauth", {})
+    
+    # Get OAuth config with backward compatibility for google_oauth only
+    oauth_config = config.get("oauth", {})
+    google_config = oauth_config.get("google", config.get("google_oauth", {}))
+    github_config = oauth_config.get("github", {})
+    
+    # Get web config
+    web_config = config.get("web", {})
 
     # Store configurations in app
     app.db_config = db_config
     app.config["CONFIG_PATH"] = config_path
 
     # Set up Flask secret key
-    app.secret_key = google_config.get("flask_secret_key", secrets.token_hex(32))
+    # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
+    app.secret_key = (
+        web_config.get("flask_secret_key") or 
+        config.get("google_oauth", {}).get("flask_secret_key") or 
+        secrets.token_hex(32)
+    )
 
     # Set session lifetime to 30 days
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
@@ -141,13 +153,30 @@ def create_app(config_path):
 
     # Set up OAuth
     oauth = OAuth(app)
-    oauth.register(
-        name="google",
-        client_id=google_config["client_id"],
-        client_secret=google_config["secret"],
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={"scope": "openid email profile"},
-    )
+    
+    # Register Google OAuth if configured
+    if google_config.get("client_id") and google_config.get("secret"):
+        oauth.register(
+            name="google",
+            client_id=google_config["client_id"],
+            client_secret=google_config["secret"],
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            client_kwargs={"scope": "openid email profile"},
+        )
+    
+    # Register GitHub OAuth if configured
+    if github_config.get("client_id") and github_config.get("secret"):
+        oauth.register(
+            name="github",
+            client_id=github_config["client_id"],
+            client_secret=github_config["secret"],
+            access_token_url="https://github.com/login/oauth/access_token",
+            access_token_params=None,
+            authorize_url="https://github.com/login/oauth/authorize",
+            authorize_params=None,
+            api_base_url="https://api.github.com/",
+            client_kwargs={"scope": "user:email"},
+        )
 
     # Register blueprints
     app.register_blueprint(auth_bp)
