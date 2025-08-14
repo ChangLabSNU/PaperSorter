@@ -425,8 +425,9 @@
                 </div>
                 <div class="form-group">
                     <label for="channelEndpoint">Endpoint URL</label>
-                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or mailto:user@example.com">
-                    <small style="color: #666;">Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)</small>
+                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or mailto:user@example.com" onblur="validateEndpointField()">
+                    <small id="endpointHelp" style="color: #666;">Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)</small>
+                    <small id="endpointError" style="color: #e74c3c; display: none;"></small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -667,6 +668,13 @@
             document.getElementById('modalTitle').textContent = 'Add Channel';
             document.getElementById('channelForm').reset();
             document.getElementById('channelId').value = '';
+            // Reset validation messages
+            document.getElementById('endpointHelp').style.display = 'block';
+            document.getElementById('endpointHelp').style.color = '#666';
+            document.getElementById('endpointHelp').innerHTML = 'Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)';
+            document.getElementById('endpointError').style.display = 'none';
+            // Reset hours to all checked (default)
+            selectAllHours();
             document.getElementById('channelModal').style.display = 'block';
         }
 
@@ -686,6 +694,9 @@
             // Set broadcast hours
             setHoursFromArray(channel.broadcast_hours_array);
 
+            // Validate the existing endpoint URL
+            validateEndpointField();
+
             document.getElementById('channelModal').style.display = 'block';
         }
 
@@ -693,13 +704,101 @@
             document.getElementById('channelModal').style.display = 'none';
         }
 
+        function validateEndpointUrl(url) {
+            // Check if URL is a supported type
+            if (!url) return { valid: false, message: 'Endpoint URL is required' };
+
+            // Check for email format
+            if (url.startsWith('mailto:')) {
+                const email = url.substring(7);
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    return { valid: false, message: 'Invalid email address format' };
+                }
+                return { valid: true, type: 'Email' };
+            }
+
+            // Check for webhook URLs
+            try {
+                const parsedUrl = new URL(url);
+                const hostname = parsedUrl.hostname.toLowerCase();
+
+                if (hostname.includes('slack.com')) {
+                    return { valid: true, type: 'Slack' };
+                } else if (hostname.includes('discord.com') || hostname.includes('discordapp.com')) {
+                    return { valid: true, type: 'Discord' };
+                } else {
+                    return {
+                        valid: false,
+                        message: 'Unsupported webhook URL. Only Slack (slack.com) and Discord (discord.com) webhooks are supported.',
+                        warning: true
+                    };
+                }
+            } catch (e) {
+                return { valid: false, message: 'Invalid URL format. Use https://... for webhooks or mailto:email@example.com for email.' };
+            }
+        }
+
+        function validateEndpointField() {
+            const url = document.getElementById('channelEndpoint').value;
+            const helpText = document.getElementById('endpointHelp');
+            const errorText = document.getElementById('endpointError');
+
+            if (!url) {
+                // Reset to default state if empty
+                helpText.style.display = 'block';
+                errorText.style.display = 'none';
+                return;
+            }
+
+            const validation = validateEndpointUrl(url);
+
+            if (validation.valid) {
+                // Show detected type
+                helpText.style.display = 'block';
+                helpText.style.color = '#27ae60';
+                helpText.innerHTML = `✓ Detected as ${validation.type} endpoint`;
+                errorText.style.display = 'none';
+            } else if (validation.warning) {
+                // Show warning
+                helpText.style.display = 'none';
+                errorText.style.display = 'block';
+                errorText.innerHTML = `⚠️ ${validation.message}`;
+                errorText.style.color = '#f39c12';
+            } else {
+                // Show error
+                helpText.style.display = 'none';
+                errorText.style.display = 'block';
+                errorText.innerHTML = `✗ ${validation.message}`;
+                errorText.style.color = '#e74c3c';
+            }
+        }
+
         function saveChannel(event) {
             event.preventDefault();
 
             const id = document.getElementById('channelId').value;
+            const endpoint_url = document.getElementById('channelEndpoint').value;
+
+            // Validate endpoint URL
+            const validation = validateEndpointUrl(endpoint_url);
+            if (!validation.valid) {
+                if (validation.warning) {
+                    // Show warning but allow to proceed
+                    if (!confirm(`Warning: ${validation.message}\n\nThis endpoint may not work correctly. Do you want to continue anyway?`)) {
+                        return;
+                    }
+                } else {
+                    // Show error and stop
+                    alert(`Error: ${validation.message}`);
+                    document.getElementById('channelEndpoint').focus();
+                    return;
+                }
+            }
+
             const data = {
                 name: document.getElementById('channelName').value,
-                endpoint_url: document.getElementById('channelEndpoint').value,
+                endpoint_url: endpoint_url,
                 score_threshold: parseFloat(document.getElementById('channelScoreThreshold').value),
                 model_id: parseInt(document.getElementById('channelModelId').value),
                 broadcast_limit: parseInt(document.getElementById('channelBroadcastLimit').value),

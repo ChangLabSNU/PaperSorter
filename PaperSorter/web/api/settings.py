@@ -133,6 +133,45 @@ def api_get_channels():
     return jsonify({"channels": channels})
 
 
+def validate_endpoint_url(url):
+    """Validate if the endpoint URL is a supported type.
+
+    Returns:
+        tuple: (is_valid, error_message, is_warning)
+    """
+    import re
+    from urllib.parse import urlparse
+
+    if not url:
+        return False, "Endpoint URL is required", False
+
+    # Check for email format
+    if url.startswith("mailto:"):
+        email = url[7:]
+        email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_regex, email):
+            return False, "Invalid email address format", False
+        return True, None, False
+
+    # Check for webhook URLs
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "Invalid URL format", False
+
+        hostname_lower = hostname.lower()
+        if "slack.com" in hostname_lower:
+            return True, None, False
+        elif "discord.com" in hostname_lower or "discordapp.com" in hostname_lower:
+            return True, None, False
+        else:
+            # Warning: unsupported but allow to proceed
+            return True, "Warning: Unsupported webhook URL. This endpoint may not work correctly.", True
+    except Exception:
+        return False, "Invalid URL format. Use https://... for webhooks or mailto:email@example.com for email.", False
+
+
 @settings_bp.route("/api/settings/channels", methods=["POST"])
 @admin_required
 def api_create_channel():
@@ -140,6 +179,17 @@ def api_create_channel():
     from ...utils.broadcast_hours import checkbox_array_to_hours
 
     data = request.get_json()
+
+    # Validate endpoint URL
+    endpoint_url = data.get("endpoint_url", "")
+    is_valid, error_msg, is_warning = validate_endpoint_url(endpoint_url)
+
+    if not is_valid:
+        return jsonify({"success": False, "error": error_msg}), 400
+
+    if is_warning:
+        # Log warning but allow to proceed
+        current_app.logger.warning(f"Creating channel with unsupported URL: {endpoint_url}")
 
     # Convert broadcast hours array to string format
     broadcast_hours = None
@@ -188,6 +238,17 @@ def api_update_channel(channel_id):
     from ...utils.broadcast_hours import checkbox_array_to_hours
 
     data = request.get_json()
+
+    # Validate endpoint URL
+    endpoint_url = data.get("endpoint_url", "")
+    is_valid, error_msg, is_warning = validate_endpoint_url(endpoint_url)
+
+    if not is_valid:
+        return jsonify({"success": False, "error": error_msg}), 400
+
+    if is_warning:
+        # Log warning but allow to proceed
+        current_app.logger.warning(f"Updating channel {channel_id} with unsupported URL: {endpoint_url}")
 
     # Convert broadcast hours array to string format
     broadcast_hours = None
