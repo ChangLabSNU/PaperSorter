@@ -36,7 +36,30 @@ class SlackProvider(NotificationProvider):
     def __init__(self, webhook_url):
         self.webhook_url = webhook_url
 
-    def send_notification(self, item, message_options, base_url=None):
+    def send_notifications(self, items, message_options, base_url=None):
+        """Send Slack notifications for a batch of items.
+        
+        Slack sends individual notifications for each item.
+        
+        Args:
+            items: List of paper dictionaries
+            message_options: Additional options
+            base_url: Base URL for web interface links
+            
+        Returns:
+            List of (item_id, success) tuples
+        """
+        results = []
+        for item in items:
+            try:
+                self._send_single_notification(item, message_options, base_url)
+                results.append((item.get('id'), True))
+            except NotificationError as e:
+                log.error(f"Failed to send Slack notification for item {item.get('id')}: {e}")
+                results.append((item.get('id'), False))
+        return results
+
+    def _send_single_notification(self, item, message_options, base_url=None):
         """Send a Slack notification using Block Kit."""
         header = {"Content-type": "application/json"}
 

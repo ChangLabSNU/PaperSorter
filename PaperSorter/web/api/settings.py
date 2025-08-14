@@ -87,32 +87,41 @@ def settings_feed_sources():
 def api_get_channels():
     """Get all channels."""
     from urllib.parse import urlparse
+    from ...utils.broadcast_hours import hours_to_checkbox_array
 
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, name, endpoint_url, score_threshold, model_id, is_active, broadcast_limit
+        SELECT id, name, endpoint_url, score_threshold, model_id, is_active, 
+               broadcast_limit, broadcast_hours
         FROM channels
         ORDER BY id
     """)
 
     channels = cursor.fetchall()
 
-    # Add webhook type detection
+    # Add webhook type detection and broadcast hours array
     for channel in channels:
+        # Convert broadcast_hours to checkbox array for UI
+        channel["broadcast_hours_array"] = hours_to_checkbox_array(channel.get("broadcast_hours"))
+        
         if channel["endpoint_url"]:
             try:
-                hostname = urlparse(channel["endpoint_url"]).hostname or ""
-                hostname_lower = hostname.lower()
-                if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
-                    "discordapp.com"
-                ):
-                    channel["webhook_type"] = "Discord"
-                elif hostname_lower.endswith("slack.com"):
-                    channel["webhook_type"] = "Slack"
+                # Check for email endpoints first
+                if channel["endpoint_url"].startswith("mailto:"):
+                    channel["webhook_type"] = "Email"
                 else:
-                    channel["webhook_type"] = "Unknown"
+                    hostname = urlparse(channel["endpoint_url"]).hostname or ""
+                    hostname_lower = hostname.lower()
+                    if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
+                        "discordapp.com"
+                    ):
+                        channel["webhook_type"] = "Discord"
+                    elif hostname_lower.endswith("slack.com"):
+                        channel["webhook_type"] = "Slack"
+                    else:
+                        channel["webhook_type"] = "Unknown"
             except Exception:
                 channel["webhook_type"] = "Invalid"
         else:
@@ -128,7 +137,14 @@ def api_get_channels():
 @admin_required
 def api_create_channel():
     """Create a new channel."""
+    from ...utils.broadcast_hours import checkbox_array_to_hours
+    
     data = request.get_json()
+    
+    # Convert broadcast hours array to string format
+    broadcast_hours = None
+    if "broadcast_hours_array" in data:
+        broadcast_hours = checkbox_array_to_hours(data["broadcast_hours_array"])
 
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
@@ -136,8 +152,9 @@ def api_create_channel():
     try:
         cursor.execute(
             """
-            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active, broadcast_limit)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active, 
+                                broadcast_limit, broadcast_hours)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -147,6 +164,7 @@ def api_create_channel():
                 data.get("model_id", 1),
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
+                broadcast_hours,
             ),
         )
 
@@ -167,7 +185,14 @@ def api_create_channel():
 @admin_required
 def api_update_channel(channel_id):
     """Update a channel."""
+    from ...utils.broadcast_hours import checkbox_array_to_hours
+    
     data = request.get_json()
+    
+    # Convert broadcast hours array to string format
+    broadcast_hours = None
+    if "broadcast_hours_array" in data:
+        broadcast_hours = checkbox_array_to_hours(data["broadcast_hours_array"])
 
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
@@ -176,7 +201,8 @@ def api_update_channel(channel_id):
         cursor.execute(
             """
             UPDATE channels
-            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s, broadcast_limit = %s
+            SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s, 
+                broadcast_limit = %s, broadcast_hours = %s
             WHERE id = %s
         """,
             (
@@ -186,6 +212,7 @@ def api_update_channel(channel_id):
                 data.get("model_id", 1),
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
+                broadcast_hours,
                 channel_id,
             ),
         )
@@ -276,27 +303,37 @@ def api_test_channel(channel_id):
         # Get base URL from config
         import yaml
 
-        with open(current_app.config.get("CONFIG_PATH", "./config.yml"), "r") as f:
+        config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
         base_url = config.get("web", {}).get("base_url", None)
 
         # Create provider and send notification
-        provider = create_notification_provider(channel["endpoint_url"])
-        provider.send_notification(test_item, message_options, base_url)
+        provider = create_notification_provider(channel["endpoint_url"], config_path)
+        
+        # Use batch interface - send as a list with one item
+        results = provider.send_notifications([test_item], message_options, base_url)
+        
+        # Check if the test was successful
+        if not results or not results[0][1]:
+            raise NotificationError("Test notification failed")
 
         # Detect webhook type for response
         from urllib.parse import urlparse
 
-        hostname = urlparse(channel["endpoint_url"]).hostname or ""
-        hostname_lower = hostname.lower()
-        if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
-            "discordapp.com"
-        ):
-            webhook_type = "Discord"
-        elif hostname_lower.endswith("slack.com"):
-            webhook_type = "Slack"
+        if channel["endpoint_url"].startswith("mailto:"):
+            webhook_type = "Email"
         else:
-            webhook_type = "Unknown"
+            hostname = urlparse(channel["endpoint_url"]).hostname or ""
+            hostname_lower = hostname.lower()
+            if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
+                "discordapp.com"
+            ):
+                webhook_type = "Discord"
+            elif hostname_lower.endswith("slack.com"):
+                webhook_type = "Slack"
+            else:
+                webhook_type = "Unknown"
 
         return jsonify(
             {
@@ -633,13 +670,14 @@ def api_get_broadcast_queue():
                 f.published,
                 f.link,
                 c.name as channel_name,
+                c.endpoint_url as channel_endpoint,
                 pp.score
             FROM broadcasts b
             JOIN feeds f ON b.feed_id = f.id
             JOIN channels c ON b.channel_id = c.id
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = c.model_id
             WHERE b.broadcasted_time IS NULL
-            ORDER BY f.published DESC
+            ORDER BY c.name ASC, c.id ASC, f.id ASC
         """)
 
         queue_items = cursor.fetchall()

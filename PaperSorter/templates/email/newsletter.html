@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: 20px auto;
+            padding: 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .header .date {
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .summary {
+            padding: 20px 30px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .summary-text {
+            color: #6c757d;
+            font-size: 16px;
+            margin: 0;
+        }
+        .papers {
+            padding: 20px 30px;
+        }
+        .paper {
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .paper:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .paper-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+            color: #212529;
+        }
+        .paper-title a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .paper-title a:hover {
+            text-decoration: underline;
+        }
+        .paper-meta {
+            font-size: 14px;
+            color: #6c757d;
+            margin: 8px 0;
+        }
+        .paper-authors {
+            color: #495057;
+            font-weight: 500;
+        }
+        .paper-abstract {
+            margin: 15px 0;
+            font-size: 15px;
+            line-height: 1.7;
+            color: #495057;
+        }
+        .paper-score {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        .score-high {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .score-medium {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .score-low {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .paper-links {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .paper-links a {
+            color: #667eea;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .paper-links a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            padding: 20px 30px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            border-radius: 0 0 8px 8px;
+            text-align: center;
+            font-size: 13px;
+            color: #6c757d;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        @media only screen and (max-width: 600px) {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            .header {
+                border-radius: 0;
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+            .summary, .papers, .footer {
+                padding: 15px 20px;
+            }
+            .paper-title {
+                font-size: 16px;
+            }
+            .paper-abstract {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Research Papers Digest</h1>
+            <div class="date">{{ date.strftime('%B %d, %Y') }}</div>
+        </div>
+        
+        <div class="summary">
+            <p class="summary-text">
+                {% if papers|length == 1 %}
+                    1 paper selected for your review
+                {% else %}
+                    {{ papers|length }} papers selected for your review
+                {% endif %}
+                {% if source_count %}
+                    from {{ source_count }} sources
+                {% endif %}
+            </p>
+        </div>
+        
+        <div class="papers">
+            {% for paper in papers %}
+            <div class="paper">
+                <h2 class="paper-title">
+                    <a href="{{ paper.link }}" target="_blank">{{ paper.title }}</a>
+                </h2>
+                
+                {% if paper.author %}
+                <div class="paper-meta paper-authors">
+                    {{ paper.author }}
+                </div>
+                {% endif %}
+                
+                <div class="paper-meta">
+                    {% if paper.origin %}
+                        <strong>{{ paper.origin }}</strong>
+                    {% endif %}
+                    {% if paper.published %}
+                        • Published: {{ paper.published.strftime('%Y-%m-%d') }}
+                    {% endif %}
+                </div>
+                
+                {% if paper.score is defined %}
+                <div class="paper-meta">
+                    <span class="paper-score {% if paper.score >= 0.8 %}score-high{% elif paper.score >= 0.5 %}score-medium{% else %}score-low{% endif %}">
+                        Score: {{ "%.2f"|format(paper.score) }}
+                    </span>
+                </div>
+                {% endif %}
+                
+                {% if paper.content %}
+                <div class="paper-abstract">
+                    {{ paper.content|truncate(500) }}
+                </div>
+                {% elif paper.tldr %}
+                <div class="paper-abstract">
+                    <em>Summary:</em> {{ paper.tldr }}
+                </div>
+                {% endif %}
+                
+                {% if base_url %}
+                <div class="paper-links">
+                    <a href="{{ paper.link }}" target="_blank">📄 Full Paper</a>
+                    {% if paper.id %}
+                    <a href="{{ base_url }}/similar/{{ paper.id }}" target="_blank">🔍 Similar Papers</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="footer">
+            <p>
+                This digest was generated by PaperSorter
+                {% if base_url %}
+                • <a href="{{ base_url }}" target="_blank">View in Web Interface</a>
+                {% endif %}
+            </p>
+            <p style="margin-top: 10px; font-size: 12px;">
+                To unsubscribe or adjust preferences, please contact your administrator.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

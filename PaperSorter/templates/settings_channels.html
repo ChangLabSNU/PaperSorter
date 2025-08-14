@@ -83,6 +83,11 @@
             color: #e01563;
         }
 
+        .tag-email {
+            background-color: #e6f7ff;
+            color: #0050b3;
+        }
+
         .tag-unknown {
             background-color: #e2e3e5;
             color: #383d41;
@@ -257,6 +262,84 @@
             justify-content: flex-end;
         }
 
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .hours-scheduler {
+            margin: 10px 0;
+        }
+
+        .hours-table {
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .hours-header {
+            display: grid;
+            grid-template-columns: repeat(24, 1fr);
+            gap: 2px;
+            margin-bottom: 5px;
+        }
+
+        .hour-number {
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .hours-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(24, 1fr);
+            gap: 2px;
+        }
+
+        .hour-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 2px;
+            padding: 0;
+        }
+
+        .hour-cell input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+            transform: scale(0.9);
+        }
+
+        .hour-cell input[type="checkbox"]:checked {
+            accent-color: #3498db;
+        }
+
+        .hours-controls {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .hours-controls button {
+            padding: 4px 10px;
+            font-size: 12px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .hours-controls button:hover {
+            background: #e0e0e0;
+        }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -342,36 +425,63 @@
                 </div>
                 <div class="form-group">
                     <label for="channelEndpoint">Endpoint URL</label>
-                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or https://discord.com/api/webhooks/...">
-                    <small style="color: #666;">Supports Slack and Discord webhooks (auto-detected)</small>
+                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or mailto:user@example.com">
+                    <small style="color: #666;">Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="channelScoreThreshold">Score Threshold</label>
+                        <input type="number" id="channelScoreThreshold" required
+                               min="0" max="1" step="0.01" value="0.7"
+                               placeholder="0.7">
+                        <small style="color: #666;">Min score to broadcast (0.0-1.0)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="channelModelId">Model ID</label>
+                        <input type="number" id="channelModelId" required
+                               min="1" value="1"
+                               placeholder="1">
+                        <small style="color: #666;">Scoring model ID</small>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="channelBroadcastLimit">Broadcast Limit</label>
+                        <input type="number" id="channelBroadcastLimit" required
+                               min="1" max="100" value="20"
+                               placeholder="20">
+                        <small style="color: #666;">Max items per run</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="channelIsActive">Status</label>
+                        <div style="margin-top: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="channelIsActive" checked>
+                                <span>Channel is Active</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="channelScoreThreshold">Score Threshold</label>
-                    <input type="number" id="channelScoreThreshold" required
-                           min="0" max="1" step="0.01" value="0.7"
-                           placeholder="0.7">
-                    <small style="color: #666;">Items with scores above this threshold will be broadcasted (0.0 - 1.0)</small>
-                </div>
-                <div class="form-group">
-                    <label for="channelModelId">Model ID</label>
-                    <input type="number" id="channelModelId" required
-                           min="1" value="1"
-                           placeholder="1">
-                    <small style="color: #666;">ID of the scoring model to use for this channel</small>
-                </div>
-                <div class="form-group">
-                    <label for="channelBroadcastLimit">Broadcast Limit</label>
-                    <input type="number" id="channelBroadcastLimit" required
-                           min="1" max="100" value="20"
-                           placeholder="20">
-                    <small style="color: #666;">Maximum number of items to broadcast per run (1-100)</small>
-                </div>
-                <div class="form-group">
-                    <label for="channelIsActive">
-                        <input type="checkbox" id="channelIsActive" checked>
-                        Channel is Active
-                    </label>
-                    <small style="color: #666;">Only active channels will broadcast notifications</small>
+                    <label>Broadcast Hours</label>
+                    <div class="hours-scheduler">
+                        <div class="hours-table">
+                            <div class="hours-header" id="hoursHeader">
+                                <!-- Hour numbers will be generated by JavaScript -->
+                            </div>
+                            <div class="hours-checkboxes" id="hoursGrid">
+                                <!-- Checkboxes will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="hours-controls">
+                            <button type="button" onclick="selectAllHours()">All Hours</button>
+                            <button type="button" onclick="clearAllHours()">Clear</button>
+                            <button type="button" onclick="selectBusinessHours()">Business (9-17)</button>
+                            <button type="button" onclick="selectEveryMorning()">Every morning</button>
+                            <button type="button" onclick="selectAfterMeals()">After meals</button>
+                        </div>
+                        <small style="color: #666;">Select hours when broadcasting is allowed (server timezone)</small>
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
@@ -383,6 +493,103 @@
 
     <script>
         let channels = [];
+
+        // Initialize hours grid
+        function initHoursGrid() {
+            const header = document.getElementById('hoursHeader');
+            const grid = document.getElementById('hoursGrid');
+            
+            header.innerHTML = '';
+            grid.innerHTML = '';
+            
+            // Create header with hour numbers
+            for (let hour = 0; hour < 24; hour++) {
+                const div = document.createElement('div');
+                div.className = 'hour-number';
+                div.textContent = hour.toString();
+                header.appendChild(div);
+            }
+            
+            // Create checkboxes without labels
+            for (let hour = 0; hour < 24; hour++) {
+                const div = document.createElement('div');
+                div.className = 'hour-cell';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `hour_${hour}`;
+                checkbox.name = 'broadcast_hours';
+                checkbox.value = hour;
+                checkbox.checked = true; // Default to all hours allowed
+                checkbox.title = `Hour ${hour}:00-${hour}:59`;
+                
+                div.appendChild(checkbox);
+                grid.appendChild(div);
+            }
+        }
+
+        // Set hours from array
+        function setHoursFromArray(hoursArray) {
+            if (!hoursArray || hoursArray.length !== 24) {
+                // If no array or invalid, default to all checked (24/7 broadcasting)
+                for (let hour = 0; hour < 24; hour++) {
+                    const checkbox = document.getElementById(`hour_${hour}`);
+                    if (checkbox) checkbox.checked = true;
+                }
+                return;
+            }
+            
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = hoursArray[hour];
+            }
+        }
+
+        // Get hours as array
+        function getHoursAsArray() {
+            const hoursArray = [];
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                hoursArray.push(checkbox ? checkbox.checked : false);
+            }
+            return hoursArray;
+        }
+
+        // Hour selection helpers
+        function selectAllHours() {
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = true;
+            }
+        }
+
+        function clearAllHours() {
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = false;
+            }
+        }
+
+        function selectBusinessHours() {
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = (hour >= 9 && hour <= 17);
+            }
+        }
+
+        function selectEveryMorning() {
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = (hour === 8);
+            }
+        }
+
+        function selectAfterMeals() {
+            for (let hour = 0; hour < 24; hour++) {
+                const checkbox = document.getElementById(`hour_${hour}`);
+                if (checkbox) checkbox.checked = (hour === 8 || hour === 12 || hour === 17);
+            }
+        }
 
         function loadChannels() {
             fetch('/api/settings/channels')
@@ -430,7 +637,7 @@
                                 <td>${channel.id}</td>
                                 <td><strong>${channel.name}</strong></td>
                                 <td>
-                                    <span class="tag ${channel.webhook_type === 'Discord' ? 'tag-discord' : channel.webhook_type === 'Slack' ? 'tag-slack' : 'tag-unknown'}">
+                                    <span class="tag ${channel.webhook_type === 'Discord' ? 'tag-discord' : channel.webhook_type === 'Slack' ? 'tag-slack' : channel.webhook_type === 'Email' ? 'tag-email' : 'tag-unknown'}">
                                         ${channel.webhook_type || 'Unknown'}
                                     </span>
                                 </td>
@@ -475,6 +682,10 @@
             document.getElementById('channelModelId').value = channel.model_id || 1;
             document.getElementById('channelBroadcastLimit').value = channel.broadcast_limit || 20;
             document.getElementById('channelIsActive').checked = channel.is_active !== false;
+            
+            // Set broadcast hours
+            setHoursFromArray(channel.broadcast_hours_array);
+            
             document.getElementById('channelModal').style.display = 'block';
         }
 
@@ -492,7 +703,8 @@
                 score_threshold: parseFloat(document.getElementById('channelScoreThreshold').value),
                 model_id: parseInt(document.getElementById('channelModelId').value),
                 broadcast_limit: parseInt(document.getElementById('channelBroadcastLimit').value),
-                is_active: document.getElementById('channelIsActive').checked
+                is_active: document.getElementById('channelIsActive').checked,
+                broadcast_hours_array: getHoursAsArray()
             };
 
             const url = id ? `/api/settings/channels/${id}` : '/api/settings/channels';
@@ -581,6 +793,7 @@
         }
 
         // Load channels on page load
+        initHoursGrid();
         loadChannels();
     </script>
 </body>

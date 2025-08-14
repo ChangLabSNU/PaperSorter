@@ -1,0 +1,51 @@
+{# Reusable paper card component for email templates #}
+{# Usage: {% include 'email/paper_card.html' %} #}
+{# Expects: paper object in context #}
+
+<div class="paper">
+    <h2 class="paper-title">
+        <a href="{{ paper.link }}" target="_blank">{{ paper.title }}</a>
+    </h2>
+    
+    {% if paper.author %}
+    <div class="paper-meta paper-authors">
+        {{ paper.author }}
+    </div>
+    {% endif %}
+    
+    <div class="paper-meta">
+        {% if paper.origin %}
+            <strong>{{ paper.origin }}</strong>
+        {% endif %}
+        {% if paper.published %}
+            • Published: {{ paper.published.strftime('%Y-%m-%d') }}
+        {% endif %}
+    </div>
+    
+    {% if paper.score is defined %}
+    <div class="paper-meta">
+        <span class="paper-score {% if paper.score >= 0.8 %}score-high{% elif paper.score >= 0.5 %}score-medium{% else %}score-low{% endif %}">
+            Score: {{ "%.2f"|format(paper.score) }}
+        </span>
+    </div>
+    {% endif %}
+    
+    {% if paper.content %}
+    <div class="paper-abstract">
+        {{ paper.content|truncate(500) }}
+    </div>
+    {% elif paper.tldr %}
+    <div class="paper-abstract">
+        <em>Summary:</em> {{ paper.tldr }}
+    </div>
+    {% endif %}
+    
+    {% if base_url %}
+    <div class="paper-links">
+        <a href="{{ paper.link }}" target="_blank">📄 Full Paper</a>
+        {% if paper.id %}
+        <a href="{{ base_url }}/similar/{{ paper.id }}" target="_blank">🔍 Similar Papers</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

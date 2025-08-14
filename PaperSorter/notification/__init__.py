@@ -26,6 +26,7 @@
 from .base import NotificationProvider, NotificationError
 from .slack import SlackProvider
 from .discord import DiscordProvider
+from .email import EmailProvider
 from .factory import create_notification_provider
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     "NotificationError",
     "SlackProvider",
     "DiscordProvider",
+    "EmailProvider",
     "create_notification_provider",
 ]

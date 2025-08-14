@@ -24,9 +24,11 @@
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
 from ..notification import create_notification_provider, NotificationError
+from ..utils.broadcast_hours import is_broadcast_allowed
 import click
 import re
 import yaml
+from datetime import datetime
 
 
 def normalize_item_for_display(item, max_content_length):
@@ -88,7 +90,7 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
     # Get all active channels
     feeddb.cursor.execute("""
         SELECT c.id, c.name, c.endpoint_url, c.model_id, c.broadcast_limit,
-               m.name as model_name
+               c.broadcast_hours, m.name as model_name
         FROM channels c
         LEFT JOIN models m ON c.model_id = m.id
         WHERE c.is_active = TRUE AND c.endpoint_url IS NOT NULL
@@ -101,6 +103,9 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
         return
 
     log.info(f"Processing broadcast queue for {len(channels)} active channels.")
+    
+    # Get current time for checking broadcast hours
+    current_time = datetime.now()
 
     # Process each channel
     for channel in channels:
@@ -109,6 +114,15 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
         endpoint = channel["endpoint_url"]
         model_id = channel["model_id"]
         model_name = channel["model_name"] or "Default"
+        broadcast_hours = channel.get("broadcast_hours")
+        
+        # Check if broadcasting is allowed at current time
+        if not is_broadcast_allowed(broadcast_hours, current_time):
+            log.info(
+                f'Skipping channel "{channel_name}" (id={channel_id}) - '
+                f'broadcasting not allowed at hour {current_time.hour}'
+            )
+            continue
 
         message_options = {
             "model_name": model_name,
@@ -144,25 +158,42 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
 
         # Create notification provider based on webhook URL
         try:
-            provider = create_notification_provider(endpoint)
+            provider = create_notification_provider(endpoint, config_path=config)
         except ValueError as e:
             log.error(f'Invalid webhook URL for channel "{channel_name}": {e}')
             continue
 
+        # Prepare items for batch sending
+        items_to_send = []
         for feed_id, info in queue_items.iterrows():
-            log.info(
-                f'Sending notification to channel "{channel_name}": "{info["title"]}"'
-            )
             # Add the feed_id to info dict for the More Like This button
             info["id"] = feed_id
             normalize_item_for_display(info, max_content_length)
-            try:
-                provider.send_notification(info, message_options, base_url)
-            except NotificationError as e:
-                log.error(f"Failed to send notification: {e}")
-            else:
-                # Mark as processed in the merged broadcasts table
-                feeddb.mark_broadcast_queue_processed(feed_id, channel_id)
-                feeddb.commit()
+            items_to_send.append(info.to_dict())
+
+        log.info(
+            f'Sending {len(items_to_send)} notifications to channel "{channel_name}"'
+        )
+
+        try:
+            # Send all items as a batch
+            results = provider.send_notifications(items_to_send, message_options, base_url)
+            
+            # Process results and mark successful items as processed
+            for item_id, success in results:
+                if success:
+                    feeddb.mark_broadcast_queue_processed(item_id, channel_id)
+                else:
+                    log.warning(f"Failed to send item {item_id} to channel {channel_name}")
+            
+            feeddb.commit()
+            
+            successful_count = sum(1 for _, success in results if success)
+            log.info(
+                f'Successfully sent {successful_count}/{len(items_to_send)} items to channel "{channel_name}"'
+            )
+            
+        except NotificationError as e:
+            log.error(f"Failed to send notifications to channel {channel_name}: {e}")
 
     log.info("Broadcast completed for all channels.")

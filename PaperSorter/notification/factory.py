@@ -27,17 +27,20 @@ from urllib.parse import urlparse
 from ..log import log
 from .slack import SlackProvider
 from .discord import DiscordProvider
+from .email import EmailProvider
 
 
-def create_notification_provider(webhook_url):
+def create_notification_provider(webhook_url, config_path="./config.yml"):
     """Create appropriate notification provider based on webhook URL.
 
-    Automatically detects the webhook type based on the hostname:
+    Automatically detects the webhook type based on the URL scheme or hostname:
+    - URLs starting with 'mailto:' -> EmailProvider
     - Hostnames ending with 'slack.com' -> SlackProvider
     - Hostnames ending with 'discord.com' or 'discordapp.com' -> DiscordProvider
 
     Args:
         webhook_url: The webhook URL to analyze
+        config_path: Path to configuration file (for email provider)
 
     Returns:
         NotificationProvider: Appropriate provider instance
@@ -47,6 +50,11 @@ def create_notification_provider(webhook_url):
     """
     if not webhook_url:
         raise ValueError("Webhook URL cannot be empty")
+    
+    # Check for mailto: URLs first
+    if webhook_url.startswith("mailto:"):
+        log.debug(f"Detected email notification: {webhook_url}")
+        return EmailProvider(webhook_url, config_path)
 
     # Parse the URL to get hostname
     try:
