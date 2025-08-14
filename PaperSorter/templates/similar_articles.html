@@ -643,12 +643,12 @@
         .summary-disclaimer strong {
             color: #3c4043;
         }
-        
+
         .poster-content {
             width: 100%;
             margin-top: 20px;
         }
-        
+
         .poster-iframe {
             width: 100%;
             height: 800px;
@@ -656,14 +656,14 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        
+
         .poster-actions {
             display: flex;
             gap: 10px;
             margin-bottom: 15px;
             justify-content: flex-end;
         }
-        
+
         .btn-print {
             background: #1a73e8;
             color: white;
@@ -678,12 +678,12 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         .btn-print:hover {
             background: #1557b0;
             box-shadow: 0 2px 4px rgba(0,0,0,0.15);
         }
-        
+
         .btn-print:active {
             transform: translateY(1px);
         }
@@ -861,12 +861,12 @@
                     // Update source article info
                     if (data.source_article) {
                         document.querySelector('.source-article-title').textContent = data.source_article.title;
-                        
+
                         // Build meta text, skipping empty values
                         const metaParts = [];
                         if (data.source_article.author) metaParts.push(data.source_article.author);
                         if (data.source_article.origin) metaParts.push(data.source_article.origin);
-                        
+
                         document.querySelector('.source-article-meta').textContent = metaParts.join(' · ');
                     }
 
@@ -1140,15 +1140,15 @@
             const summaryInitial = document.getElementById('summary-initial');
             const summaryLoading = document.getElementById('summary-loading');
             const summaryText = document.getElementById('summary-text');
-            
+
             // Hide button container and show loading
             summaryInitial.style.display = 'none';
             summaryLoading.style.display = 'block';
             summaryText.innerHTML = '';
-            
+
             // Extract feed IDs from similar articles and include the source article
             const feedIds = [sourceFeedId, ...similarArticles.map(article => article.rowid)];
-            
+
             // Call the summarization API with feed IDs including the source
             fetch('/api/summarize', {
                 method: 'POST',
@@ -1167,8 +1167,8 @@
                 if (data.success) {
                     summaryText.innerHTML = data.summary_html + `
                         <div class="summary-disclaimer">
-                            <p><strong>Note:</strong> This AI-generated summary is based solely on article titles and abstracts, not the full text. 
-                            The summary may contain inaccuracies or miss important details from the complete papers. 
+                            <p><strong>Note:</strong> This AI-generated summary is based solely on article titles and abstracts, not the full text.
+                            The summary may contain inaccuracies or miss important details from the complete papers.
                             Please refer to the original articles for comprehensive information.</p>
                         </div>
                     `;
@@ -1196,18 +1196,18 @@
             const posterLoading = document.getElementById('poster-loading');
             const summaryText = document.getElementById('summary-text');
             const posterContent = document.getElementById('poster-content');
-            
+
             // Hide button container and show loading
             summaryInitial.style.display = 'none';
             posterLoading.style.display = 'block';
             summaryText.style.display = 'none';
             posterContent.style.display = 'none';
-            
+
             // Extract feed IDs from similar articles and include the source article
             const feedIds = [sourceFeedId, ...similarArticles.map(article => article.rowid)];
-            
+
             // Call the poster generation API to queue the job
-            
+
             fetch('/api/generate-poster', {
                 method: 'POST',
                 headers: {
@@ -1239,7 +1239,7 @@
                                 if (statusData.status === 'completed') {
                                     clearInterval(pollInterval);
                                     posterLoading.style.display = 'none';
-                                    
+
                                     // Create an iframe to display the HTML poster with print button
                                     posterContent.innerHTML = `
                                         <div class="poster-actions">
@@ -1249,17 +1249,17 @@
                                         </div>
                                         <iframe id="poster-iframe" class="poster-iframe" srcdoc="${statusData.poster_html.replace(/"/g, '&quot;')}" frameborder="0"></iframe>
                                         <div class="summary-disclaimer">
-                                            <p><strong>Note:</strong> This AI-generated infographic is based solely on article titles and abstracts, not the full text. 
-                                            The visualization may contain inaccuracies or miss important details from the complete papers. 
+                                            <p><strong>Note:</strong> This AI-generated infographic is based solely on article titles and abstracts, not the full text.
+                                            The visualization may contain inaccuracies or miss important details from the complete papers.
                                             Please refer to the original articles for comprehensive information.</p>
                                         </div>
                                     `;
                                     posterContent.style.display = 'block';
-                                    
+
                                 } else if (statusData.status === 'error') {
                                     clearInterval(pollInterval);
                                     posterLoading.style.display = 'none';
-                                    
+
                                     posterContent.innerHTML = `<p style="color: #e74c3c;">Failed to generate poster: ${statusData.error || 'Unknown error'}</p>`;
                                     posterContent.style.display = 'block';
                                     // Show button again on failure
@@ -1270,14 +1270,14 @@
                             .catch(error => {
                                 clearInterval(pollInterval);
                                 posterLoading.style.display = 'none';
-                                
+
                                 posterContent.innerHTML = `<p style="color: #e74c3c;">An error occurred while checking job status: ${error.message}</p>`;
                                 posterContent.style.display = 'block';
                                 // Show button again on error
                                 summaryInitial.style.display = 'flex';
                             });
                     }, 3000); // Poll every 3 seconds
-                    
+
                     // Stop polling after 5 minutes
                     setTimeout(() => {
                         clearInterval(pollInterval);
@@ -1288,7 +1288,7 @@
                             summaryInitial.style.display = 'flex';
                         }
                     }, 300000); // 5 minutes timeout
-                    
+
                 } else {
                     throw new Error('Failed to create job');
                 }
