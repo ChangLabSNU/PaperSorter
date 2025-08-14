@@ -1024,7 +1024,7 @@
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;
-        let currentMinScore = {{ current_user.feedlist_minscore or 0.25 }};
+        let currentMinScore = {{ current_user.feedlist_minscore or 0 }};
         let lastDateShown = null;
         let bookmarkId = null;
         let bookmarkInserted = false;
