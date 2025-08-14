@@ -66,5 +66,6 @@ plot_model_comparisons.py
 recreate_embeddings_vertex.py
 openai-google-embedding.py
 
-# prevent credentials from being committed
+# Secrets (in Configuration)
 config.yml
+.env

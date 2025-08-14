@@ -1,0 +1,34 @@
+# PaperSorter runtime config (rendered from environment at container start)
+
+db:
+  type: postgres
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  user: ${POSTGRES_USER}
+  database: ${POSTGRES_DB}
+  password: "${POSTGRES_PASSWORD}"
+
+google_oauth:
+  client_id: "${GOOGLE_CLIENT_ID}"
+  secret: "${GOOGLE_CLIENT_SECRET}"
+  flask_secret_key: "${FLASK_SECRET_KEY}"
+
+embedding_api:
+  api_key: "${EMBEDDING_API_KEY}"
+  api_url: "${EMBEDDING_API_URL}"
+  model: "${EMBEDDING_MODEL}"
+  dimensions: ${EMBEDDING_DIMENSIONS}
+
+summarization_api:
+  api_key: "${SUMMARIZATION_API_KEY}"
+  api_url: "${SUMMARIZATION_API_URL}"
+  model: "${SUMMARIZATION_MODEL}"
+
+semanticscholar:
+  api_key: "${SEMANTIC_SCHOLAR_API_KEY}"
+
+web:
+  base_url: "${WEB_BASE_URL}"
+
+storage:
+  ai_poster_dir: "${AI_POSTER_DIR}"

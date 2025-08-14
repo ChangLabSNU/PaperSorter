@@ -17,16 +17,92 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 
 > **📊 Architecture Overview**: For a detailed view of how PaperSorter's components interact, see the [Architecture Overview](#architecture-overview) section below.
 
-## Installation
+## Quick Start with Docker
 
-Install PaperSorter using pip:
+The easiest way to get started with PaperSorter is using Docker Compose, which automatically sets up the database and web application.
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- API keys for your chosen services (see Configuration section below)
+
+### 1. Clone and Configure
 
 ```bash
 git clone https://github.com/ChangLabSNU/PaperSorter.git
-
 cd PaperSorter
-pip install -e .
 ```
+
+### 2. Create Environment File
+
+Copy `.env.example` to `.env` and edit it with your configuration:
+
+```bash
+# Database Configuration
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_USER=papersorter
+POSTGRES_PASSWORD=your_secure_password
+POSTGRES_DB=papersorter
+
+# Google OAuth (required for web interface)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+FLASK_SECRET_KEY=your_flask_secret_key  # generate with: python -c "import secrets; print(secrets.token_hex(32))"
+
+# Embedding API (choose one)
+EMBEDDING_API_KEY=your_api_key
+EMBEDDING_API_URL=https://api.upstage.ai/v1
+EMBEDDING_MODEL=solar-embedding-1-large-passage
+EMBEDDING_DIMENSIONS=4096
+
+# Summarization API (optional)
+SUMMARIZATION_API_KEY=your_api_key
+SUMMARIZATION_API_URL=https://generativelanguage.googleapis.com/v1beta/openai
+SUMMARIZATION_MODEL=gemini-2.5-pro
+
+# Semantic Scholar (optional)
+SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
+
+# Web Configuration
+WEB_BASE_URL=http://localhost:5001
+
+# Storage
+AI_POSTER_DIR=/app/ai_posters
+
+# Admin user email (required)
+ADMIN_EMAIL=your_email@example.com
+```
+
+### 3. Start PaperSorter
+
+```bash
+docker-compose up -d
+```
+
+The application will be available at [http://localhost:5001](http://localhost:5001).
+
+### 4. Initial Setup
+
+1. **Log in**: Use the Google OAuth login with the email address you set as `ADMIN_EMAIL`
+2. **Add feed sources**: Go to Settings → Feed Sources and add RSS/Atom feed URLs
+3. **Fetch articles**: Run `docker-compose exec app papersorter update`
+4. **Label articles**: Use the web interface to mark articles as Interested/Not Interested
+5. **Train model**: Run `docker-compose exec app papersorter train`
+
+### 5. Production Deployment
+
+For production, update your `.env` file with:
+
+```bash
+WEB_BASE_URL=https://your-domain.com
+```
+
+And configure a reverse proxy (nginx) with SSL termination.
+
+## Manual Installation
+
+If you prefer to install PaperSorter manually without Docker:
 
 ### System Requirements
 
@@ -34,9 +110,59 @@ pip install -e .
 - PostgreSQL 12+ with pgvector extension
 - Modern web browser (for labeling interface)
 
+### Installation
+
+```bash
+git clone https://github.com/ChangLabSNU/PaperSorter.git
+cd PaperSorter
+pip install -e .
+```
+
+### Database Setup
+
+#### 1. Create PostgreSQL Database
+
+First, create a database and user for PaperSorter:
+
+```bash
+# As PostgreSQL superuser:
+sudo -u postgres psql <<EOF
+CREATE USER papersorter WITH PASSWORD 'your_password';
+CREATE DATABASE papersorter OWNER papersorter;
+\c papersorter
+CREATE EXTENSION vector;
+GRANT ALL ON SCHEMA public TO papersorter;
+EOF
+```
+
+If you have an existing database:
+
+```bash
+# Connect to your database and install pgvector
+sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
+```
+
+#### 2. Initialize Database Schema
+
+```bash
+papersorter init
+```
+
+To reinitialize (drops existing data):
+
+```bash
+papersorter init --drop-existing
+```
+
 ## Configuration
 
-Create a configuration file at `config.yml` (or specify with `--config`). See `examples/config.yml` for a complete example:
+### Docker Configuration
+
+When using Docker, configuration is handled through environment variables in the `.env` file (see Quick Start section above).
+
+### Manual Configuration
+
+Create a `config.yml` file:
 
 ```yaml
 db:
@@ -92,47 +218,13 @@ scholarly_database:
     email: "your_email@example.com"  # Must be a valid email address
 ```
 
-## Database Setup
-
-### 1. Create PostgreSQL Database
-
-First, create a database and user for PaperSorter:
-
-```bash
-# As PostgreSQL superuser:
-sudo -u postgres psql <<EOF
-CREATE USER papersorter WITH PASSWORD 'your_password';
-CREATE DATABASE papersorter OWNER papersorter;
-\c papersorter
-CREATE EXTENSION vector;
-GRANT ALL ON SCHEMA public TO papersorter;
-EOF
-```
-
-Alternatively, if you have an existing database:
-
-```bash
-# Connect to your database and install pgvector
-sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
-```
-
-### 2. Initialize Database Schema
-
-```bash
-papersorter init
-```
-
-To reinitialize (drops existing data):
-
-```bash
-papersorter init --drop-existing
-```
-
 ## Getting Started
 
 ### 1. Add Feed Sources
 
-Start the web interface and configure your feed sources:
+**Docker users**: The web interface is already running at [http://localhost:5001](http://localhost:5001)
+
+**Manual users**: Start the web interface:
 
 ```bash
 papersorter serve
@@ -145,7 +237,13 @@ Navigate to http://localhost:5001 and:
 
 ### 2. Initial Data Collection
 
-Fetch articles from your configured feeds:
+**Docker users**:
+
+```bash
+docker-compose exec app papersorter update
+```
+
+**Manual users**:
 
 ```bash
 papersorter update
@@ -154,13 +252,20 @@ papersorter update
 ### 3. Label Training Data
 
 Use the web interface to label articles:
+
 - Mark articles as **"Interested"** for papers relevant to your research
 - Mark articles as **"Not Interested"** for irrelevant papers
 - Aim for at least 100 "Interested" articles out of 1000+ total for initial training
 
 ### 4. Train the Model
 
-Once you have sufficient labeled data:
+**Docker users**:
+
+```bash
+docker-compose exec app papersorter train
+```
+
+**Manual users**:
 
 ```bash
 papersorter train
@@ -172,7 +277,7 @@ The model performance (ROC-AUC) will be displayed. A score above 0.8 indicates g
 
 For production use, deploy the web interface with a proper WSGI server and HTTPS:
 
-#### Production Deployment
+#### Production Deployment (On-Premise)
 
 ```bash
 # Install uWSGI
@@ -212,6 +317,7 @@ ngrok http 5001  # Creates HTTPS tunnel to your local server
 ### 6. Configure Notifications (Slack or Discord)
 
 In the web interface:
+
 - Go to Settings → Channels
 - Add a webhook URL (Slack or Discord)
 - Set the score threshold (e.g., 0.7)
@@ -251,8 +357,19 @@ Discord notifications include:
 - Timestamp and model information
 
 ### 7. Regular Operation
+**Docker users**:
+
+```bash
+# Fetch new articles and generate predictions (every 3 hours)
+docker-compose exec app papersorter update
+
+# Send Slack notifications for high-scoring articles (every 3 hours, 7am-9pm)
+docker-compose exec app papersorter broadcast
+```
 
 Set up these commands to run periodically (e.g., via cron):
+
+**Manual users**:
 
 ```bash
 # Fetch new articles and generate predictions (every 3 hours)
@@ -315,9 +432,22 @@ Both providers will enrich your RSS feed articles with:
 - `papersorter broadcast` - Send notifications (Slack/Discord) for interesting articles
 - `papersorter serve` - Start the web interface for labeling and configuration
 
+### Docker Commands
+
+When using Docker, prefix commands with `docker-compose exec app`:
+
+```bash
+# Example: Update articles
+docker-compose exec app papersorter update
+
+# Example: Train model
+docker-compose exec app papersorter train
+```
+
 ### Common Options
 
 All commands support:
+
 - `--config PATH` - Configuration file path (default: config.yml)
 - `--log-file PATH` - Log output to file
 - `-q, --quiet` - Suppress console output
@@ -325,30 +455,35 @@ All commands support:
 ### Command-Specific Options
 
 **update:**
+
 - `--batch-size N` - Processing batch size
 - `--limit-sources N` - Maximum number of feed sources to process
 - `--check-interval-hours N` - Hours between checks for the same feed
 
 **train:**
+
 - `-r, --rounds N` - XGBoost training rounds (default: 100)
 - `-o, --output PATH` - Model output file (default: model.pkl)
 - `--embeddings-table NAME` - Embeddings table name (default: embeddings)
 
 **broadcast:**
+
 - `--limit N` - Maximum items to process per channel
 - `--max-content-length N` - Maximum content length for messages
 - `--clear-old-days N` - Clear broadcasts older than N days (default: 30)
 
 **serve:**
+
 - `--host ADDRESS` - Bind address (default: 0.0.0.0)
 - `--port N` - Port number (default: 5001)
 - `--debug` - Enable Flask debug mode
 
 ## Web Interface Features
 
-The web interface (http://localhost:5001) provides:
+The web interface provides:
 
 ### Main Feed View
+
 - Browse all articles with predictions
 - Interactive labeling (Interested/Not Interested)
 - Semantic article search
@@ -356,16 +491,19 @@ The web interface (http://localhost:5001) provides:
 - Filter by date, score, or label status
 
 ### Article Features
+
 - View full abstracts and metadata
 - Find similar articles
 - Direct links to paper PDFs
 - Semantic Scholar integration for citations
 
 ### AI-Powered Tools
+
 - Generate article summaries
 - Create visual infographics for article collections
 
 ### Admin Settings
+
 - Manage feed sources
 - Configure notification channels
 - View model performance
@@ -449,6 +587,12 @@ PaperSorter consists of several key components that work together to fetch, anal
 - **PostgreSQL + pgvector**: Efficient storage and similarity search for embeddings
 - **Flask Web Application**: Modern interface with OAuth authentication (ORCID, Google, GitHub)
 - **Notification System**: Multi-channel support for Slack, Discord, and email notifications
+
+## Troubleshooting
+
+- **"Authentication failed" error**: Check that your redirect URI exactly matches what's configured in Google Cloud Console
+- **Database connection errors**: Verify your database configuration in `config.yml`
+- **pgvector extension missing**: Install the pgvector extension in your PostgreSQL database
 
 ## License
 
