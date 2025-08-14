@@ -256,7 +256,7 @@ Set up these commands to run periodically (e.g., via cron):
 # Fetch new articles and generate predictions (every 3 hours)
 papersorter update
 
-# Send notifications for high-scoring articles (every 3 hours, 7am-9pm)
+# Send notifications for high-scoring articles (run hourly - channels have individual hour restrictions)
 papersorter broadcast
 ```
 
@@ -264,8 +264,10 @@ Example cron configuration (see `examples/` directory for complete scripts with 
 
 ```cron
 30 */3 * * * /path/to/papersorter/examples/cron-update.sh
-0 9,13,18 * * * /path/to/papersorter/examples/cron-broadcast.sh
+0 * * * * /path/to/papersorter/examples/cron-broadcast.sh  # Run every hour
 ```
+
+**Note**: Broadcast hours are now configured per channel in the web interface. The broadcast task can run every hour and will automatically skip channels outside their configured broadcast hours.
 
 ## Scholarly Database Providers
 

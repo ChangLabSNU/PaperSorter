@@ -215,15 +215,15 @@ papersorter train  # Incorporates feedback into model
    - Lower threshold if too high
    - Check predicted scores:
    ```sql
-   SELECT pp.score, f.title 
-   FROM predicted_preferences pp 
-   JOIN feeds f ON pp.feed_id = f.id 
+   SELECT pp.score, f.title
+   FROM predicted_preferences pp
+   JOIN feeds f ON pp.feed_id = f.id
    ORDER BY pp.score DESC LIMIT 10;
    ```
 
 3. **Check broadcast queue**:
    ```sql
-   SELECT COUNT(*) FROM broadcasts 
+   SELECT COUNT(*) FROM broadcasts
    WHERE broadcasted_time IS NULL;
    ```
 

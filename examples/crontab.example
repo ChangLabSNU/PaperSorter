@@ -2,23 +2,23 @@
 # Add these lines to your crontab with: crontab -e
 # Adjust paths and schedules according to your needs
 
-# Option 1: Separate update and broadcast tasks
+# Option 1: Recommended - Separate update and broadcast tasks
 # Update every 3 hours
 0 */3 * * * /path/to/papersorter/examples/cron-update.sh
 
-# Broadcast at 9 AM, 1 PM, and 6 PM on weekdays
-0 9,13,18 * * 1-5 /path/to/papersorter/examples/cron-broadcast.sh
+# Broadcast every hour (channels have individual hour restrictions configured in web interface)
+0 * * * * /path/to/papersorter/examples/cron-broadcast.sh
 
-# Option 2: Combined task (update + conditional broadcast)
-# Run every 3 hours, broadcast only during working hours
+# Option 2: Combined task (update + broadcast)
+# Run every 3 hours
 0 */3 * * * /path/to/papersorter/examples/cron-combined.sh
 
-# Option 3: More frequent updates, less frequent broadcasts
+# Option 3: More frequent updates
 # Update every hour
 0 * * * * /path/to/papersorter/examples/cron-update.sh
 
-# Broadcast three times a day on weekdays
-0 9,13,17 * * 1-5 /path/to/papersorter/examples/cron-broadcast.sh
+# Broadcast every hour (respects per-channel broadcast hours)
+0 * * * * /path/to/papersorter/examples/cron-broadcast.sh
 
 # Note: Make sure the scripts are executable:
 # chmod +x /path/to/papersorter/examples/*.sh

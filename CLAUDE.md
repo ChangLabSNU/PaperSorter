@@ -52,9 +52,9 @@ pip install -e .
 # Train initial model (needs ~1000 articles with ~100 starred)
 papersorter train
 
-# Regular operations
+# Regular operations (typically run via cron)
 papersorter update     # Fetch new articles and generate embeddings
-papersorter broadcast  # Send Slack notifications for interesting articles
+papersorter broadcast  # Send notifications (respects per-channel broadcast hours)
 
 # Model improvement workflow
 papersorter serve                                          # Run web interface for labeling
@@ -150,10 +150,9 @@ The PostgreSQL database includes tables for:
 - **broadcasts**: Tracking and queuing of notifications (feed_id, channel_id, broadcasted_time)
 - **labeling_sessions**: Manual labeling interface data
 - **users**: User accounts (includes bookmark position and preferences)
-- **channels**: Notification channels (Slack webhooks with per-channel settings)
+- **channels**: Notification channels (webhooks with per-channel settings including broadcast_hours)
 - **models**: Trained model metadata
 - **events**: Event logging for user actions and system events
-- **broadcasts**: Record of articles sent to channels (prevents duplicates)
 
 ## Key Implementation Details
 
