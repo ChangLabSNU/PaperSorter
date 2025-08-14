@@ -167,7 +167,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Research Papers Digest</h1>
+            <h1>PaperSorter Digest</h1>
+            {% if channel_name %}
+            <div style="margin-top: 5px; font-size: 18px; opacity: 0.95;">{{ channel_name }}</div>
+            {% endif %}
             <div class="date">{{ date.strftime('%B %d, %Y') }}</div>
         </div>
 

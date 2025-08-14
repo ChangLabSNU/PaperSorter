@@ -1,4 +1,7 @@
-RESEARCH PAPERS DIGEST
+PAPERSORTER DIGEST
+{%- if channel_name %}
+{{ channel_name }}
+{%- endif %}
 {{ date.strftime('%B %d, %Y') }}
 ================================================================================
 
