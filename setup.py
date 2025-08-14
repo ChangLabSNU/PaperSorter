@@ -33,7 +33,7 @@ def read_long_description():
 setup(
     name='papersorter',
     version='0.3.0',
-    description='Intelligent academic paper recommendation system with ML-powered filtering and Slack notifications',
+    description='Intelligent academic paper recommendation system with ML-powered filtering and Slack/Discord notifications',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/ChangLabSNU/papersorter',
@@ -47,6 +47,7 @@ setup(
         'research tools',
         'paper recommendation',
         'slack integration',
+        'discord integration',
         'scientific literature'
     ],
     license='MIT',

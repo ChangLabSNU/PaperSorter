@@ -54,6 +54,40 @@
             color: white;
         }
 
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .tag-inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .tag-discord {
+            background-color: #e7e5ff;
+            color: #5865f2;
+        }
+
+        .tag-slack {
+            background-color: #ffe5f1;
+            color: #e01563;
+        }
+
+        .tag-unknown {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
         .content-card {
             background: white;
             border-radius: 8px;
@@ -107,6 +141,17 @@
 
         .btn-edit:hover {
             background: #e67e22;
+        }
+
+        .btn-test {
+            background: #9b59b6;
+            color: white;
+            padding: 5px 15px;
+            font-size: 14px;
+        }
+
+        .btn-test:hover {
+            background: #8e44ad;
         }
 
         .data-table {
@@ -297,7 +342,8 @@
                 </div>
                 <div class="form-group">
                     <label for="channelEndpoint">Endpoint URL</label>
-                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/...">
+                    <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or https://discord.com/api/webhooks/...">
+                    <small style="color: #666;">Supports Slack and Discord webhooks (auto-detected)</small>
                 </div>
                 <div class="form-group">
                     <label for="channelScoreThreshold">Score Threshold</label>
@@ -370,7 +416,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
-                            <th>Endpoint URL</th>
+                            <th>Type</th>
                             <th>Score Threshold</th>
                             <th>Model ID</th>
                             <th>Broadcast Limit</th>
@@ -383,7 +429,11 @@
                             <tr>
                                 <td>${channel.id}</td>
                                 <td><strong>${channel.name}</strong></td>
-                                <td><code>${channel.endpoint_url}</code></td>
+                                <td>
+                                    <span class="tag ${channel.webhook_type === 'Discord' ? 'tag-discord' : channel.webhook_type === 'Slack' ? 'tag-slack' : 'tag-unknown'}">
+                                        ${channel.webhook_type || 'Unknown'}
+                                    </span>
+                                </td>
                                 <td>${channel.score_threshold || 0.7}</td>
                                 <td>${channel.model_id || 1}</td>
                                 <td>${channel.broadcast_limit || 20}</td>
@@ -394,6 +444,7 @@
                                 </td>
                                 <td>
                                     <div class="actions">
+                                        <button class="btn btn-test" onclick="testChannel(${channel.id})">Test</button>
                                         <button class="btn btn-edit" onclick="editChannel(${channel.id})">Edit</button>
                                         <button class="btn btn-danger" onclick="deleteChannel(${channel.id})">Delete</button>
                                     </div>
@@ -466,6 +517,38 @@
             .catch(error => {
                 console.error('Error saving channel:', error);
                 alert('Failed to save channel');
+            });
+        }
+
+        function testChannel(id) {
+            const channel = channels.find(c => c.id === id);
+            if (!channel) return;
+
+            const button = event.target;
+            const originalText = button.innerText;
+            button.innerText = 'Testing...';
+            button.disabled = true;
+
+            fetch(`/api/settings/channels/${id}/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                } else {
+                    alert(`❌ Test failed: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                alert(`Error testing channel: ${error}`);
+            })
+            .finally(() => {
+                button.innerText = originalText;
+                button.disabled = false;
             });
         }
 

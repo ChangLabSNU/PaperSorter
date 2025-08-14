@@ -13,7 +13,7 @@ db:
 
 # Web interface configuration
 web:
-  # Base URL for web interface (used for "More Like This" links in Slack)
+  # Base URL for web interface (used for "More Like This" links in notifications)
   base_url: "https://your-domain.example.com"
   # Flask secret key for session management
   # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -94,5 +94,6 @@ storage:
   # Directory for storing AI-generated poster images
   ai_poster_dir: "./ai_posters"
 
-# Note: Slack webhook URLs are configured per channel in the database
+# Note: Webhook URLs (Slack/Discord) are configured per channel in the database
 # Use the web interface or direct database access to configure channels
+# The system auto-detects webhook type based on the URL hostname

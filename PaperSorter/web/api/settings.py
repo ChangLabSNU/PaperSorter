@@ -86,6 +86,8 @@ def settings_feed_sources():
 @admin_required
 def api_get_channels():
     """Get all channels."""
+    from urllib.parse import urlparse
+
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -96,6 +98,26 @@ def api_get_channels():
     """)
 
     channels = cursor.fetchall()
+
+    # Add webhook type detection
+    for channel in channels:
+        if channel["endpoint_url"]:
+            try:
+                hostname = urlparse(channel["endpoint_url"]).hostname or ""
+                hostname_lower = hostname.lower()
+                if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
+                    "discordapp.com"
+                ):
+                    channel["webhook_type"] = "Discord"
+                elif hostname_lower.endswith("slack.com"):
+                    channel["webhook_type"] = "Slack"
+                else:
+                    channel["webhook_type"] = "Unknown"
+            except Exception:
+                channel["webhook_type"] = "Invalid"
+        else:
+            channel["webhook_type"] = "Not configured"
+
     cursor.close()
     conn.close()
 
@@ -198,6 +220,100 @@ def api_delete_channel(channel_id):
         conn.rollback()
         cursor.close()
         conn.close()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@settings_bp.route("/api/settings/channels/<int:channel_id>/test", methods=["POST"])
+@admin_required
+def api_test_channel(channel_id):
+    """Send a test notification to a channel."""
+    from ...notification import create_notification_provider, NotificationError
+
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        # Get channel details
+        cursor.execute(
+            """
+            SELECT c.id, c.name, c.endpoint_url, m.name as model_name
+            FROM channels c
+            LEFT JOIN models m ON c.model_id = m.id
+            WHERE c.id = %s
+        """,
+            (channel_id,),
+        )
+
+        channel = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not channel:
+            return jsonify({"success": False, "error": "Channel not found"}), 404
+
+        if not channel["endpoint_url"]:
+            return jsonify(
+                {"success": False, "error": "Channel has no webhook URL configured"}
+            ), 400
+
+        # Create test article
+        test_item = {
+            "id": "test",
+            "title": "Test Notification from PaperSorter",
+            "content": "This is a test notification to verify that your webhook is properly configured. "
+            "If you can see this message, your webhook is working correctly!",
+            "author": "PaperSorter System",
+            "origin": "Test",
+            "link": "https://github.com/hyeshik/papersorter",
+            "score": 0.75,
+        }
+
+        message_options = {
+            "model_name": channel["model_name"] or "Default",
+            "channel_name": channel["name"],
+        }
+
+        # Get base URL from config
+        import yaml
+
+        with open(current_app.config.get("CONFIG_PATH", "./config.yml"), "r") as f:
+            config = yaml.safe_load(f)
+        base_url = config.get("web", {}).get("base_url", None)
+
+        # Create provider and send notification
+        provider = create_notification_provider(channel["endpoint_url"])
+        provider.send_notification(test_item, message_options, base_url)
+
+        # Detect webhook type for response
+        from urllib.parse import urlparse
+
+        hostname = urlparse(channel["endpoint_url"]).hostname or ""
+        hostname_lower = hostname.lower()
+        if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
+            "discordapp.com"
+        ):
+            webhook_type = "Discord"
+        elif hostname_lower.endswith("slack.com"):
+            webhook_type = "Slack"
+        else:
+            webhook_type = "Unknown"
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Test notification sent successfully to {webhook_type} webhook",
+            }
+        )
+
+    except NotificationError as e:
+        return jsonify(
+            {"success": False, "error": f"Notification error: {str(e)}"}
+        ), 500
+    except Exception as e:
+        if "cursor" in locals():
+            cursor.close()
+        if "conn" in locals():
+            conn.close()
         return jsonify({"success": False, "error": str(e)}), 500
 
 

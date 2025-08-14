@@ -377,19 +377,19 @@ def api_similar_feeds(feed_id):
 
 
 @feeds_bp.route("/feedback/<int:feed_id>/interested")
-def slack_feedback_interested(feed_id):
-    """Handle Slack feedback for interested."""
-    return handle_slack_feedback(feed_id, 1)
+def webhook_feedback_interested(feed_id):
+    """Handle webhook feedback for interested (Slack/Discord)."""
+    return handle_webhook_feedback(feed_id, 1)
 
 
 @feeds_bp.route("/feedback/<int:feed_id>/not-interested")
-def slack_feedback_not_interested(feed_id):
-    """Handle Slack feedback for not interested."""
-    return handle_slack_feedback(feed_id, 0)
+def webhook_feedback_not_interested(feed_id):
+    """Handle webhook feedback for not interested (Slack/Discord)."""
+    return handle_webhook_feedback(feed_id, 0)
 
 
-def handle_slack_feedback(feed_id, score):
-    """Common handler for Slack feedback routes."""
+def handle_webhook_feedback(feed_id, score):
+    """Common handler for webhook feedback routes (Slack/Discord)."""
     from flask import redirect, url_for
 
     # Check if user is logged in, if not, redirect to login
@@ -464,7 +464,7 @@ def handle_slack_feedback(feed_id, score):
         conn.rollback()
         cursor.close()
         conn.close()
-        log.error(f"Error recording Slack feedback: {e}")
+        log.error(f"Error recording webhook feedback: {e}")
         return render_template(
             "feedback_error.html", message="Error recording feedback. Please try again."
         ), 500
