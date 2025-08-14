@@ -90,7 +90,7 @@ db:
   password: "your_password"
 
 web:
-  base_url: "https://reader.qbio.io"  # Base URL for web interface (used for "More Like This" links in Slack)
+  base_url: "https://papersorter.useoul.edu" # Base URL for web interface (used for "More Like This" links in Slack)
   flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
 
 oauth:
