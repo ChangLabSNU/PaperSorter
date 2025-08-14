@@ -132,7 +132,7 @@ semanticscholar:
   api_key: "your_s2_api_key"
 ```
 
-Note: 
+Note:
 - Slack webhook URLs are stored in the database `channels` table per channel.
 - The system maintains backward compatibility with old config format (`google_oauth`)
 

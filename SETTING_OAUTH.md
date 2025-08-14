@@ -62,7 +62,7 @@ oauth:
 3. Fill in the application details:
    - Application name: PaperSorter
    - Homepage URL: `https://yourdomain.com` (or `http://localhost:5001` for development)
-   - Authorization callback URL: 
+   - Authorization callback URL:
      - `http://localhost:5001/callback/github` (for development)
      - `https://yourdomain.com/callback/github` (for production)
 4. Click "Register application"
@@ -87,7 +87,7 @@ ORCID provides persistent digital identifiers for researchers, making it ideal f
    - Application name: PaperSorter
    - Application website: `https://yourdomain.com`
    - Description: Academic paper recommendation system
-   - Redirect URIs: 
+   - Redirect URIs:
      - `https://yourdomain.com/callback/orcid` (for production)
      - `http://localhost:5001/callback/orcid` (for development)
 5. Save the application
