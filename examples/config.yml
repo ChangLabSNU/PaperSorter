@@ -47,7 +47,7 @@ embedding_api:
   # Optional: model name (defaults to text-embedding-3-large)
   model: "text-embedding-3-large"
   # Embedding dimensions
-  dimensions: 3072
+  dimensions: 1536 # currently pgvector HNSW does not support 3072
 
 # Summarization API configuration
 # Used for generating article summaries

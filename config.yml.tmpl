@@ -1,5 +1,6 @@
 # PaperSorter runtime config (rendered from environment at container start)
 
+# Database configuration
 db:
   type: postgres
   host: ${POSTGRES_HOST}
@@ -8,27 +9,114 @@ db:
   database: ${POSTGRES_DB}
   password: "${POSTGRES_PASSWORD}"
 
-google_oauth:
-  client_id: "${GOOGLE_CLIENT_ID}"
-  secret: "${GOOGLE_CLIENT_SECRET}"
+# Web interface configuration
+web:
+  # Base URL for web interface (used for "More Like This" links in notifications)
+  base_url: "${WEB_BASE_URL}"
+  # Flask secret key for session management
   flask_secret_key: "${FLASK_SECRET_KEY}"
 
+# OAuth configuration for web interface authentication
+# Configure one or both providers as needed
+oauth:
+  # Google OAuth configuration
+  google:
+    client_id: "${GOOGLE_CLIENT_ID}"
+    secret: "${GOOGLE_CLIENT_SECRET}"
+
+  # GitHub OAuth configuration
+  github:
+    client_id: "${GITHUB_CLIENT_ID}"
+    secret: "${GITHUB_CLIENT_SECRET}"
+
+  # ORCID OAuth configuration (essential for academic users)
+  orcid:
+    client_id: "${ORCID_CLIENT_ID}"
+    secret: "${ORCID_CLIENT_SECRET}"
+    sandbox: ${ORCID_SANDBOX}
+
+# Embedding API configuration
+# Supports OpenAI-compatible APIs (OpenAI, Solar LLM, Google Vertex AI via Gemini, etc.)
 embedding_api:
   api_key: "${EMBEDDING_API_KEY}"
+  # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
   api_url: "${EMBEDDING_API_URL}"
+  # Optional: model name (defaults to text-embedding-3-large)
   model: "${EMBEDDING_MODEL}"
+  # Embedding dimensions
   dimensions: ${EMBEDDING_DIMENSIONS}
 
+# Summarization API configuration
+# Used for generating article summaries
 summarization_api:
   api_key: "${SUMMARIZATION_API_KEY}"
+  # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
   api_url: "${SUMMARIZATION_API_URL}"
+  # Optional: model name for summarization
   model: "${SUMMARIZATION_MODEL}"
 
-semanticscholar:
-  api_key: "${SEMANTIC_SCHOLAR_API_KEY}"
+# Scholarly database configuration
+# Choose between Semantic Scholar and OpenAlex for enriching article metadata
+scholarly_database:
+  # Provider to use: "semantic_scholar" or "openalex"
+  provider: "${SCHOLARLY_PROVIDER}"
 
-web:
-  base_url: "${WEB_BASE_URL}"
+  # Date tolerance for automatic article matching during update task (in days)
+  # When the update task tries to match RSS articles with scholarly database entries,
+  # it will only consider articles published within this many days of the RSS date.
+  # This does NOT affect web interface search functionality.
+  # Default: 60
+  match_date_tolerance_days: ${MATCH_DATE_TOLERANCE_DAYS}
 
+  # Semantic Scholar configuration (if provider is semantic_scholar)
+  semantic_scholar:
+    api_key: "${SEMANTIC_SCHOLAR_API_KEY}"
+    # Optional: custom API URL
+    api_url: "${SEMANTIC_SCHOLAR_API_URL}"
+    # Optional: throttle between requests in seconds (default: 1)
+    throttle: ${SEMANTIC_SCHOLAR_THROTTLE}
+
+  # OpenAlex configuration (if provider is openalex)
+  openalex:
+    # OpenAlex requires a VALID email address for polite access (no API key needed)
+    # Note: test@example.com and similar fake emails will NOT work
+    email: "${OPENALEX_EMAIL}"
+    # Optional: custom API URL
+    api_url: "${OPENALEX_API_URL}"
+    # Optional: throttle between requests in seconds (default: 0.1)
+    throttle: ${OPENALEX_THROTTLE}
+
+# SMTP configuration for email notifications
+# Used when channel endpoint URLs start with "mailto:"
+smtp:
+  # SMTP server hostname
+  host: "${SMTP_HOST}"
+  # SMTP server port (25 for plain, 587 for STARTTLS, 465 for SSL/TLS)
+  port: ${SMTP_PORT}
+  # Enable STARTTLS (for port 587)
+  use_tls: ${SMTP_USE_TLS}
+  # Enable SSL/TLS (for port 465)
+  use_ssl: ${SMTP_USE_SSL}
+  # Connection timeout in seconds
+  timeout: ${SMTP_TIMEOUT}
+
+# Email notification configuration
+email:
+  # Sender email address
+  from_address: "${EMAIL_FROM_ADDRESS}"
+  # Sender display name
+  from_name: "${EMAIL_FROM_NAME}"
+  # Email subject template (Python f-string format, can use {date} variable)
+  subject_template: "${EMAIL_SUBJECT_TEMPLATE}"
+
+# Storage configuration
 storage:
+  # Directory for storing AI-generated poster images
   ai_poster_dir: "${AI_POSTER_DIR}"
+
+# Note: Channel endpoints are configured per channel in the database
+# Use the web interface or direct database access to configure channels
+# The system auto-detects notification type based on the endpoint URL:
+#   - mailto:user@example.com -> Email notifications (batched newsletter)
+#   - https://hooks.slack.com/... -> Slack notifications (individual messages)
+#   - https://discord.com/api/webhooks/... -> Discord notifications (individual embeds)
