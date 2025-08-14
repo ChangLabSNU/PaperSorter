@@ -90,6 +90,17 @@
             border-color: #2f363d;
         }
 
+        .orcid-btn {
+            background: #a6ce39;
+            color: white;
+            border-color: #a6ce39;
+        }
+
+        .orcid-btn:hover {
+            background: #8fb82e;
+            border-color: #8fb82e;
+        }
+
         .oauth-icon {
             width: 20px;
             height: 20px;
@@ -173,8 +184,17 @@
         <div class="info-message">{{ message }}</div>
         {% endif %}
 
-        {% if has_google or has_github %}
+        {% if has_google or has_github or has_orcid %}
         <div class="oauth-buttons">
+            {% if has_orcid %}
+            <a href="{{ url_for('auth.orcid_login', next=next) }}" class="oauth-btn orcid-btn">
+                <svg class="oauth-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zM7.369 4.378c.525 0 .947.431.947.947s-.422.947-.947.947-.947-.431-.947-.947.422-.947.947-.947zm-.722 3.038h1.444v10.041H6.647V7.416zm3.562 0h3.9c3.712 0 5.344 2.653 5.344 5.025 0 2.578-2.016 5.025-5.325 5.025h-3.919V7.416zm1.444 1.303v7.444h2.297c3.272 0 4.022-2.484 4.022-3.722 0-2.016-1.284-3.722-4.097-3.722h-2.222z"/>
+                </svg>
+                Sign in with ORCID
+            </a>
+            {% endif %}
+
             {% if has_google %}
             <a href="{{ url_for('auth.google_login', next=next) }}" class="oauth-btn google-btn">
                 <svg class="oauth-icon" viewBox="0 0 24 24">
@@ -199,7 +219,7 @@
         {% else %}
         <div class="error-message">
             <p><strong>No authentication providers configured</strong></p>
-            <p>Please configure Google OAuth or GitHub OAuth in your config.yml file.</p>
+            <p>Please configure Google, GitHub, or ORCID OAuth in your config.yml file.</p>
             <p style="font-size: 14px; margin-top: 10px;">See SETTING_OAUTH.md for setup instructions.</p>
         </div>
         {% endif %}

@@ -1,6 +1,6 @@
 # OAuth Setup Guide
 
-PaperSorter supports authentication via Google OAuth and GitHub OAuth. You can configure either one or both providers.
+PaperSorter supports authentication via Google OAuth, GitHub OAuth, and ORCID OAuth. You can configure any combination of these providers. ORCID is particularly recommended for academic websites as it provides unique researcher identifiers.
 
 ## Configuration Structure
 
@@ -18,6 +18,10 @@ oauth:
   github:
     client_id: "your-github-client-id"
     secret: "your-github-client-secret"
+  orcid:
+    client_id: "APP-XXXXXXXXXXXX"
+    secret: "your-orcid-client-secret"
+    sandbox: false  # Set to true for testing with sandbox.orcid.org
 ```
 
 ## Google OAuth Setup
@@ -69,6 +73,45 @@ oauth:
 2. Click "Generate a new client secret"
 3. Copy the Client ID and Client Secret immediately (the secret won't be shown again)
 
+## ORCID OAuth Setup
+
+ORCID provides persistent digital identifiers for researchers, making it ideal for academic applications.
+
+### 1. Register Your Application
+
+#### For Production (orcid.org):
+1. Go to [ORCID Developer Tools](https://orcid.org/developer-tools)
+2. Sign in with your ORCID account
+3. Click "Register a public API client"
+4. Fill in the application details:
+   - Application name: PaperSorter
+   - Application website: `https://yourdomain.com`
+   - Description: Academic paper recommendation system
+   - Redirect URIs: 
+     - `https://yourdomain.com/callback/orcid` (for production)
+     - `http://localhost:5001/callback/orcid` (for development)
+5. Save the application
+
+#### For Testing (sandbox.orcid.org):
+1. Go to [ORCID Sandbox](https://sandbox.orcid.org/developer-tools)
+2. Create a sandbox account if you don't have one
+3. Follow the same steps as production
+4. Set `sandbox: true` in your configuration
+
+### 2. Get Client Credentials
+
+1. After registration, you'll receive:
+   - Client ID (format: APP-XXXXXXXXXXXX)
+   - Client Secret
+2. Save these credentials securely
+
+### 3. Configuration Notes
+
+- ORCID uses the `/authenticate` scope for basic sign-in
+- Users are identified by their ORCID iD (XXXX-XXXX-XXXX-XXXX format)
+- The system stores users as `ORCID-ID@orcid.org` in the database
+- No email address is required (ORCID iD serves as the unique identifier)
+
 ## Configuration File Setup
 
 ### 1. Create or Update config.yml
@@ -89,7 +132,7 @@ web:
   flask_secret_key: "your-generated-secret-key"
   base_url: "https://yourdomain.com"
 
-# OAuth configuration (configure one or both providers)
+# OAuth configuration (configure one or more providers)
 oauth:
   google:
     client_id: "your-client-id.apps.googleusercontent.com"
@@ -97,6 +140,10 @@ oauth:
   github:
     client_id: "your-github-client-id"
     secret: "your-github-client-secret"
+  orcid:
+    client_id: "APP-XXXXXXXXXXXX"
+    secret: "your-orcid-client-secret"
+    sandbox: false  # Set to true for sandbox.orcid.org testing
 ```
 
 ### 2. Generate Flask Secret Key
@@ -165,6 +212,12 @@ google_oauth:
 - Check that the OAuth app is not in suspended state
 - Ensure client ID and secret are correctly copied
 
+**For ORCID OAuth:**
+- Verify callback URL exactly matches: `https://yourdomain.com/callback/orcid`
+- Check you're using the correct environment (production vs sandbox)
+- Ensure the `sandbox` configuration matches your ORCID registration
+- Client ID should start with "APP-" followed by alphanumeric characters
+
 ### "No email associated with GitHub account" Error
 
 - The user's GitHub account must have a verified email address
@@ -178,24 +231,37 @@ google_oauth:
 - Ensure database write permissions are set correctly
 - Verify `web.flask_secret_key` is set and consistent across restarts
 
+### "No ORCID iD found" Error
+
+- This usually indicates an issue with the ORCID OAuth response
+- Verify your application is properly registered with ORCID
+- Check that redirect URIs are correctly configured in ORCID developer tools
+
 ### Multiple OAuth Providers Not Showing
 
-- Ensure both providers are configured in `config.yml`
+- Ensure all desired providers are configured in `config.yml`
 - Check application logs for configuration errors
 - Verify that client IDs and secrets are present for each provider
+- ORCID client IDs starting with "APP-" are filtered out as example values
 
 ## Database Schema
 
 OAuth users are stored in the `users` table with the following relevant fields:
 
-- `username`: The user's email address from OAuth provider
+- `username`: The user's identifier from OAuth provider
+  - Google/GitHub: Email address
+  - ORCID: ORCID iD formatted as `XXXX-XXXX-XXXX-XXXX@orcid.org`
 - `password`: Set to "oauth" for OAuth users
-- `lastlogin`: Automatically updated on login and during active sessions
+- `lastlogin`: Automatically updated on login and during active sessions (throttled to every 10 minutes)
 - `created`: Timestamp of first login
 - `is_admin`: Admin status (default: false)
 
 Admin privileges must be granted manually via database update:
 
 ```sql
+-- For email-based providers (Google, GitHub)
 UPDATE users SET is_admin = true WHERE username = 'admin@example.com';
+
+-- For ORCID users
+UPDATE users SET is_admin = true WHERE username = '0000-0002-1825-0097@orcid.org';
 ```

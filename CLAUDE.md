@@ -100,6 +100,10 @@ oauth:
   github:
     client_id: "your_github_client_id"
     secret: "your_github_client_secret"
+  orcid:
+    client_id: "APP-XXXXXXXXXXXX"  # Your ORCID App ID
+    secret: "your_orcid_client_secret"
+    sandbox: false  # Set to true for testing
 
 embedding_api:
   api_key: "your_api_key"
@@ -162,7 +166,7 @@ The PostgreSQL database includes tables for:
 - Scholarly database integration (Semantic Scholar or OpenAlex) for enriching article metadata
 - Support for batch processing to handle rate limits efficiently
 - Maintains backward compatibility with existing SQLite field names through mapping
-- Google and GitHub OAuth authentication for web interface access
+- Google, GitHub, and ORCID OAuth authentication for web interface access
 - Session management with Flask-Login
 - Protected routes require authentication
 - Broadcast queue mechanism: items are queued during update phase based on score threshold and processed during broadcast phase

@@ -52,12 +52,13 @@ def create_app(config_path):
         config = yaml.safe_load(f)
 
     db_config = config["db"]
-    
+
     # Get OAuth config with backward compatibility for google_oauth only
     oauth_config = config.get("oauth", {})
     google_config = oauth_config.get("google", config.get("google_oauth", {}))
     github_config = oauth_config.get("github", {})
-    
+    orcid_config = oauth_config.get("orcid", {})
+
     # Get web config
     web_config = config.get("web", {})
 
@@ -68,8 +69,8 @@ def create_app(config_path):
     # Set up Flask secret key
     # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
     app.secret_key = (
-        web_config.get("flask_secret_key") or 
-        config.get("google_oauth", {}).get("flask_secret_key") or 
+        web_config.get("flask_secret_key") or
+        config.get("google_oauth", {}).get("flask_secret_key") or
         secrets.token_hex(32)
     )
 
@@ -153,7 +154,7 @@ def create_app(config_path):
 
     # Set up OAuth
     oauth = OAuth(app)
-    
+
     # Register Google OAuth if configured
     if google_config.get("client_id") and google_config.get("secret"):
         oauth.register(
@@ -163,7 +164,7 @@ def create_app(config_path):
             server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
             client_kwargs={"scope": "openid email profile"},
         )
-    
+
     # Register GitHub OAuth if configured
     if github_config.get("client_id") and github_config.get("secret"):
         oauth.register(
@@ -176,6 +177,24 @@ def create_app(config_path):
             authorize_params=None,
             api_base_url="https://api.github.com/",
             client_kwargs={"scope": "user:email"},
+        )
+
+    # Register ORCID OAuth if configured
+    if orcid_config.get("client_id") and orcid_config.get("secret"):
+        # Determine if we're using sandbox or production
+        is_sandbox = orcid_config.get("sandbox", False)
+        orcid_base = "https://sandbox.orcid.org" if is_sandbox else "https://orcid.org"
+
+        oauth.register(
+            name="orcid",
+            client_id=orcid_config["client_id"],
+            client_secret=orcid_config["secret"],
+            access_token_url=f"{orcid_base}/oauth/token",
+            access_token_params=None,
+            authorize_url=f"{orcid_base}/oauth/authorize",
+            authorize_params=None,
+            api_base_url=f"{orcid_base}/v3.0/",
+            client_kwargs={"scope": "/authenticate"},
         )
 
     # Register blueprints

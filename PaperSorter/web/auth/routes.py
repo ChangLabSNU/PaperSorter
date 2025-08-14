@@ -53,7 +53,7 @@ def login():
 
     # Check which OAuth providers are properly configured
     oauth_providers = current_app.extensions.get("authlib.integrations.flask_client")
-    
+
     # Check if Google OAuth is configured and not using example values
     has_google = False
     if oauth_providers and hasattr(oauth_providers, 'google'):
@@ -63,7 +63,7 @@ def login():
             if not google_client.client_id.startswith("your-") and \
                not google_client.client_id.startswith("your_"):
                 has_google = True
-    
+
     # Check if GitHub OAuth is configured and not using example values
     has_github = False
     if oauth_providers and hasattr(oauth_providers, 'github'):
@@ -74,12 +74,23 @@ def login():
                not github_client.client_id.startswith("your_"):
                 has_github = True
 
+    # Check if ORCID OAuth is configured and not using example values
+    has_orcid = False
+    if oauth_providers and hasattr(oauth_providers, 'orcid'):
+        orcid_client = oauth_providers.orcid
+        if orcid_client and orcid_client.client_id:
+            # Check if it's not an example value
+            if not orcid_client.client_id.startswith("your-") and \
+               not orcid_client.client_id.startswith("your_"):
+                has_orcid = True
+
     # Get the next parameter from the request
     next_page = request.args.get("next")
-    return render_template("login.html", 
-                         next=next_page, 
-                         has_google=has_google, 
-                         has_github=has_github)
+    return render_template("login.html",
+                         next=next_page,
+                         has_google=has_google,
+                         has_github=has_github,
+                         has_orcid=has_orcid)
 
 
 @auth_bp.route("/login/google")
@@ -188,11 +199,11 @@ def github_callback():
     try:
         github = current_app.extensions.get("authlib.integrations.flask_client").github
         token = github.authorize_access_token()
-        
+
         # Get user info from GitHub
         resp = github.get("user", token=token)
         user_info = resp.json()
-        
+
         # Get primary email if not public
         if not user_info.get("email"):
             emails_resp = github.get("user/emails", token=token)
@@ -202,20 +213,20 @@ def github_callback():
                 if email_data.get("primary") and email_data.get("verified"):
                     user_info["email"] = email_data["email"]
                     break
-        
+
         if user_info and user_info.get("email"):
             email = user_info["email"]
-            
+
             conn = current_app.config["get_db_connection"]()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
+
             # Check if user exists
             cursor.execute(
                 "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
                 (email,),
             )
             user_data = cursor.fetchone()
-            
+
             if not user_data:
                 # Create new user (non-admin by default)
                 cursor.execute(
@@ -228,7 +239,7 @@ def github_callback():
                 )
                 user_data = cursor.fetchone()
                 conn.commit()
-            
+
             # Update last login
             cursor.execute(
                 """
@@ -238,10 +249,10 @@ def github_callback():
                 (user_data["id"],),
             )
             conn.commit()
-            
+
             cursor.close()
             conn.close()
-            
+
             # Log the user in
             user = User(
                 user_data["id"],
@@ -252,10 +263,10 @@ def github_callback():
                 feedlist_minscore=user_data.get("feedlist_minscore"),
             )
             login_user(user)
-            
+
             # Make the session permanent
             session.permanent = True
-            
+
             # Redirect to the original requested page or home
             next_page = session.pop("next_page", None) or request.args.get("next")
             if next_page and next_page.startswith("/"):
@@ -265,10 +276,103 @@ def github_callback():
         else:
             log.error("No email found in GitHub account")
             return redirect(url_for("auth.login", error="No email associated with GitHub account"))
-            
+
     except Exception as e:
         log.error(f"GitHub OAuth callback error: {e}")
         return redirect(url_for("auth.login", error="GitHub authentication failed"))
+
+
+@auth_bp.route("/login/orcid")
+def orcid_login():
+    """Initiate ORCID OAuth login."""
+    # Store the next parameter in session to preserve it through OAuth flow
+    next_page = request.args.get("next")
+    if next_page:
+        session["next_page"] = next_page
+
+    orcid = current_app.extensions.get("authlib.integrations.flask_client").orcid
+    redirect_uri = url_for("auth.orcid_callback", _external=True)
+    return orcid.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route("/callback/orcid")
+def orcid_callback():
+    """Handle ORCID OAuth callback."""
+    try:
+        orcid = current_app.extensions.get("authlib.integrations.flask_client").orcid
+        token = orcid.authorize_access_token()
+
+        # ORCID returns the ORCID iD in the token response
+        orcid_id = token.get("orcid")
+
+        if orcid_id:
+            # For ORCID, we use the ORCID iD as the username
+            # This ensures uniqueness and persistence
+            username = f"{orcid_id}@orcid.org"
+
+            conn = current_app.config["get_db_connection"]()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Check if user exists
+            cursor.execute(
+                "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
+                (username,),
+            )
+            user_data = cursor.fetchone()
+
+            if not user_data:
+                # Create new user (non-admin by default)
+                cursor.execute(
+                    """
+                    INSERT INTO users (username, password, created, is_admin, timezone)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
+                    RETURNING id, username, is_admin, timezone
+                """,
+                    (username, "oauth"),
+                )
+                user_data = cursor.fetchone()
+                conn.commit()
+
+            # Update last login
+            cursor.execute(
+                """
+                UPDATE users SET lastlogin = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """,
+                (user_data["id"],),
+            )
+            conn.commit()
+
+            cursor.close()
+            conn.close()
+
+            # Log the user in
+            user = User(
+                user_data["id"],
+                user_data["username"],
+                username,
+                is_admin=user_data.get("is_admin", False),
+                timezone=user_data.get("timezone", "Asia/Seoul"),
+                feedlist_minscore=user_data.get("feedlist_minscore"),
+            )
+            login_user(user)
+
+            # Make the session permanent
+            session.permanent = True
+
+            # Redirect to the original requested page or home
+            next_page = session.pop("next_page", None) or request.args.get("next")
+            if next_page and next_page.startswith("/"):
+                return redirect(next_page)
+            else:
+                return redirect(url_for("main.index"))
+        else:
+            log.error("No ORCID iD found in response")
+            return redirect(url_for("auth.login", error="No ORCID iD found"))
+
+    except Exception as e:
+        log.error(f"ORCID OAuth callback error: {e}")
+        return redirect(url_for("auth.login", error="ORCID authentication failed"))
 
 
 @auth_bp.route("/logout")
