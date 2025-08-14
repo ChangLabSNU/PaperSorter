@@ -54,12 +54,12 @@ oauth:
   google:
     client_id: "your_google_client_id.apps.googleusercontent.com"
     secret: "your_google_client_secret"
-  
-  # GitHub OAuth  
+
+  # GitHub OAuth
   github:
     client_id: "your_github_oauth_client_id"
     secret: "your_github_oauth_client_secret"
-  
+
   # ORCID OAuth (essential for academic users)
   orcid:
     client_id: "your_orcid_oauth_client_id"
@@ -80,11 +80,11 @@ summarization_api:
 # Scholarly database configuration (choose one provider)
 scholarly_database:
   provider: "semantic_scholar"  # or "openalex"
-  
+
   # Option 1: Semantic Scholar (provides TL;DR summaries, requires API key)
   semantic_scholar:
     api_key: "your_semantic_scholar_api_key"
-  
+
   # Option 2: OpenAlex (no API key needed, just email)
   openalex:
     email: "your_email@example.com"  # Must be a valid email address

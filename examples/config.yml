@@ -26,12 +26,12 @@ oauth:
   google:
     client_id: "your_google_oauth_client_id.apps.googleusercontent.com"
     secret: "your_google_oauth_client_secret"
-  
+
   # GitHub OAuth configuration
   github:
     client_id: "your_github_oauth_client_id"
     secret: "your_github_oauth_client_secret"
-  
+
   # ORCID OAuth configuration (essential for academic users)
   orcid:
     client_id: "your_orcid_oauth_client_id"
