@@ -37,6 +37,7 @@ class User(UserMixin):
         is_admin=False,
         timezone="Asia/Seoul",
         feedlist_minscore=None,
+        primary_channel_id=None,
     ):
         self.id = id
         self.username = username
@@ -50,3 +51,4 @@ class User(UserMixin):
         self.feedlist_minscore = (
             self.feedlist_minscore_int / 100.0
         )  # Convert to decimal (e.g., 25 -> 0.25)
+        self.primary_channel_id = primary_channel_id

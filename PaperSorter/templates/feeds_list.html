@@ -917,6 +917,19 @@
                     <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
                     <div class="score-value" id="scoreValue">0.05</div>
                 </div>
+                <div class="score-filter">
+                    <div class="score-filter-label">Channel</div>
+                    <select id="primaryChannelSelect" class="channel-selector" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;">
+                        {% if not channels %}
+                        <option value="">None</option>
+                        {% endif %}
+                        {% for channel in channels %}
+                        <option value="{{ channel.id }}" {% if channel.id == primary_channel_id %}selected{% endif %}>
+                            {{ channel.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="user-info">
                     <div class="user-icon">{{ current_user.username[0].upper() }}</div>
                     <span>{{ current_user.username }}</span>
@@ -1635,6 +1648,30 @@
             slider.addEventListener('input', updateScoreFilter);
         }
 
+        // Primary channel selector
+        function updatePrimaryChannel() {
+            const selector = document.getElementById('primaryChannelSelect');
+            const channelId = selector.value;
+
+            // Save preference to server
+            fetch('/api/user/preferences', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    primary_channel_id: channelId
+                })
+            }).then(response => {
+                if (response.ok) {
+                    // Reload the page to update broadcast badges
+                    window.location.reload();
+                }
+            }).catch(error => {
+                console.error('Failed to save primary channel:', error);
+            });
+        }
+
         // General search functions
         function toggleGeneralSearch() {
             const searchContainer = document.getElementById('generalSearchContainer');
@@ -2250,6 +2287,13 @@
 
         // Initial load
         initializeSlider();
+
+        // Initialize primary channel selector
+        const primaryChannelSelect = document.getElementById('primaryChannelSelect');
+        if (primaryChannelSelect) {
+            primaryChannelSelect.addEventListener('change', updatePrimaryChannel);
+        }
+
         checkURLSearchParams();
         // Only load feeds if not searching
         if (!new URLSearchParams(window.location.search).get('q')) {

@@ -44,7 +44,41 @@ main_bp = Blueprint("main", __name__)
 @login_required
 def index():
     """Show list of all feeds with their labels."""
-    return render_template("feeds_list.html")
+    from flask_login import current_user
+
+    # Get list of active channels for primary channel selector
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    cursor.execute("""
+        SELECT id, name
+        FROM channels
+        WHERE is_active = TRUE
+        ORDER BY id
+    """)
+    channels = cursor.fetchall()
+
+    # If user's primary_channel_id is NULL and channels exist, auto-set to the first one
+    primary_channel_id = current_user.primary_channel_id
+    if primary_channel_id is None and channels:
+        primary_channel_id = channels[0]["id"]
+        # Update the user's primary_channel_id
+        cursor.execute("""
+            UPDATE users
+            SET primary_channel_id = %s
+            WHERE id = %s
+        """, (primary_channel_id, current_user.id))
+        conn.commit()
+
+        # Update the current user object
+        current_user.primary_channel_id = primary_channel_id
+
+    cursor.close()
+    conn.close()
+
+    return render_template("feeds_list.html",
+                         channels=channels,
+                         primary_channel_id=primary_channel_id)
 
 
 @main_bp.route("/link/<short_name>")

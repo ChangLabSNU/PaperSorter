@@ -51,18 +51,19 @@ def api_feeds():
     user_id = current_user.id
     default_model_id = get_default_model_id(conn)
 
-    # Get user's bookmark
-    cursor.execute("SELECT bookmark FROM users WHERE id = %s", (user_id,))
-    bookmark_result = cursor.fetchone()
-    bookmark_id = bookmark_result["bookmark"] if bookmark_result else None
+    # Get user's bookmark and primary channel
+    cursor.execute("SELECT bookmark, primary_channel_id FROM users WHERE id = %s", (user_id,))
+    user_result = cursor.fetchone()
+    bookmark_id = user_result["bookmark"] if user_result else None
+    primary_channel_id = user_result["primary_channel_id"] if user_result else None
 
     # Build WHERE clause based on min_score
     if min_score <= 0:
         where_clause = "1=1"  # Show all feeds
-        query_params = (user_id, default_model_id, limit + 1, offset)
+        query_params = (user_id, primary_channel_id, primary_channel_id, default_model_id, limit + 1, offset)
     else:
         where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
-        query_params = (user_id, default_model_id, min_score, limit + 1, offset)
+        query_params = (user_id, primary_channel_id, primary_channel_id, default_model_id, min_score, limit + 1, offset)
 
     cursor.execute(
         f"""
@@ -85,6 +86,7 @@ def api_feeds():
         broadcast_status AS (
             SELECT DISTINCT feed_id, TRUE as has_broadcast
             FROM broadcasts
+            WHERE channel_id = %s OR %s IS NULL
         )
         SELECT
             f.id as rowid,
@@ -122,8 +124,12 @@ def api_feeds():
     has_more = len(results) > limit
     feeds = results[:limit] if has_more else results
 
-    # Include bookmark ID on first page
-    response_data = {"feeds": feeds, "has_more": has_more, "bookmark_id": bookmark_id}
+    # Include bookmark ID in response
+    response_data = {
+        "feeds": feeds,
+        "has_more": has_more,
+        "bookmark_id": bookmark_id
+    }
 
     return jsonify(response_data)
 
@@ -215,17 +221,16 @@ def api_star_feed(feed_id):
                     (feed_id, user_id),
                 )
 
-            # When starring, add to broadcasts table for all active channels
-            cursor.execute(
-                """
-                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                SELECT %s, id, NULL
-                FROM channels
-                WHERE is_active = TRUE
-                ON CONFLICT (feed_id, channel_id) DO NOTHING
-            """,
-                (feed_id,),
-            )
+            # When starring, add to broadcasts table for user's primary channel (if set)
+            if current_user.primary_channel_id:
+                cursor.execute(
+                    """
+                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                    VALUES (%s, %s, NULL)
+                    ON CONFLICT (feed_id, channel_id) DO NOTHING
+                """,
+                    (feed_id, current_user.primary_channel_id),
+                )
 
         conn.commit()
         cursor.close()

@@ -135,7 +135,7 @@ def google_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
                 (email,),
             )
             user_data = cursor.fetchone()
@@ -174,6 +174,7 @@ def google_callback():
                 is_admin=user_data.get("is_admin", False),
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
+                primary_channel_id=user_data.get("primary_channel_id"),
             )
             login_user(user)
 
@@ -222,7 +223,7 @@ def github_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
                 (email,),
             )
             user_data = cursor.fetchone()
@@ -261,6 +262,7 @@ def github_callback():
                 is_admin=user_data.get("is_admin", False),
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
+                primary_channel_id=user_data.get("primary_channel_id"),
             )
             login_user(user)
 
@@ -315,7 +317,7 @@ def orcid_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
                 (username,),
             )
             user_data = cursor.fetchone()
@@ -354,6 +356,7 @@ def orcid_callback():
                 is_admin=user_data.get("is_admin", False),
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
+                primary_channel_id=user_data.get("primary_channel_id"),
             )
             login_user(user)
 
