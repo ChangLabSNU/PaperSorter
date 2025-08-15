@@ -69,9 +69,9 @@ def create_app(config_path):
     # Set up Flask secret key
     # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
     app.secret_key = (
-        web_config.get("flask_secret_key") or
-        config.get("google_oauth", {}).get("flask_secret_key") or
-        secrets.token_hex(32)
+        web_config.get("flask_secret_key")
+        or config.get("google_oauth", {}).get("flask_secret_key")
+        or secrets.token_hex(32)
     )
 
     # Set session lifetime to 30 days
@@ -131,7 +131,7 @@ def create_app(config_path):
 
         if user_data:
             # Update last login timestamp only if it's stale (>10 minutes old)
-            seconds_since_login = user_data.get('seconds_since_login', float('inf'))
+            seconds_since_login = user_data.get("seconds_since_login", float("inf"))
             if seconds_since_login > 600:  # 600 seconds = 10 minutes
                 cursor.execute(
                     "UPDATE users SET lastlogin = CURRENT_TIMESTAMP WHERE id = %s",

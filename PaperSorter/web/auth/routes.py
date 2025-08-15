@@ -58,14 +58,14 @@ def check_and_update_admin_status(username, user_id, conn):
     """
     try:
         # Get current admin status from database
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             "SELECT is_admin FROM users WHERE id = %s",
             (user_id,),
         )
-        current_is_admin = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        current_is_admin = result["is_admin"] if result else False
         cursor.close()
-
         # If already admin, keep admin status
         if current_is_admin:
             return True
@@ -95,7 +95,7 @@ def check_and_update_admin_status(username, user_id, conn):
 
         # Only promote (never demote)
         if should_be_promoted and not current_is_admin:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute(
                 "UPDATE users SET is_admin = %s WHERE id = %s",
                 (True, user_id),
@@ -110,12 +110,13 @@ def check_and_update_admin_status(username, user_id, conn):
     except Exception as e:
         log.error(f"Error checking admin status for {username}: {e}")
         # Return current status from database on error
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             "SELECT is_admin FROM users WHERE id = %s",
             (user_id,),
         )
-        is_admin = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        is_admin = result["is_admin"] if result else False
         cursor.close()
         return is_admin
 
