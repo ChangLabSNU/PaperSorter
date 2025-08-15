@@ -107,6 +107,79 @@
             color: white;
         }
 
+        /* Hamburger menu styles */
+        .hamburger-menu {
+            position: relative;
+        }
+
+        .hamburger-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-btn:hover {
+            opacity: 0.7;
+        }
+
+        .hamburger-line {
+            width: 25px;
+            height: 3px;
+            background: #000000;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 200px;
+            margin-top: 10px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: #2c3e50;
+            text-decoration: none;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .dropdown-item:hover {
+            background: #f8f9fa;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: #e9ecef;
+            margin: 5px 0;
+        }
+
         .user-info {
             display: flex;
             align-items: center;
@@ -654,6 +727,16 @@
                 gap: 15px;
             }
 
+            .hamburger-menu {
+                position: relative;
+            }
+
+            .dropdown-menu {
+                right: auto;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
             .search-interface {
                 flex-direction: column;
                 gap: 15px;
@@ -934,16 +1017,38 @@
                     <div class="user-icon">{{ current_user.username[0].upper() }}</div>
                     <span>{{ current_user.username }}</span>
                 </div>
+                {% if current_user.is_admin %}
+                <!-- Hamburger menu for admins -->
+                <div class="hamburger-menu">
+                    <button class="hamburger-btn" onclick="toggleHamburgerMenu(event)">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    <div class="dropdown-menu" id="hamburgerDropdown">
+                        <button class="dropdown-item" onclick="toggleGeneralSearch(); closeHamburgerMenu();">
+                            <span>🔍 Search</span>
+                        </button>
+                        <button class="dropdown-item" onclick="toggleSemanticSearch(); closeHamburgerMenu();">
+                            <span>🔬 Add Papers</span>
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <a href="/settings" class="dropdown-item">
+                            <span>⚙️ Settings</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item">
+                            <span>🚪 Logout</span>
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <!-- Non-admin users see buttons directly -->
                 <button id="generalSearchToggleBtn" class="user-info" onclick="toggleGeneralSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
                     <span style="margin-left: 0;">🔍 Search</span>
                 </button>
-                {% if current_user.is_admin %}
-                <button id="searchToggleBtn" class="user-info" onclick="toggleSemanticSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
-                    <span style="margin-left: 0;">🔬 Add</span>
-                </button>
-                <a href="/settings" class="nav-link">⚙️ Settings</a>
-                {% endif %}
                 <a href="/logout" class="nav-link">🚪 Logout</a>
+                {% endif %}
             </div>
         </div>
 
@@ -1671,6 +1776,26 @@
                 console.error('Failed to save primary channel:', error);
             });
         }
+
+        // Hamburger menu functions
+        function toggleHamburgerMenu(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('hamburgerDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function closeHamburgerMenu() {
+            const dropdown = document.getElementById('hamburgerDropdown');
+            dropdown.classList.remove('show');
+        }
+
+        // Close hamburger menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const hamburgerMenu = document.querySelector('.hamburger-menu');
+            if (hamburgerMenu && !hamburgerMenu.contains(event.target)) {
+                closeHamburgerMenu();
+            }
+        });
 
         // General search functions
         function toggleGeneralSearch() {
