@@ -195,16 +195,18 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
+            overflow-y: auto;
         }
 
         .modal-content {
             background-color: white;
-            margin: 10% auto;
+            margin: 30px auto;
             padding: 30px;
             border-radius: 8px;
             width: 80%;
             max-width: 500px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            position: relative;
         }
 
         .modal-header {
@@ -454,13 +456,11 @@
                         <small style="color: #666;">Max items per run</small>
                     </div>
                     <div class="form-group">
-                        <label for="channelIsActive">Status</label>
-                        <div style="margin-top: 8px;">
-                            <label style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="channelIsActive" checked>
-                                <span>Channel is Active</span>
-                            </label>
-                        </div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #2c3e50;">Status</label>
+                        <label style="display: inline-flex; align-items: center; font-weight: normal; white-space: nowrap;">
+                            <input type="checkbox" id="channelIsActive" checked style="margin-right: 8px;">
+                            <span>Channel is Active</span>
+                        </label>
                     </div>
                 </div>
                 <div class="form-group">
