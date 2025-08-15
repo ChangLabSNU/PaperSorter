@@ -43,12 +43,46 @@ def get_default_model_id(conn):
     return result[0] if result else 1  # Fallback to 1 if no active models
 
 
-def get_unlabeled_item(conn):
-    """Get a random unlabeled item from the database."""
+def get_user_model_id(conn, user):
+    """Get model ID based on user's primary channel preference.
+
+    Args:
+        conn: Database connection
+        user: Current user object with primary_channel_id attribute
+
+    Returns:
+        int: Model ID to use for scoring
+    """
+    # 1. User's primary channel's model (if set)
+    if hasattr(user, 'primary_channel_id') and user.primary_channel_id:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT model_id FROM channels WHERE id = %s",
+            (user.primary_channel_id,)
+        )
+        result = cursor.fetchone()
+        cursor.close()
+        if result and result[0]:
+            return result[0]
+
+    # 2. System default (most recent active)
+    return get_default_model_id(conn)
+
+
+def get_unlabeled_item(conn, user=None):
+    """Get a random unlabeled item from the database.
+
+    Args:
+        conn: Database connection
+        user: Current user object (optional, for model selection)
+    """
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
-    default_model_id = get_default_model_id(conn)
+    if user:
+        default_model_id = get_user_model_id(conn, user)
+    else:
+        default_model_id = get_default_model_id(conn)
     cursor.execute(
         """
         SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,

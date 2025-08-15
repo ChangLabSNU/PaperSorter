@@ -29,7 +29,7 @@ import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
 from ...log import log
-from ..utils.database import get_default_model_id
+from ..utils.database import get_user_model_id
 
 feeds_bp = Blueprint("feeds", __name__)
 
@@ -49,7 +49,7 @@ def api_feeds():
     # Get feeds with all the necessary information
     # Filter preferences by current user
     user_id = current_user.id
-    default_model_id = get_default_model_id(conn)
+    default_model_id = get_user_model_id(conn, current_user)
 
     # Get user's bookmark and primary channel
     cursor.execute("SELECT bookmark, primary_channel_id FROM users WHERE id = %s", (user_id,))
@@ -331,7 +331,7 @@ def api_similar_feeds(feed_id):
 
         # Get similar articles filtered by current user with default model
         conn = current_app.config["get_db_connection"]()
-        default_model_id = get_default_model_id(conn)
+        default_model_id = get_user_model_id(conn, current_user)
         similar_feeds = edb.find_similar(
             feed_id, limit=30, user_id=current_user.id, model_id=default_model_id
         )
