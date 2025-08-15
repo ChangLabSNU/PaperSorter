@@ -376,7 +376,7 @@
             document.getElementById('loading-indicator').style.display = 'block';
 
             try {
-                const response = await fetch(`/api/settings/events?page=${page}&per_page=50`);
+                const response = await fetch(`/api/events?page=${page}&per_page=50`);
                 const data = await response.json();
 
                 if (response.ok) {

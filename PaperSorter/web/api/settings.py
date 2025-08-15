@@ -60,20 +60,6 @@ def settings_models():
     return render_template("settings_models.html")
 
 
-@settings_bp.route("/settings/events")
-@admin_required
-def settings_events():
-    """Event logs viewer page."""
-    return render_template("settings_events.html")
-
-
-@settings_bp.route("/settings/broadcast-queue")
-@admin_required
-def settings_broadcast_queue():
-    """Broadcast queue management page."""
-    return render_template("settings_broadcast_queue.html")
-
-
 @settings_bp.route("/settings/feed-sources")
 @admin_required
 def settings_feed_sources():
@@ -104,7 +90,9 @@ def api_get_channels():
     # Add webhook type detection and broadcast hours array
     for channel in channels:
         # Convert broadcast_hours to checkbox array for UI
-        channel["broadcast_hours_array"] = hours_to_checkbox_array(channel.get("broadcast_hours"))
+        channel["broadcast_hours_array"] = hours_to_checkbox_array(
+            channel.get("broadcast_hours")
+        )
 
         if channel["endpoint_url"]:
             try:
@@ -114,9 +102,9 @@ def api_get_channels():
                 else:
                     hostname = urlparse(channel["endpoint_url"]).hostname or ""
                     hostname_lower = hostname.lower()
-                    if hostname_lower.endswith("discord.com") or hostname_lower.endswith(
-                        "discordapp.com"
-                    ):
+                    if hostname_lower.endswith(
+                        "discord.com"
+                    ) or hostname_lower.endswith("discordapp.com"):
                         channel["webhook_type"] = "Discord"
                     elif hostname_lower.endswith("slack.com"):
                         channel["webhook_type"] = "Slack"
@@ -148,7 +136,7 @@ def validate_endpoint_url(url):
     # Check for email format
     if url.startswith("mailto:"):
         email = url[7:]
-        email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        email_regex = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
         if not re.match(email_regex, email):
             return False, "Invalid email address format", False
         return True, None, False
@@ -167,9 +155,17 @@ def validate_endpoint_url(url):
             return True, None, False
         else:
             # Warning: unsupported but allow to proceed
-            return True, "Warning: Unsupported webhook URL. This endpoint may not work correctly.", True
+            return (
+                True,
+                "Warning: Unsupported webhook URL. This endpoint may not work correctly.",
+                True,
+            )
     except Exception:
-        return False, "Invalid URL format. Use https://... for webhooks or mailto:email@example.com for email.", False
+        return (
+            False,
+            "Invalid URL format. Use https://... for webhooks or mailto:email@example.com for email.",
+            False,
+        )
 
 
 @settings_bp.route("/api/settings/channels", methods=["POST"])
@@ -189,7 +185,9 @@ def api_create_channel():
 
     if is_warning:
         # Log warning but allow to proceed
-        current_app.logger.warning(f"Creating channel with unsupported URL: {endpoint_url}")
+        current_app.logger.warning(
+            f"Creating channel with unsupported URL: {endpoint_url}"
+        )
 
     # Convert broadcast hours array to string format
     broadcast_hours = None
@@ -248,7 +246,9 @@ def api_update_channel(channel_id):
 
     if is_warning:
         # Log warning but allow to proceed
-        current_app.logger.warning(f"Updating channel {channel_id} with unsupported URL: {endpoint_url}")
+        current_app.logger.warning(
+            f"Updating channel {channel_id} with unsupported URL: {endpoint_url}"
+        )
 
     # Convert broadcast hours array to string format
     broadcast_hours = None
@@ -657,136 +657,7 @@ def api_delete_model(model_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# Event logs API endpoints
-@settings_bp.route("/api/settings/events")
-@admin_required
-def api_get_events():
-    """Get event logs with pagination."""
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 50))
-    offset = (page - 1) * per_page
-
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-    try:
-        # Get total count
-        cursor.execute("SELECT COUNT(*) as total FROM events")
-        total = cursor.fetchone()["total"]
-
-        # Get events with feed and user information
-        cursor.execute(
-            """
-            SELECT e.*, f.title as feed_title, u.username
-            FROM events e
-            LEFT JOIN feeds f ON e.feed_id = f.id
-            LEFT JOIN users u ON e.user_id = u.id
-            ORDER BY e.occurred DESC
-            LIMIT %s OFFSET %s
-        """,
-            (per_page, offset),
-        )
-        events = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-        # Convert datetime to ISO format for JSON
-        for event in events:
-            if event["occurred"]:
-                event["occurred"] = event["occurred"].isoformat()
-
-        return jsonify(
-            {
-                "events": events,
-                "total": total,
-                "page": page,
-                "per_page": per_page,
-                "has_more": offset + per_page < total,
-            }
-        )
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-
-# Broadcast Queue API endpoints
-@settings_bp.route("/api/settings/broadcast-queue")
-@admin_required
-def api_get_broadcast_queue():
-    """Get broadcast queue items across all channels (unbroadcasted only)."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-    try:
-        cursor.execute("""
-            SELECT
-                b.feed_id,
-                b.channel_id,
-                b.broadcasted_time,
-                f.title,
-                f.author,
-                f.origin,
-                f.published,
-                f.link,
-                c.name as channel_name,
-                c.endpoint_url as channel_endpoint,
-                pp.score
-            FROM broadcasts b
-            JOIN feeds f ON b.feed_id = f.id
-            JOIN channels c ON b.channel_id = c.id
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = c.model_id
-            WHERE b.broadcasted_time IS NULL
-            ORDER BY c.name ASC, c.id ASC, f.id ASC
-        """)
-
-        queue_items = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        # Convert datetime to ISO format for JSON
-        for item in queue_items:
-            if item["published"]:
-                item["published"] = item["published"].isoformat()
-
-        return jsonify({"queue_items": queue_items})
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-
-@settings_bp.route(
-    "/api/settings/broadcast-queue/<int:feed_id>/<int:channel_id>", methods=["DELETE"]
-)
-@admin_required
-def api_remove_from_queue(feed_id, channel_id):
-    """Remove item from broadcast queue."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(
-            """
-            DELETE FROM broadcasts
-            WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
-        """,
-            (feed_id, channel_id),
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"success": True})
-    except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        return jsonify(
-            {"success": False, "error": str(e)}
-        ), 500  # Feed Sources API endpoints
+# Feed Sources API endpoints
 
 
 @settings_bp.route("/api/settings/feed-sources")
@@ -901,6 +772,165 @@ def api_delete_feed_source(source_id):
         conn.close()
 
         return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# New API routes for broadcast queue and events (without /settings prefix)
+@settings_bp.route("/api/broadcast-queue")
+@admin_required
+def api_broadcast_queue():
+    """Get broadcast queue items across all channels (unbroadcasted only)."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        cursor.execute("""
+            SELECT
+                b.feed_id,
+                b.channel_id,
+                b.broadcasted_time,
+                f.title,
+                f.author,
+                f.origin,
+                f.published,
+                f.link,
+                c.name as channel_name,
+                c.endpoint_url as channel_endpoint,
+                pp.score
+            FROM broadcasts b
+            JOIN feeds f ON b.feed_id = f.id
+            JOIN channels c ON b.channel_id = c.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = c.model_id
+            WHERE b.broadcasted_time IS NULL
+            ORDER BY c.name ASC, c.id ASC, f.id ASC
+        """)
+
+        queue_items = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Convert datetime to ISO format for JSON
+        for item in queue_items:
+            if item["published"]:
+                item["published"] = item["published"].isoformat()
+
+        return jsonify({"queue_items": queue_items})
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route(
+    "/api/broadcast-queue/<int:feed_id>/<int:channel_id>", methods=["DELETE"]
+)
+@admin_required
+def api_broadcast_queue_remove(feed_id, channel_id):
+    """Remove item from broadcast queue."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            DELETE FROM broadcasts
+            WHERE feed_id = %s AND channel_id = %s AND broadcasted_time IS NULL
+        """,
+            (feed_id, channel_id),
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@settings_bp.route("/api/events")
+@admin_required
+def api_events():
+    """Get event logs with pagination."""
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
+    offset = (page - 1) * per_page
+
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        # Get total count
+        cursor.execute("SELECT COUNT(*) as total FROM events")
+        total = cursor.fetchone()["total"]
+
+        # Get events with feed and user information
+        cursor.execute(
+            """
+            SELECT e.*, f.title as feed_title, u.username
+            FROM events e
+            LEFT JOIN feeds f ON e.feed_id = f.id
+            LEFT JOIN users u ON e.user_id = u.id
+            ORDER BY e.occurred DESC
+            LIMIT %s OFFSET %s
+        """,
+            (per_page, offset),
+        )
+        events = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        # Convert datetime to ISO format for JSON
+        for event in events:
+            if event["occurred"]:
+                event["occurred"] = event["occurred"].isoformat()
+
+        return jsonify(
+            {
+                "events": events,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "has_more": offset + per_page < total,
+            }
+        )
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/api/broadcast-queue/channel/<int:channel_id>", methods=["DELETE"])
+@admin_required
+def api_empty_channel_queue(channel_id):
+    """Empty all items from a channel's broadcast queue."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+
+    try:
+        # Delete all unbroadcasted items for this channel
+        cursor.execute(
+            """
+            DELETE FROM broadcasts
+            WHERE channel_id = %s AND broadcasted_time IS NULL
+        """,
+            (channel_id,),
+        )
+
+        affected_rows = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"success": True, "deleted_count": affected_rows})
     except Exception as e:
         conn.rollback()
         cursor.close()
