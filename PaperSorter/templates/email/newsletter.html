@@ -212,7 +212,7 @@
                 {% if paper.score is defined %}
                 <div class="paper-meta">
                     <span class="paper-score {% if paper.score >= 0.8 %}score-high{% elif paper.score >= 0.5 %}score-medium{% else %}score-low{% endif %}">
-                        Score: {{ "%.2f"|format(paper.score) }}
+                        Score: {{ "%.0f"|format(paper.score * 100) }}%
                     </span>
                 </div>
                 {% endif %}
