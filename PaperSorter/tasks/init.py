@@ -25,7 +25,7 @@ import click
 import psycopg2
 import yaml
 from ..log import log
-from ..data import schema as db_schema
+from ..data.schema import Schema
 
 
 @click.option("--config", "-c", default="./config.yml", help="Config file")
@@ -43,6 +43,9 @@ def main(config, schema, drop_existing, quiet):
         cfg = yaml.safe_load(f)
 
     db_config = cfg["db"]
+    
+    # Get embedding dimensions from config
+    db_schema = Schema(cfg.get("embedding_api", {}).get("dimensions", 1536))
 
     # Connect to PostgreSQL
     conn = psycopg2.connect(
