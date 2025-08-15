@@ -424,7 +424,7 @@ def api_get_users():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, username, created, lastlogin, timezone
+        SELECT id, username, created, lastlogin, timezone, is_admin
         FROM users
         ORDER BY id
     """)
@@ -448,14 +448,15 @@ def api_create_user():
     try:
         cursor.execute(
             """
-            INSERT INTO users (username, password, created, timezone)
-            VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
+            INSERT INTO users (username, password, created, timezone, is_admin)
+            VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s)
             RETURNING id
         """,
             (
                 data["username"],
                 data.get("password", "default"),
                 data.get("timezone", "Asia/Seoul"),
+                data.get("is_admin", False),
             ),
         )
 
@@ -489,6 +490,10 @@ def api_update_user(user_id):
         if "timezone" in data:
             update_parts.append("timezone = %s")
             update_values.append(data["timezone"])
+
+        if "is_admin" in data:
+            update_parts.append("is_admin = %s")
+            update_values.append(data["is_admin"])
 
         # Add user_id at the end
         update_values.append(user_id)
