@@ -63,6 +63,27 @@ def api_update_user_preferences():
             current_user.feedlist_minscore_int = min_score_int
             current_user.feedlist_minscore = min_score_decimal
 
+        # Handle primary_channel_id update
+        if "primary_channel_id" in data:
+            channel_id = data["primary_channel_id"]
+            # Allow None to unset primary channel
+            if channel_id == "":
+                channel_id = None
+            elif channel_id is not None:
+                channel_id = int(channel_id)
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET primary_channel_id = %s
+                WHERE id = %s
+            """,
+                (channel_id, current_user.id),
+            )
+
+            # Update the current user object
+            current_user.primary_channel_id = channel_id
+
         conn.commit()
         cursor.close()
         conn.close()
