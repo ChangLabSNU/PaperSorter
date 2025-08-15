@@ -373,6 +373,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
+    """Update feeds and embeddings from RSS sources."""
     initialize_logging(task="update", logfile=log_file, quiet=quiet)
 
     # Load configuration
