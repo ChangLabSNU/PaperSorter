@@ -25,6 +25,7 @@
 
 import requests
 import time
+import re
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from .scholarly_database import ScholarlyDatabaseProvider, ScholarlyArticle
@@ -56,6 +57,19 @@ class OpenAlexProvider(ScholarlyDatabaseProvider):
         """Check if the provider is properly configured."""
         # OpenAlex requires email instead of API key
         return bool(self.config.get("email"))
+
+    def _escape_query(self, query: str) -> str:
+        """Escape special characters in OpenAlex search queries.
+
+        OpenAlex search doesn't support certain operators like |, &, etc.
+        These need to be removed or escaped from the query string.
+        """
+        # Remove or escape problematic characters
+        # The pipe character and other special operators are not supported
+        escaped = re.sub(r'[|&()<>!{}[\]^"~*?:\\]', ' ', query)
+        # Clean up multiple spaces
+        escaped = re.sub(r'\s+', ' ', escaped)
+        return escaped.strip()
 
     def _make_request(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
         """Make a rate-limited request to the API."""
@@ -179,8 +193,11 @@ class OpenAlexProvider(ScholarlyDatabaseProvider):
         """Search for articles using OpenAlex."""
         url = f"{self.api_base_url}/works"
 
+        # Escape special characters in the query
+        escaped_query = self._escape_query(query)
+
         params = {
-            "search": query,
+            "search": escaped_query,
             "per_page": limit
         }
 
@@ -220,9 +237,12 @@ class OpenAlexProvider(ScholarlyDatabaseProvider):
         """Match an article by title and approximate date."""
         url = f"{self.api_base_url}/works"
 
+        # Escape special characters in the title
+        escaped_title = self._escape_query(title)
+
         # Build filter for title search and date range
         params = {
-            "search": title,  # Use search parameter for title
+            "search": escaped_title,  # Use escaped title for search
             "per_page": 1
         }
 
