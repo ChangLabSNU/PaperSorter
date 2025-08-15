@@ -57,7 +57,7 @@ def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-@click.option("--config", default="./config.yml", help="Database configuration file.")
+@click.option("--config", "-c", default="./config.yml", help="Database configuration file.")
 @click.option(
     "--max-content-length", default=400, help="Maximum length of the content."
 )
