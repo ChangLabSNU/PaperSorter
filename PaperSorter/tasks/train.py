@@ -71,6 +71,7 @@ def main(
     log_file,
     quiet,
 ):
+    """Train a preference model using XGBoost."""
     initialize_logging(task="train", logfile=log_file, quiet=quiet)
 
     # Load database configuration
