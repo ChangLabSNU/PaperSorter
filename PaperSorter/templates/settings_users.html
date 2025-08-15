@@ -336,6 +336,13 @@
                     </select>
                     <small style="color: #666;">Timezone for date/time display</small>
                 </div>
+                <div class="form-group">
+                    <label for="userIsAdmin">
+                        <input type="checkbox" id="userIsAdmin" style="width: auto; margin-right: 8px;">
+                        Administrator privileges
+                    </label>
+                    <small style="display: block; color: #666; margin-top: 5px;">Grant admin access to settings and system configuration</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save User</button>
@@ -379,6 +386,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Username</th>
+                            <th>Admin</th>
                             <th>Created</th>
                             <th>Last Login</th>
                             <th>Actions</th>
@@ -389,6 +397,7 @@
                             <tr>
                                 <td>${user.id}</td>
                                 <td><strong>${user.username}</strong></td>
+                                <td>${user.is_admin ? '<span class="tag tag-active">Yes</span>' : '<span class="tag tag-inactive">No</span>'}</td>
                                 <td>${user.created ? new Date(user.created).toLocaleDateString() : '-'}</td>
                                 <td>${user.lastlogin ? new Date(user.lastlogin).toLocaleString() : 'Never'}</td>
                                 <td>
@@ -408,6 +417,7 @@
             document.getElementById('modalTitle').textContent = 'Add User';
             document.getElementById('userForm').reset();
             document.getElementById('userId').value = '';
+            document.getElementById('userIsAdmin').checked = false;
             document.getElementById('userModal').style.display = 'block';
         }
 
@@ -420,6 +430,7 @@
             document.getElementById('userName').value = user.username;
             document.getElementById('userPassword').value = '';
             document.getElementById('userTimezone').value = user.timezone || 'Asia/Seoul';
+            document.getElementById('userIsAdmin').checked = user.is_admin || false;
             document.getElementById('userModal').style.display = 'block';
         }
 
@@ -433,7 +444,8 @@
             const id = document.getElementById('userId').value;
             const data = {
                 username: document.getElementById('userName').value,
-                timezone: document.getElementById('userTimezone').value
+                timezone: document.getElementById('userTimezone').value,
+                is_admin: document.getElementById('userIsAdmin').checked
             };
 
             const password = document.getElementById('userPassword').value;
