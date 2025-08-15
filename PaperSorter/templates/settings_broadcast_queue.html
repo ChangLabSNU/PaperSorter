@@ -119,6 +119,23 @@
             background: #c0392b;
         }
 
+        .btn-warning {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            font-size: 14px;
+            line-height: 1.4;
+            border: none;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #5a67d8 0%, #6b4196 100%);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+        }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
@@ -159,6 +176,7 @@
         .channel-divider td {
             position: relative;
             color: #2c3e50;
+            vertical-align: middle;
         }
 
         .channel-header-name {
@@ -169,11 +187,20 @@
         }
 
         .channel-item-count {
-            position: absolute;
-            right: 15px;
             font-weight: normal;
             font-size: 12px;
             color: #6c757d;
+            margin-right: 10px;
+        }
+
+        .channel-header-controls {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .channel-group .data-table {
@@ -345,7 +372,7 @@
         let queueItems = [];
 
         function loadQueue() {
-            fetch('/api/settings/broadcast-queue')
+            fetch('/api/broadcast-queue')
                 .then(response => response.json())
                 .then(data => {
                     queueItems = data.queue_items || [];
@@ -471,7 +498,7 @@
 
             if (showGroups) {
                 // Multiple channels - show grouped layout
-                let groupsHtml = Object.values(channelGroups).map(channel => `
+                let groupsHtml = Object.entries(channelGroups).map(([channelId, channel]) => `
                     <div class="channel-group">
                         <table class="data-table">
                             <thead>
@@ -481,7 +508,13 @@
                                         <span class="channel-badge ${getChannelTypeClass(channel.endpoint)}" style="margin-left: 10px;">
                                             ${getChannelTypeLabel(channel.endpoint)}
                                         </span>
-                                        <span class="channel-item-count">${channel.items.length} item${channel.items.length !== 1 ? 's' : ''}</span>
+                                        <div class="channel-header-controls">
+                                            <span class="channel-item-count">${channel.items.length} item${channel.items.length !== 1 ? 's' : ''}</span>
+                                            <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
+                                                    title="Remove all items from this channel's queue">
+                                                Empty
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </thead>
@@ -517,7 +550,9 @@
                 container.innerHTML = groupsHtml;
             } else {
                 // Single channel - show regular table
-                const allItems = Object.values(channelGroups)[0]?.items || [];
+                const channelId = Object.keys(channelGroups)[0];
+                const channel = channelGroups[channelId];
+                const allItems = channel?.items || [];
                 container.innerHTML = `
                     <table class="data-table">
                         <thead>
@@ -526,7 +561,14 @@
                                 <th>Channel</th>
                                 <th>Score</th>
                                 <th>Published</th>
-                                <th>Actions</th>
+                                <th>
+                                    Actions
+                                    <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
+                                            title="Remove all items from this channel's queue"
+                                            style="float: right;">
+                                        Empty Queue
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -565,7 +607,7 @@
         function removeFromQueue(feedId, channelId) {
             if (!confirm('Remove this item from the broadcast queue?')) return;
 
-            fetch(`/api/settings/broadcast-queue/${feedId}/${channelId}`, {
+            fetch(`/api/broadcast-queue/${feedId}/${channelId}`, {
                 method: 'DELETE'
             })
             .then(response => response.json())
@@ -584,6 +626,30 @@
             .catch(error => {
                 console.error('Error removing item:', error);
                 alert('Failed to remove item from queue');
+            });
+        }
+
+        function emptyChannelQueue(channelId, channelName) {
+            const itemCount = queueItems.filter(item => item.channel_id == channelId).length;
+            if (!confirm(`Remove all ${itemCount} items from ${channelName} broadcast queue?`)) return;
+
+            fetch(`/api/broadcast-queue/channel/${channelId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove items from local array for immediate UI update
+                    queueItems = queueItems.filter(item => item.channel_id != channelId);
+                    renderQueue();
+                    updateStats();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to empty queue'));
+                }
+            })
+            .catch(error => {
+                console.error('Error emptying queue:', error);
+                alert('Failed to empty channel queue');
             });
         }
 

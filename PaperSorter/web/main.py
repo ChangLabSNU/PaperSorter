@@ -62,11 +62,14 @@ def index():
     if primary_channel_id is None and channels:
         primary_channel_id = channels[0]["id"]
         # Update the user's primary_channel_id
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE users
             SET primary_channel_id = %s
             WHERE id = %s
-        """, (primary_channel_id, current_user.id))
+        """,
+            (primary_channel_id, current_user.id),
+        )
         conn.commit()
 
         # Update the current user object
@@ -75,9 +78,9 @@ def index():
     cursor.close()
     conn.close()
 
-    return render_template("feeds_list.html",
-                         channels=channels,
-                         primary_channel_id=primary_channel_id)
+    return render_template(
+        "feeds_list.html", channels=channels, primary_channel_id=primary_channel_id
+    )
 
 
 @main_bp.route("/link/<short_name>")
@@ -204,3 +207,23 @@ def labeling():
         return render_template("complete.html", stats=stats)
 
     return render_template("labeling.html", item=item, stats=stats)
+
+
+@main_bp.route("/broadcast-queue")
+@login_required
+def broadcast_queue():
+    """Broadcast queue management page."""
+    # Check if user is admin
+    if not current_user.is_admin:
+        return render_template("error.html", error="Admin access required"), 403
+    return render_template("settings_broadcast_queue.html")
+
+
+@main_bp.route("/events")
+@login_required
+def events():
+    """Event logs viewer page."""
+    # Check if user is admin
+    if not current_user.is_admin:
+        return render_template("error.html", error="Admin access required"), 403
+    return render_template("settings_events.html")
