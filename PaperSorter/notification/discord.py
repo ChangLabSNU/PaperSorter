@@ -130,7 +130,7 @@ class DiscordProvider(NotificationProvider):
             fields.append(
                 {
                     "name": "📊 QBio Score",
-                    "value": f"{indicator} {score_percent}%",
+                    "value": f"{indicator} {score_percent}",
                     "inline": True,
                 }
             )
