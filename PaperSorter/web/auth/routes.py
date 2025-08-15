@@ -23,6 +23,7 @@
 
 """Authentication routes."""
 
+import yaml
 import psycopg2
 import psycopg2.extras
 from flask import (
@@ -41,6 +42,70 @@ from .models import User
 auth_bp = Blueprint("auth", __name__)
 
 
+def check_and_update_admin_status(username, user_id, conn):
+    """Check if user should be admin based on config and update database.
+
+    Args:
+        username: User's email or ORCID identifier
+        user_id: User's database ID
+        conn: Database connection
+
+    Returns:
+        bool: True if user is admin, False otherwise
+    """
+    try:
+        # Load config to get admin users list
+        config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        # Get admin users from config
+        admin_users = config.get("admin_users", [])
+        if not admin_users:
+            # Check for backward compatibility with inline admins in oauth section
+            admin_users = []
+
+        # Normalize username for comparison (lowercase)
+        username_lower = username.lower()
+
+        # Check if user should be admin
+        should_be_admin = any(admin.lower() == username_lower for admin in admin_users)
+
+        # Get current admin status from database
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT is_admin FROM users WHERE id = %s",
+            (user_id,),
+        )
+        current_is_admin = cursor.fetchone()[0]
+
+        # Update if mismatch between config and database
+        if should_be_admin != current_is_admin:
+            cursor.execute(
+                "UPDATE users SET is_admin = %s WHERE id = %s",
+                (should_be_admin, user_id),
+            )
+            conn.commit()
+            log.info(
+                f"Updated admin status for {username}: {current_is_admin} -> {should_be_admin}"
+            )
+
+        cursor.close()
+        return should_be_admin
+
+    except Exception as e:
+        log.error(f"Error checking admin status for {username}: {e}")
+        # Return current status from database on error
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT is_admin FROM users WHERE id = %s",
+            (user_id,),
+        )
+        is_admin = cursor.fetchone()[0]
+        cursor.close()
+        return is_admin
+
+
 @auth_bp.route("/login")
 def login():
     """Login page."""
@@ -56,41 +121,46 @@ def login():
 
     # Check if Google OAuth is configured and not using example values
     has_google = False
-    if oauth_providers and hasattr(oauth_providers, 'google'):
+    if oauth_providers and hasattr(oauth_providers, "google"):
         google_client = oauth_providers.google
         if google_client and google_client.client_id:
             # Check if it's not an example value
-            if not google_client.client_id.startswith("your-") and \
-               not google_client.client_id.startswith("your_"):
+            if not google_client.client_id.startswith(
+                "your-"
+            ) and not google_client.client_id.startswith("your_"):
                 has_google = True
 
     # Check if GitHub OAuth is configured and not using example values
     has_github = False
-    if oauth_providers and hasattr(oauth_providers, 'github'):
+    if oauth_providers and hasattr(oauth_providers, "github"):
         github_client = oauth_providers.github
         if github_client and github_client.client_id:
             # Check if it's not an example value
-            if not github_client.client_id.startswith("your-") and \
-               not github_client.client_id.startswith("your_"):
+            if not github_client.client_id.startswith(
+                "your-"
+            ) and not github_client.client_id.startswith("your_"):
                 has_github = True
 
     # Check if ORCID OAuth is configured and not using example values
     has_orcid = False
-    if oauth_providers and hasattr(oauth_providers, 'orcid'):
+    if oauth_providers and hasattr(oauth_providers, "orcid"):
         orcid_client = oauth_providers.orcid
         if orcid_client and orcid_client.client_id:
             # Check if it's not an example value
-            if not orcid_client.client_id.startswith("your-") and \
-               not orcid_client.client_id.startswith("your_"):
+            if not orcid_client.client_id.startswith(
+                "your-"
+            ) and not orcid_client.client_id.startswith("your_"):
                 has_orcid = True
 
     # Get the next parameter from the request
     next_page = request.args.get("next")
-    return render_template("login.html",
-                         next=next_page,
-                         has_google=has_google,
-                         has_github=has_github,
-                         has_orcid=has_orcid)
+    return render_template(
+        "login.html",
+        next=next_page,
+        has_google=has_google,
+        has_github=has_github,
+        has_orcid=has_orcid,
+    )
 
 
 @auth_bp.route("/login/google")
@@ -163,6 +233,9 @@ def google_callback():
             )
             conn.commit()
 
+            # Check and update admin status based on config
+            is_admin = check_and_update_admin_status(email, user_data["id"], conn)
+
             cursor.close()
             conn.close()
 
@@ -171,7 +244,7 @@ def google_callback():
                 user_data["id"],
                 user_data["username"],
                 email,
-                is_admin=user_data.get("is_admin", False),
+                is_admin=is_admin,
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
@@ -251,6 +324,9 @@ def github_callback():
             )
             conn.commit()
 
+            # Check and update admin status based on config
+            is_admin = check_and_update_admin_status(email, user_data["id"], conn)
+
             cursor.close()
             conn.close()
 
@@ -259,7 +335,7 @@ def github_callback():
                 user_data["id"],
                 user_data["username"],
                 email,
-                is_admin=user_data.get("is_admin", False),
+                is_admin=is_admin,
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
@@ -277,7 +353,9 @@ def github_callback():
                 return redirect(url_for("main.index"))
         else:
             log.error("No email found in GitHub account")
-            return redirect(url_for("auth.login", error="No email associated with GitHub account"))
+            return redirect(
+                url_for("auth.login", error="No email associated with GitHub account")
+            )
 
     except Exception as e:
         log.error(f"GitHub OAuth callback error: {e}")
@@ -345,6 +423,9 @@ def orcid_callback():
             )
             conn.commit()
 
+            # Check and update admin status based on config
+            is_admin = check_and_update_admin_status(username, user_data["id"], conn)
+
             cursor.close()
             conn.close()
 
@@ -353,7 +434,7 @@ def orcid_callback():
                 user_data["id"],
                 user_data["username"],
                 username,
-                is_admin=user_data.get("is_admin", False),
+                is_admin=is_admin,
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
@@ -384,3 +465,4 @@ def logout():
     """Logout the user."""
     logout_user()
     return redirect(url_for("auth.login", message="You have been logged out"))
+

@@ -254,9 +254,39 @@ OAuth users are stored in the `users` table with the following relevant fields:
 - `password`: Set to "oauth" for OAuth users
 - `lastlogin`: Automatically updated on login and during active sessions (throttled to every 10 minutes)
 - `created`: Timestamp of first login
-- `is_admin`: Admin status (default: false)
+- `is_admin`: Admin status (default: false, automatically synchronized with config on login)
 
-Admin privileges must be granted manually via database update:
+## Managing Admin Privileges
+
+### Automatic Admin Assignment via Configuration (Recommended)
+
+Add users to the `admin_users` list in your `config.yml`. Admin status is automatically synchronized on each login:
+
+```yaml
+# config.yml
+admin_users:
+  # Email addresses for Google/GitHub OAuth
+  - "admin@example.com"
+  - "researcher@university.edu"
+  # ORCID identifiers (must include @orcid.org suffix)
+  - "0000-0002-1825-0097@orcid.org"
+  - "0000-0003-4567-8901@orcid.org"
+```
+
+Benefits of this approach:
+- Admin privileges are automatically granted on first login
+- Admin status is checked and updated on every login
+- Removing a user from the list revokes their admin access on next login
+- Centralized management of admin users
+- No database access required
+
+### Manual Admin Assignment
+
+#### Via Web Interface
+Administrators can manage user privileges through Settings → Users in the web interface.
+
+#### Via Database
+For immediate changes without waiting for the next login:
 
 ```sql
 -- For email-based providers (Google, GitHub)
@@ -265,3 +295,5 @@ UPDATE users SET is_admin = true WHERE username = 'admin@example.com';
 -- For ORCID users
 UPDATE users SET is_admin = true WHERE username = '0000-0002-1825-0097@orcid.org';
 ```
+
+Note: Manual database changes may be overridden on next login if the user is not in the `admin_users` config list.
