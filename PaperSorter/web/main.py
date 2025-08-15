@@ -34,7 +34,7 @@ from flask import (
     redirect,
     url_for,
 )
-from flask_login import login_required
+from flask_login import login_required, current_user
 from .utils.database import get_unlabeled_item, update_label, get_labeling_stats
 
 main_bp = Blueprint("main", __name__)
@@ -44,7 +44,6 @@ main_bp = Blueprint("main", __name__)
 @login_required
 def index():
     """Show list of all feeds with their labels."""
-    from flask_login import current_user
 
     # Get list of active channels for primary channel selector
     conn = current_app.config["get_db_connection"]()
@@ -197,7 +196,7 @@ def label_item():
 def labeling():
     """Labeling interface - hidden page."""
     conn = current_app.config["get_db_connection"]()
-    item = get_unlabeled_item(conn)
+    item = get_unlabeled_item(conn, current_user)
     stats = get_labeling_stats(conn)
     conn.close()
 

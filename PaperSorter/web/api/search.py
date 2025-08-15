@@ -38,7 +38,7 @@ from ...feed_predictor import FeedPredictor
 from ..auth.decorators import admin_required
 from ..models.scholarly_article import ScholarlyArticleItem
 from ...providers.factory import ScholarlyDatabaseFactory
-from ..utils.database import get_default_model_id, save_search_query
+from ..utils.database import get_user_model_id, save_search_query
 
 search_bp = Blueprint("search", __name__)
 
@@ -59,7 +59,7 @@ def api_search():
         # Get user ID and default model ID for filtering
         user_id = current_user.id
         conn = current_app.config["get_db_connection"]()
-        default_model_id = get_default_model_id(conn)
+        default_model_id = get_user_model_id(conn, current_user)
 
         # Search using embeddings
         search_results = edb.search_by_text(
