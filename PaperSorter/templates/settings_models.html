@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Models - Settings - PaperSorter</title>
+    <title>Preference Prediction Models - Settings - PaperSorter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -289,7 +289,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Models</h1>
+            <h1>🤖 Preference Prediction Models</h1>
             <div class="nav-links">
                 <a href="/settings" class="nav-link">← Back to Settings</a>
                 <a href="/" class="nav-link">← Back to Feeds</a>
@@ -298,7 +298,7 @@
 
         <div class="content-card">
             <div class="action-bar">
-                <h2>Machine Learning Models</h2>
+                <h2>Preference Prediction Models</h2>
                 <button class="btn btn-primary" onclick="openAddModal()">+ Add Model</button>
             </div>
 
@@ -307,7 +307,7 @@
                 <div class="empty-state">
                     <div class="empty-state-icon">🤖</div>
                     <h3>No models configured</h3>
-                    <p>Add machine learning models for paper scoring</p>
+                    <p>Add preference prediction models to score papers based on your interests</p>
                 </div>
             </div>
         </div>
@@ -317,25 +317,27 @@
     <div id="modelModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modalTitle">Add Model</h2>
+                <h2 id="modalTitle">Add Preference Model</h2>
                 <span class="close" onclick="closeModal()">&times;</span>
             </div>
             <form id="modelForm" onsubmit="saveModel(event)">
                 <input type="hidden" id="modelId">
                 <div class="form-group">
                     <label for="modelName">Model Name</label>
-                    <input type="text" id="modelName" required placeholder="e.g., XGBoost v2">
+                    <input type="text" id="modelName" required placeholder="e.g., Biology Papers Model v2">
                 </div>
                 <div class="form-group">
-                    <label for="modelUserId">User ID</label>
-                    <input type="number" id="modelUserId" placeholder="1" value="1">
+                    <label for="modelNotes">Notes</label>
+                    <textarea id="modelNotes" placeholder="Description or notes about this model (optional)" rows="3"></textarea>
+                    <small style="color: #666;">Any additional information about this model</small>
                 </div>
                 <div class="form-group">
-                    <label for="modelIsActive">
-                        <input type="checkbox" id="modelIsActive" checked>
-                        Model is Active
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #2c3e50;">Status</label>
+                    <label style="display: inline-flex; align-items: center; font-weight: normal; white-space: nowrap;">
+                        <input type="checkbox" id="modelIsActive" checked style="margin-right: 8px;">
+                        <span>Model is Active</span>
                     </label>
-                    <small style="color: #666;">Only active models can be used for scoring</small>
+                    <small style="display: block; color: #666; margin-top: 5px;">Only active models can be used for predicting paper preferences</small>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
@@ -368,7 +370,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">🤖</div>
                         <h3>No models configured</h3>
-                        <p>Add machine learning models for paper scoring</p>
+                        <p>Add preference prediction models to score papers based on your interests</p>
                     </div>
                 `;
                 return;
@@ -380,7 +382,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
-                            <th>User ID</th>
+                            <th>Notes</th>
                             <th>Created</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -391,7 +393,7 @@
                             <tr>
                                 <td>${model.id}</td>
                                 <td><strong>${model.name}</strong></td>
-                                <td>${model.user_id || '-'}</td>
+                                <td>${model.notes ? (model.notes.length > 50 ? model.notes.substring(0, 50) + '...' : model.notes) : '-'}</td>
                                 <td>${model.created ? new Date(model.created).toLocaleDateString() : '-'}</td>
                                 <td>
                                     <span class="tag ${model.is_active !== false ? 'tag-active' : 'tag-inactive'}">
@@ -412,10 +414,10 @@
         }
 
         function openAddModal() {
-            document.getElementById('modalTitle').textContent = 'Add Model';
+            document.getElementById('modalTitle').textContent = 'Add Preference Model';
             document.getElementById('modelForm').reset();
             document.getElementById('modelId').value = '';
-            document.getElementById('modelUserId').value = '1';
+            document.getElementById('modelNotes').value = '';
             document.getElementById('modelModal').style.display = 'block';
         }
 
@@ -423,10 +425,10 @@
             const model = models.find(m => m.id === id);
             if (!model) return;
 
-            document.getElementById('modalTitle').textContent = 'Edit Model';
+            document.getElementById('modalTitle').textContent = 'Edit Preference Model';
             document.getElementById('modelId').value = model.id;
             document.getElementById('modelName').value = model.name;
-            document.getElementById('modelUserId').value = model.user_id || '1';
+            document.getElementById('modelNotes').value = model.notes || '';
             document.getElementById('modelIsActive').checked = model.is_active !== false;
             document.getElementById('modelModal').style.display = 'block';
         }
@@ -441,7 +443,7 @@
             const id = document.getElementById('modelId').value;
             const data = {
                 name: document.getElementById('modelName').value,
-                user_id: parseInt(document.getElementById('modelUserId').value) || 1,
+                notes: document.getElementById('modelNotes').value,
                 is_active: document.getElementById('modelIsActive').checked
             };
 
