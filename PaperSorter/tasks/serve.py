@@ -41,6 +41,7 @@ def main(config, host, port, debug, log_file, quiet):
     initialize_logging(task="serve", logfile=log_file, quiet=quiet)
 
     log.info(f"Starting web server on {host}:{port}")
+    log.info(f"Please verify that you have added http://{host}:{port}/callback as authorized redirect URIs in your OAuth app.")
 
     app = create_app(config)
 
