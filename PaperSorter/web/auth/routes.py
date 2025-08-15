@@ -43,7 +43,10 @@ auth_bp = Blueprint("auth", __name__)
 
 
 def check_and_update_admin_status(username, user_id, conn):
-    """Check if user should be admin based on config and update database.
+    """Check if user should be promoted to admin based on config.
+
+    Note: This function only promotes users to admin, never demotes.
+    Users can only be demoted via the web interface or direct database updates.
 
     Args:
         username: User's email or ORCID identifier
@@ -54,23 +57,6 @@ def check_and_update_admin_status(username, user_id, conn):
         bool: True if user is admin, False otherwise
     """
     try:
-        # Load config to get admin users list
-        config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        # Get admin users from config
-        admin_users = config.get("admin_users", [])
-        if not admin_users:
-            # Check for backward compatibility with inline admins in oauth section
-            admin_users = []
-
-        # Normalize username for comparison (lowercase)
-        username_lower = username.lower()
-
-        # Check if user should be admin
-        should_be_admin = any(admin.lower() == username_lower for admin in admin_users)
-
         # Get current admin status from database
         cursor = conn.cursor()
         cursor.execute(
@@ -78,20 +64,48 @@ def check_and_update_admin_status(username, user_id, conn):
             (user_id,),
         )
         current_is_admin = cursor.fetchone()[0]
+        cursor.close()
 
-        # Update if mismatch between config and database
-        if should_be_admin != current_is_admin:
+        # If already admin, keep admin status
+        if current_is_admin:
+            return True
+
+        # Load config to check if user should be promoted
+        config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+        except (FileNotFoundError, IOError):
+            # If config file doesn't exist or can't be read, return current status
+            return current_is_admin
+
+        # Get admin users from config
+        admin_users = config.get("admin_users", [])
+        if not admin_users:
+            # No admin users defined, return current status
+            return current_is_admin
+
+        # Normalize username for comparison (lowercase)
+        username_lower = username.lower()
+
+        # Check if user should be promoted to admin
+        should_be_promoted = any(
+            admin.lower() == username_lower for admin in admin_users if admin
+        )
+
+        # Only promote (never demote)
+        if should_be_promoted and not current_is_admin:
+            cursor = conn.cursor()
             cursor.execute(
                 "UPDATE users SET is_admin = %s WHERE id = %s",
-                (should_be_admin, user_id),
+                (True, user_id),
             )
             conn.commit()
-            log.info(
-                f"Updated admin status for {username}: {current_is_admin} -> {should_be_admin}"
-            )
+            cursor.close()
+            log.info(f"Promoted {username} to admin based on config.yml")
+            return True
 
-        cursor.close()
-        return should_be_admin
+        return current_is_admin
 
     except Exception as e:
         log.error(f"Error checking admin status for {username}: {e}")
@@ -465,4 +479,3 @@ def logout():
     """Logout the user."""
     logout_user()
     return redirect(url_for("auth.login", message="You have been logged out"))
-
