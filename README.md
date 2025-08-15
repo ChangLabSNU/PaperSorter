@@ -39,7 +39,7 @@ pip install -e .
 Create a configuration file at `config.yml` (or specify with `--config`). See `examples/config.yml` for a complete example:
 
 ```yaml
-# Admin users - automatically granted admin privileges on login
+# Admin users - automatically promoted to admin on login (never demoted)
 admin_users:
   - "admin@example.com"              # For Google/GitHub OAuth
   - "0000-0002-1825-0097@orcid.org"  # For ORCID OAuth

@@ -254,13 +254,13 @@ OAuth users are stored in the `users` table with the following relevant fields:
 - `password`: Set to "oauth" for OAuth users
 - `lastlogin`: Automatically updated on login and during active sessions (throttled to every 10 minutes)
 - `created`: Timestamp of first login
-- `is_admin`: Admin status (default: false, automatically synchronized with config on login)
+- `is_admin`: Admin status (default: false, can be auto-promoted via config on login)
 
 ## Managing Admin Privileges
 
-### Automatic Admin Assignment via Configuration (Recommended)
+### Automatic Admin Promotion via Configuration (Recommended)
 
-Add users to the `admin_users` list in your `config.yml`. Admin status is automatically synchronized on each login:
+Add users to the `admin_users` list in your `config.yml`. Users in this list are automatically promoted to admin on login:
 
 ```yaml
 # config.yml
@@ -273,12 +273,12 @@ admin_users:
   - "0000-0003-4567-8901@orcid.org"
 ```
 
-Benefits of this approach:
-- Admin privileges are automatically granted on first login
-- Admin status is checked and updated on every login
-- Removing a user from the list revokes their admin access on next login
-- Centralized management of admin users
-- No database access required
+Important notes about this approach:
+- Users in the list are automatically promoted to admin on login
+- **The list only promotes, never demotes** - existing admins remain admins even if not in the list
+- To revoke admin privileges, use the web interface or database updates
+- Useful for ensuring specific users always have admin access
+- No database access required for initial setup
 
 ### Manual Admin Assignment
 
@@ -296,4 +296,4 @@ UPDATE users SET is_admin = true WHERE username = 'admin@example.com';
 UPDATE users SET is_admin = true WHERE username = '0000-0002-1825-0097@orcid.org';
 ```
 
-Note: Manual database changes may be overridden on next login if the user is not in the `admin_users` config list.
+Note: Admin privileges set via database are permanent unless explicitly revoked. The `admin_users` list only promotes users, never demotes them.
