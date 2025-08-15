@@ -45,6 +45,7 @@ TABLES = [
             ("timezone", "text DEFAULT 'Asia/Seoul'"),
             ("bookmark", "bigint"),
             ("feedlist_minscore", "integer DEFAULT 25"),
+            ("primary_channel_id", "integer"),
         ]
     },
     {
@@ -95,8 +96,8 @@ TABLES = [
         "name": "models",
         "columns": [
             ("id", "serial PRIMARY KEY"),
-            ("user_id", "bigint REFERENCES {schema}.users(id) ON UPDATE CASCADE ON DELETE RESTRICT"),
             ("name", "text"),
+            ("notes", "text"),
             ("created", "timestamp with time zone DEFAULT now() NOT NULL"),
             ("is_active", "boolean DEFAULT true NOT NULL"),
         ]
@@ -110,7 +111,8 @@ TABLES = [
             ("score_threshold", "double precision"),
             ("model_id", "integer REFERENCES {schema}.models(id) ON UPDATE CASCADE ON DELETE CASCADE"),
             ("is_active", "boolean DEFAULT true NOT NULL"),
-            ("broadcast_limit", "integer DEFAULT 20"),
+            ("broadcast_limit", "integer DEFAULT 20 NOT NULL CHECK (broadcast_limit >= 1 AND broadcast_limit <= 100)"),
+            ("broadcast_hours", "text"),
         ]
     },
     {
@@ -182,13 +184,6 @@ TABLES = [
             ("last_access", "timestamp with time zone"),
         ]
     },
-    {
-        "name": "migrtmp_rss_dup_check",
-        "columns": [
-            ("external_id", "text PRIMARY KEY"),
-            ("added", "timestamp with time zone DEFAULT now() NOT NULL"),
-        ]
-    },
 ]
 
 # Index definitions
@@ -238,8 +233,8 @@ INDEXES = [
     {"name": "idx_labeling_sessions_user", "table": "labeling_sessions", "columns": ["user_id"]},
     {"name": "idx_labeling_sessions_score", "table": "labeling_sessions", "columns": ["user_id", "score"]},
 
-    # Models indexes
-    {"name": "idx_models_user", "table": "models", "columns": ["user_id"]},
+    # Users indexes
+    {"name": "idx_users_primary_channel", "table": "users", "columns": ["primary_channel_id"]},
 ]
 
 # Tables to drop in reverse dependency order (for drop_existing option)
@@ -257,5 +252,4 @@ DROP_ORDER = [
     "feeds",
     "articles",
     "users",
-    "migrtmp_rss_dup_check",
 ]
