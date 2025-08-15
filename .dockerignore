@@ -1,0 +1,30 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution directories
+.Python
+build/
+dist/
+.eggs/
+*.egg-info/
+
+.git/
+.gitignore
+
+# Virtual environments
+venv/
+.env/
+
+# Test and coverage artifacts
+htmlcov/
+.tox/
+.nox/
+.coverage*
+pytest_cache/
+
+# Documentation and examples
+/docs/
+/examples/
+/papersorter.egg-info/
