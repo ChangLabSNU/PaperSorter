@@ -244,10 +244,10 @@ CREATE TABLE papersorter.labeling_sessions (
 
 CREATE TABLE papersorter.models (
     id integer NOT NULL,
-    user_id bigint,
     name text,
     created timestamp with time zone DEFAULT now() NOT NULL,
-    is_active boolean DEFAULT true NOT NULL
+    is_active boolean DEFAULT true NOT NULL,
+    notes text
 );
 
 
@@ -332,7 +332,8 @@ CREATE TABLE papersorter.users (
     is_admin boolean DEFAULT false NOT NULL,
     timezone text DEFAULT 'Asia/Seoul'::text,
     bookmark bigint,
-    feedlist_minscore integer DEFAULT 25
+    feedlist_minscore integer DEFAULT 25,
+    primary_channel_id integer
 );
 
 
@@ -561,10 +562,6 @@ CREATE INDEX idx_labeling_sessions_score ON papersorter.labeling_sessions USING 
 
 
 
-CREATE INDEX idx_models_user ON papersorter.models USING btree (user_id);
-
-
-
 CREATE INDEX idx_preferences_score ON papersorter.preferences USING btree (score);
 
 
@@ -574,6 +571,10 @@ CREATE INDEX idx_preferences_time ON papersorter.preferences USING btree ("time"
 
 
 CREATE INDEX idx_user_id ON papersorter.preferences USING btree (user_id);
+
+
+
+CREATE INDEX idx_users_primary_channel ON papersorter.users USING btree (primary_channel_id);
 
 
 
@@ -625,11 +626,6 @@ ALTER TABLE ONLY papersorter.labeling_sessions
 
 
 
-ALTER TABLE ONLY papersorter.models
-    ADD CONSTRAINT fk_models_user_id FOREIGN KEY (user_id) REFERENCES papersorter.users(id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY papersorter.predicted_preferences
     ADD CONSTRAINT fk_pred_pref_feed FOREIGN KEY (feed_id) REFERENCES papersorter.feeds(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
@@ -652,6 +648,11 @@ ALTER TABLE ONLY papersorter.preferences
 
 ALTER TABLE ONLY papersorter.saved_searches
     ADD CONSTRAINT fk_saved_searches_user FOREIGN KEY (user_id) REFERENCES papersorter.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY papersorter.users
+    ADD CONSTRAINT users_primary_channel_fk FOREIGN KEY (primary_channel_id) REFERENCES papersorter.channels(id) ON DELETE SET NULL;
 
 
 
