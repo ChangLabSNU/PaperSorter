@@ -438,11 +438,11 @@
                         <small style="color: #666;">Min score to broadcast (0.0-1.0)</small>
                     </div>
                     <div class="form-group">
-                        <label for="channelModelId">Model ID</label>
-                        <input type="number" id="channelModelId" required
-                               min="1" value="1"
-                               placeholder="1">
-                        <small style="color: #666;">Scoring model ID</small>
+                        <label for="channelModelId">Model</label>
+                        <select id="channelModelId" required>
+                            <option value="">Loading models...</option>
+                        </select>
+                        <small style="color: #666;">Scoring model to use</small>
                     </div>
                 </div>
                 <div class="form-row">
@@ -494,6 +494,7 @@
 
     <script>
         let channels = [];
+        let models = [];
 
         // Initialize hours grid
         function initHoursGrid() {
@@ -592,6 +593,58 @@
             }
         }
 
+        function loadModels() {
+            fetch('/api/settings/models')
+                .then(response => response.json())
+                .then(data => {
+                    models = data.models || [];
+                    updateModelDropdown();
+                })
+                .catch(error => {
+                    console.error('Error loading models:', error);
+                    // Still update dropdown even on error, with default model
+                    models = [{id: 1, name: 'Default Model'}];
+                    updateModelDropdown();
+                });
+        }
+
+        function updateModelDropdown() {
+            const select = document.getElementById('channelModelId');
+            const currentValue = select.value;
+
+            // Clear existing options
+            select.innerHTML = '';
+
+            // Add models as options
+            if (models.length === 0) {
+                select.innerHTML = '<option value="1">Default Model (ID: 1)</option>';
+            } else {
+                // Sort models by ID in descending order (newest first)
+                const sortedModels = [...models].sort((a, b) => b.id - a.id);
+
+                sortedModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.name ? `${model.name} (ID: ${model.id})` : `Model ${model.id}`;
+                    if (model.is_active === false) {
+                        option.textContent += ' [Inactive]';
+                        option.style.color = '#999';
+                    }
+                    select.appendChild(option);
+                });
+            }
+
+            // Restore previous value if it exists
+            if (currentValue) {
+                select.value = currentValue;
+            } else if (models.length > 0) {
+                // Default to newest active model or just newest model
+                const sortedModels = [...models].sort((a, b) => b.id - a.id);
+                const activeModel = sortedModels.find(m => m.is_active !== false);
+                select.value = activeModel ? activeModel.id : sortedModels[0].id;
+            }
+        }
+
         function loadChannels() {
             fetch('/api/settings/channels')
                 .then(response => response.json())
@@ -687,7 +740,20 @@
             document.getElementById('channelName').value = channel.name;
             document.getElementById('channelEndpoint').value = channel.endpoint_url;
             document.getElementById('channelScoreThreshold').value = channel.score_threshold || 0.7;
-            document.getElementById('channelModelId').value = channel.model_id || 1;
+
+            // Set model dropdown value
+            const modelSelect = document.getElementById('channelModelId');
+            modelSelect.value = channel.model_id || 1;
+            // If the value doesn't exist in dropdown (e.g., model was deleted), add it temporarily
+            if (modelSelect.value != (channel.model_id || 1)) {
+                const option = document.createElement('option');
+                option.value = channel.model_id || 1;
+                option.textContent = `Model ${channel.model_id || 1} (Not Found)`;
+                option.style.color = '#e74c3c';
+                modelSelect.appendChild(option);
+                modelSelect.value = channel.model_id || 1;
+            }
+
             document.getElementById('channelBroadcastLimit').value = channel.broadcast_limit || 20;
             document.getElementById('channelIsActive').checked = channel.is_active !== false;
 
@@ -891,8 +957,9 @@
             }
         }
 
-        // Load channels on page load
+        // Load channels and models on page load
         initHoursGrid();
+        loadModels();
         loadChannels();
     </script>
 </body>
