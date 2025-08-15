@@ -36,7 +36,7 @@ import yaml
 
 
 @click.option(
-    "--config", default="./config.yml", help="Database configuration file."
+    "--config", "-c", default="./config.yml", help="Database configuration file."
 )
 @click.option("-o", "--output", default="model.pkl", help="Output file name.")
 @click.option("-r", "--rounds", default=1000, help="Number of boosting rounds.")

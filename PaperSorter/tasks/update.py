@@ -355,7 +355,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
 
 @click.option(
-    "--config", default="./config.yml", help="Database configuration file."
+    "--config", "-c", default="./config.yml", help="Database configuration file."
 )
 @click.option("--batch-size", default=100, help="Batch size for processing.")
 @click.option(
