@@ -5,6 +5,7 @@ sphinx-rtd-theme>=2.0.0
 
 # Markdown support
 myst-parser>=2.0.0
+linkify-it-py>=2.0.0  # Required for myst-parser linkify extension
 
 # Extensions for better documentation
 sphinx-autodoc-typehints>=1.25.0
