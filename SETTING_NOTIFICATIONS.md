@@ -127,34 +127,193 @@ When PaperSorter sends to Discord, you get:
 
 ## Email Setup
 
+### Quick Start for Email
+
+1. **Add SMTP configuration** to `config.yml`:
+   ```yaml
+   # For Gmail (recommended)
+   smtp:
+     provider: gmail
+     username: "your@gmail.com"
+     password: "xxxx-xxxx-xxxx-xxxx"  # App password from Google
+
+   email:
+     from_address: "your@gmail.com"
+     from_name: "PaperSorter"
+   ```
+
+2. **Test the configuration**:
+   ```bash
+   papersorter test smtp -r test@example.com
+   ```
+
+3. **Add email channel** in web interface:
+   - Go to Settings → Channels
+   - Add webhook URL: `mailto:recipient@example.com`
+   - Set score threshold and save
+
+4. **Run broadcast**:
+   ```bash
+   papersorter broadcast
+   ```
+
 ### Configuring Email Notifications
 
 Email notifications send newsletter-style digests containing multiple papers in a single email.
 
 #### 1. SMTP Server Configuration
 
-Add SMTP settings to your `config.yml`:
+PaperSorter supports both authenticated and unauthenticated SMTP servers. Configure in your `config.yml`:
+
+##### Provider-based Configuration (Recommended for Public Services)
+
+For Gmail, Outlook, or Yahoo, use the simplified provider configuration:
 
 ```yaml
+# Gmail configuration
 smtp:
-  host: "smtp.gmail.com"  # Your SMTP server
-  port: 587               # Usually 587 for TLS, 465 for SSL
-  use_tls: true          # Enable TLS/STARTTLS
-  username: "your-email@gmail.com"  # Optional: for authentication
-  password: "your-app-password"     # Optional: for authentication
+  provider: gmail
+  username: "your-email@gmail.com"
+  password: "your-app-password"  # Use app-specific password
+
+email:
+  from_address: "your-email@gmail.com"
+  from_name: "PaperSorter Newsletter"
 ```
 
-**For Gmail users**:
-- Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
-- Enable "Less secure app access" or use OAuth2
+```yaml
+# Outlook.com/Hotmail configuration (Personal accounts only)
+smtp:
+  provider: outlook
+  username: "your-email@outlook.com"
+  password: "your-app-password"  # Requires 2FA enabled
 
-**For other providers**:
-- **Outlook/Office365**: smtp.office365.com:587
-- **Yahoo**: smtp.mail.yahoo.com:587
-- **SendGrid**: smtp.sendgrid.net:587
-- **AWS SES**: email-smtp.[region].amazonaws.com:587
+email:
+  from_address: "your-email@outlook.com"
+  from_name: "Research Digest"
 
-#### 2. Adding Email Channels
+# Note: This works for personal Outlook.com accounts.
+# For Microsoft 365 business accounts, OAuth2 is required
+# and app passwords will stop working after April 2026.
+```
+
+```yaml
+# Yahoo Mail configuration
+smtp:
+  provider: yahoo
+  username: "your-email@yahoo.com"
+  password: "your-app-password"
+
+email:
+  from_address: "your-email@yahoo.com"
+  from_name: "Paper Alerts"
+```
+
+##### Custom SMTP Configuration
+
+For custom SMTP servers (university, corporate, or other providers):
+
+```yaml
+# Custom SMTP with authentication
+smtp:
+  provider: custom
+  host: "mail.university.edu"
+  port: 587
+  encryption: tls  # Options: tls, ssl, none
+  username: "researcher@university.edu"
+  password: "your-password"
+
+email:
+  from_address: "researcher@university.edu"
+  from_name: "Lab Paper Digest"
+```
+
+```yaml
+# Custom SMTP without authentication (internal networks)
+smtp:
+  provider: custom
+  host: "internal-smtp.local"
+  port: 25
+  encryption: none
+  # No username/password needed for internal SMTP
+
+email:
+  from_address: "papersorter@internal.local"
+  from_name: "PaperSorter"
+```
+
+##### Direct Configuration (Without Provider)
+
+For direct SMTP configuration without using a provider:
+
+```yaml
+# Direct SMTP configuration
+smtp:
+  host: "smtp.example.com"
+  port: 587
+  encryption: tls  # Options: tls, ssl, none
+  username: "user@example.com"  # Optional
+  password: "password"           # Optional
+
+email:
+  from_address: "noreply@example.com"
+  from_name: "PaperSorter"
+```
+
+#### 2. Important: App-Specific Passwords
+
+**Gmail users**:
+1. Enable 2-factor authentication in your Google account
+2. Generate an app password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+3. Use the 16-character app password (not your regular password)
+
+**Outlook.com (Personal accounts)**:
+1. Enable 2-factor authentication in your Microsoft account
+2. Go to [account.microsoft.com/security](https://account.microsoft.com/security)
+3. Navigate to "Advanced security options" → "App passwords"
+4. Create a new app password
+5. Use this app password (not your regular password) in the configuration
+
+   Note: Microsoft is phasing out app passwords. This method works as of 2025 but may be deprecated in the future.
+
+**Microsoft 365 (Business accounts)**:
+- App passwords are being deprecated and will stop working after April 2026
+- OAuth2 is now required for business accounts
+- For automated systems, consider using Microsoft's alternatives:
+  - Azure Communication Services
+  - Microsoft Graph API
+- Or use a different SMTP service for notifications
+
+**Yahoo users**:
+1. Enable 2-step verification in your Yahoo account
+2. Generate an app password at [login.yahoo.com/myaccount/security](https://login.yahoo.com/myaccount/security)
+3. Use the app password for SMTP authentication
+
+#### 3. Testing SMTP Configuration
+
+Before adding email channels, test your SMTP configuration:
+
+```bash
+# Test connection only
+papersorter test smtp
+
+# Test with verbose output (shows configuration details)
+papersorter test smtp -v
+
+# Send a test email
+papersorter test smtp -r recipient@example.com
+
+# Custom subject for test email
+papersorter test smtp -r recipient@example.com -s "Test from PaperSorter"
+```
+
+The test command will:
+- Verify SMTP connection
+- Check authentication (if configured)
+- Send a test email (if recipient provided)
+- Provide troubleshooting tips for common issues
+
+#### 4. Adding Email Channels
 
 1. Navigate to Settings → Channels
 2. Click "Add Channel"
@@ -168,7 +327,7 @@ smtp:
    - **Broadcast Limit**: Max papers per email (default: 20)
    - **Broadcast Hours**: When to send emails
 
-#### 3. Email Subject Configuration
+#### 5. Email Subject Configuration
 
 Customize the email subject in `config.yml`:
 
@@ -232,7 +391,7 @@ You can customize these templates using Jinja2 syntax. Available variables:
      - <0.5 = Include everything (not recommended)
    - **Broadcast Limit**: Prevents notification spam (default: 20)
    - **Model ID**: Use different models for different topics
-   
+
    - **Broadcast Hours**: Time restrictions for sending notifications
      - Select individual hours when broadcasting is allowed
      - All selected = 24/7 broadcasting
@@ -253,7 +412,7 @@ You can customize these templates using Jinja2 syntax. Available variables:
 
 PaperSorter automatically detects the notification type based on the URL:
 - URLs containing `slack.com` → Slack formatting
-- URLs containing `discord.com` or `discordapp.com` → Discord formatting  
+- URLs containing `discord.com` or `discordapp.com` → Discord formatting
 - URLs starting with `mailto:` → Email newsletter
 - Unknown URLs → Default to Slack formatting
 
@@ -342,25 +501,71 @@ Slack is more generous but still has limits:
 Common email issues and solutions:
 
 1. **Connection errors**:
+   ```bash
+   # Test SMTP connection
+   papersorter test smtp -v
+   ```
    - Check SMTP host and port settings
-   - Verify firewall allows outbound SMTP
-   - Try telnet: `telnet smtp.gmail.com 587`
+   - For provider config: Ensure provider name is correct (gmail, outlook, yahoo)
+   - For custom config: Verify host and port are correct
+   - Test connectivity: `telnet smtp.gmail.com 587`
+   - Check firewall rules for outbound SMTP
 
 2. **Authentication failures**:
-   - Gmail: Use App Password, not regular password
-   - Enable "Less secure apps" if needed
-   - Check username format (full email address)
+   ```bash
+   # Common error: "535 Authentication failed"
+   ```
+   - **Gmail**: Must use App Password (16 characters, no spaces)
+     - Enable 2FA first at myaccount.google.com
+     - Generate app password at myaccount.google.com/apppasswords
+   - **Outlook.com (Personal)**: Requires app password with 2FA enabled
+   - **Microsoft 365 (Business)**: OAuth2 required; app passwords deprecated
+   - **Yahoo**: Requires app-specific password
+   - **Custom servers**: Check if authentication is required
+   - Verify username format (usually full email address)
 
-3. **TLS/SSL errors**:
-   - Set `use_tls: true` for port 587
-   - Try `use_tls: false` for port 465 (SSL)
-   - Update certificates if expired
+3. **Provider-specific issues**:
+   - **Gmail "Less secure app" error**:
+     - Solution: Use app password instead
+     - Do NOT enable "Less secure apps" (deprecated)
+   - **Outlook "550 5.7.1" error**:
+     - Ensure using smtp-mail.outlook.com (not smtp.live.com)
+     - Use port 587 with TLS
+   - **Yahoo connection timeout**:
+     - Ensure 2-step verification is enabled
+     - Use app password, not account password
 
-4. **Emails not received**:
+4. **Encryption/TLS errors**:
+   - Provider configs handle this automatically
+   - For custom SMTP:
+     - Port 587: Use `encryption: tls`
+     - Port 465: Use `encryption: ssl`
+     - Port 25: Use `encryption: none` (not recommended)
+   - Certificate errors: Update system certificates
+
+5. **Emails not received**:
+   - Run test command first: `papersorter test smtp -r your@email.com`
    - Check spam/junk folder
-   - Verify recipient address
-   - Check SMTP server logs
-   - Test with simple subject/content first
+   - Verify recipient address in channel config
+   - Check sender reputation (SPF/DKIM records)
+   - Test with different recipient domains
+
+6. **Configuration examples**:
+   ```yaml
+   # Provider-based (recommended for public services)
+   smtp:
+     provider: gmail
+     username: your@gmail.com
+     password: app-password
+
+   # Direct configuration
+   smtp:
+     host: smtp.gmail.com
+     port: 587
+     encryption: tls
+     username: your@gmail.com
+     password: app-password
+   ```
 
 ### Error Messages
 
