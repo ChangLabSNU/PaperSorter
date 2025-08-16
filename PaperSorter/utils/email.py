@@ -28,7 +28,7 @@ import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import time
 
 logger = logging.getLogger(__name__)
@@ -41,28 +41,100 @@ class SMTPClient:
         """Initialize SMTP client with configuration.
 
         Args:
-            config: Dictionary containing SMTP and email settings
-                - smtp.host: SMTP server hostname
-                - smtp.port: SMTP server port (default: 25)
-                - smtp.use_tls: Enable STARTTLS (default: False)
-                - smtp.use_ssl: Enable SSL/TLS (default: False)
+            config: Dictionary containing SMTP and email settings:
+
+                SMTP settings:
+                - smtp.provider: Provider name (gmail, outlook, yahoo, custom)
+                - smtp.username: Username for authentication
+                - smtp.password: Password for authentication
+                - smtp.host: SMTP server hostname (for custom)
+                - smtp.port: SMTP server port (for custom)
+                - smtp.encryption: Encryption type (tls, ssl, none)
                 - smtp.timeout: Connection timeout in seconds (default: 30)
+
+                Email settings:
                 - email.from_address: Sender email address
                 - email.from_name: Sender display name (optional)
         """
         self.smtp_config = config.get('smtp', {})
         self.email_config = config.get('email', {})
 
-        # SMTP settings
-        self.host = self.smtp_config.get('host', 'localhost')
-        self.port = self.smtp_config.get('port', 25)
-        self.use_tls = self.smtp_config.get('use_tls', False)
-        self.use_ssl = self.smtp_config.get('use_ssl', False)
+        # Check for provider-based configuration
+        provider = self.smtp_config.get('provider')
+
+        if provider:
+            # Provider-based configuration
+            self._configure_provider(provider)
+        else:
+            # Direct configuration
+            self.host = self.smtp_config.get('host', 'localhost')
+            self.port = self.smtp_config.get('port', 25)
+            self.encryption = self.smtp_config.get('encryption', 'none').lower()
+            self.username = self.smtp_config.get('username')
+            self.password = self.smtp_config.get('password')
+
+        # Common settings
         self.timeout = self.smtp_config.get('timeout', 30)
 
         # Email settings
         self.from_address = self.email_config.get('from_address', 'papersorter@localhost')
         self.from_name = self.email_config.get('from_name', 'PaperSorter')
+
+    def _configure_provider(self, provider: str):
+        """Configure SMTP settings based on provider.
+
+        Args:
+            provider: Provider name (gmail, outlook, yahoo, custom)
+        """
+        # Provider-specific settings
+        provider_configs = {
+            'gmail': {
+                'host': 'smtp.gmail.com',
+                'port': 587,
+                'encryption': 'tls',
+            },
+            'outlook': {
+                'host': 'smtp-mail.outlook.com',
+                'port': 587,
+                'encryption': 'tls',
+            },
+            'yahoo': {
+                'host': 'smtp.mail.yahoo.com',
+                'port': 587,
+                'encryption': 'tls',
+            },
+        }
+
+        if provider in provider_configs:
+            # Use predefined provider settings
+            config = provider_configs[provider]
+            self.host = config['host']
+            self.port = config['port']
+            self.encryption = config['encryption']
+
+            # Get authentication credentials
+            self.username = self.smtp_config.get('username')
+            self.password = self.smtp_config.get('password')
+
+            if not self.username or not self.password:
+                raise ValueError(f"Provider '{provider}' requires username and password")
+
+        elif provider == 'custom':
+            # Custom SMTP configuration
+            self.host = self.smtp_config.get('host')
+            self.port = self.smtp_config.get('port', 587)
+
+            if not self.host:
+                raise ValueError("Custom provider requires 'host' to be specified")
+
+            # Get encryption setting
+            self.encryption = self.smtp_config.get('encryption', 'tls').lower()
+
+            # Optional authentication for custom provider
+            self.username = self.smtp_config.get('username')
+            self.password = self.smtp_config.get('password')
+        else:
+            raise ValueError(f"Unknown SMTP provider: {provider}")
 
     def send_email(
         self,
@@ -156,15 +228,19 @@ class SMTPClient:
         """
         smtp = None
         try:
-            # Create SMTP connection
-            if self.use_ssl:
+            # Create SMTP connection based on encryption type
+            if self.encryption == 'ssl':
                 smtp = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout)
             else:
                 smtp = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
 
-            # Enable TLS if requested
-            if self.use_tls and not self.use_ssl:
+            # Enable STARTTLS if using TLS encryption
+            if self.encryption == 'tls':
                 smtp.starttls()
+
+            # Authenticate if credentials are provided
+            if self.username and self.password:
+                smtp.login(self.username, self.password)
 
             # Send the message
             smtp.send_message(msg)
@@ -173,7 +249,7 @@ class SMTPClient:
             if smtp:
                 try:
                     smtp.quit()
-                except:
+                except Exception:
                     pass  # Ignore errors when closing
 
     def test_connection(self) -> bool:
@@ -184,13 +260,20 @@ class SMTPClient:
         """
         smtp = None
         try:
-            if self.use_ssl:
+            # Create SMTP connection based on encryption type
+            if self.encryption == 'ssl':
                 smtp = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout)
             else:
                 smtp = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
 
-            if self.use_tls and not self.use_ssl:
+            # Enable STARTTLS if using TLS encryption
+            if self.encryption == 'tls':
                 smtp.starttls()
+
+            # Authenticate if credentials are provided
+            if self.username and self.password:
+                smtp.login(self.username, self.password)
+                logger.info(f"SMTP authentication successful for {self.username}")
 
             # Get server info
             code, message = smtp.noop()
@@ -208,5 +291,21 @@ class SMTPClient:
             if smtp:
                 try:
                     smtp.quit()
-                except:
+                except Exception:
                     pass
+
+    def get_connection_info(self) -> Dict[str, Any]:
+        """Get current SMTP connection information.
+
+        Returns:
+            Dictionary with connection details
+        """
+        return {
+            'host': self.host,
+            'port': self.port,
+            'encryption': self.encryption,
+            'authentication': bool(self.username),
+            'username': self.username if self.username else None,
+            'from_address': self.from_address,
+            'from_name': self.from_name,
+        }

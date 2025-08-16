@@ -36,8 +36,16 @@ def main():
 
 for task in alltasks:
     mod = importlib.import_module(".tasks." + task, package="PaperSorter")
-    globals()[task] = main.command(
-        name=task.replace("_", "-"), context_settings=CONTEXT_SETTINGS
-    )(mod.main)
+    task_obj = getattr(mod, task if hasattr(mod, task) else 'main')
+
+    # Check if it's a Click group or a regular command
+    if isinstance(task_obj, click.Group):
+        # Add the group directly
+        main.add_command(task_obj, name=task.replace("_", "-"))
+    else:
+        # Add as a regular command
+        globals()[task] = main.command(
+            name=task.replace("_", "-"), context_settings=CONTEXT_SETTINGS
+        )(task_obj)
 
 main()

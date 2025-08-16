@@ -5,4 +5,5 @@ __all__ = [
     "predict",
     "broadcast",
     "serve",
+    "test",
 ]
