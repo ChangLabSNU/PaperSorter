@@ -44,6 +44,34 @@ qbio/
 run-update.sh
 run-broadcast.sh
 
+# Documentation build output
+docs/_build/
+docs/build/
+docs/.doctrees/
+docs/_static/generated/
+docs/_autosummary/
+*.doctree
+docs/api/generated/
+
+# Sphinx autobuild
+docs/.sass-cache/
+docs/.sphinx-build/
+
+# Temporary directories
+tmp/
+temp/
+.tmp/
+.temp/
+cache/
+.cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+.project
+.pydevproject
+
 # Data files
 *.tsv
 *.png
