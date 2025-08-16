@@ -20,6 +20,7 @@ This guide covers:
 .. toctree::
    :maxdepth: 2
 
+   authentication
    deployment
    database-setup
    backup-restore
