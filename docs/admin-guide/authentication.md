@@ -1,4 +1,4 @@
-# OAuth Setup Guide
+# OAuth Authentication Setup
 
 PaperSorter supports authentication via Google OAuth, GitHub OAuth, and ORCID OAuth. You can configure any combination of these providers. ORCID is particularly recommended for academic websites as it provides unique researcher identifiers.
 
