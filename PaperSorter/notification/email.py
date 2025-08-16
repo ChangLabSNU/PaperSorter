@@ -45,7 +45,9 @@ class EmailProvider(NotificationProvider):
         """
         # Parse mailto URL to get recipient
         if not endpoint_url.startswith("mailto:"):
-            raise ValueError(f"Email provider requires mailto: URL, got: {endpoint_url}")
+            raise ValueError(
+                f"Email provider requires mailto: URL, got: {endpoint_url}"
+            )
 
         parsed = urlparse(endpoint_url)
         self.recipient = parsed.path
@@ -63,17 +65,15 @@ class EmailProvider(NotificationProvider):
         self.smtp_client = SMTPClient(self.config)
 
         # Set up Jinja2 environment for template rendering
-        template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
+        template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
         self.jinja_env = Environment(
-            loader=FileSystemLoader(template_dir),
-            autoescape=True
+            loader=FileSystemLoader(template_dir), autoescape=True
         )
 
         # Get email configuration
-        self.email_config = self.config.get('email', {})
+        self.email_config = self.config.get("email", {})
         self.subject_template = self.email_config.get(
-            'subject_template',
-            'Research Papers Digest - {date:%Y-%m-%d}'
+            "subject_template", "Research Papers Digest - {date:%Y-%m-%d}"
         )
 
     def send_notifications(self, items, message_options, base_url=None):
@@ -95,20 +95,27 @@ class EmailProvider(NotificationProvider):
             return []
 
         try:
+            # Sort items by score in descending order (highest score first)
+            sorted_items = sorted(
+                items,
+                key=lambda x: x.get("score", 0) if x.get("score") is not None else 0,
+                reverse=True,
+            )
+
             # Prepare context for templates
             now = datetime.now()
             context = {
-                'papers': items,
-                'date': now,
-                'base_url': base_url,
-                'source_count': len(set(item.get('origin', '') for item in items)),
-                'model_name': message_options.get('model_name', 'Default'),
-                'channel_name': message_options.get('channel_name', 'PaperSorter'),
+                "papers": sorted_items,
+                "date": now,
+                "base_url": base_url,
+                "source_count": len(set(item.get("origin", "") for item in items)),
+                "model_name": message_options.get("model_name", "Default"),
+                "channel_name": message_options.get("channel_name", "PaperSorter"),
             }
 
             # Generate subject
             subject = self.subject_template.format(date=now)
-            if message_options.get('channel_name'):
+            if message_options.get("channel_name"):
                 subject = f"[{message_options['channel_name']}] {subject}"
 
             # Render templates
@@ -120,7 +127,7 @@ class EmailProvider(NotificationProvider):
                 recipient=self.recipient,
                 subject=subject,
                 html_content=html_content,
-                text_content=text_content
+                text_content=text_content,
             )
 
             if success:
@@ -128,7 +135,7 @@ class EmailProvider(NotificationProvider):
                     f"Successfully sent newsletter with {len(items)} papers to {self.recipient}"
                 )
                 # Return success for all items
-                return [(item.get('id'), True) for item in items]
+                return [(item.get("id"), True) for item in items]
             else:
                 raise NotificationError(
                     f"Failed to send newsletter to {self.recipient}"
@@ -148,7 +155,7 @@ class EmailProvider(NotificationProvider):
             Rendered HTML content
         """
         try:
-            template = self.jinja_env.get_template('email/newsletter.html')
+            template = self.jinja_env.get_template("email/newsletter.html")
             return template.render(**context)
         except Exception as e:
             log.error(f"Failed to render HTML template: {e}")
@@ -164,7 +171,7 @@ class EmailProvider(NotificationProvider):
             Rendered plain text content
         """
         try:
-            template = self.jinja_env.get_template('email/newsletter.txt')
+            template = self.jinja_env.get_template("email/newsletter.txt")
             return template.render(**context)
         except Exception as e:
             log.error(f"Failed to render text template: {e}")
