@@ -1,0 +1,23 @@
+# Documentation dependencies for PaperSorter
+# Core Sphinx
+sphinx>=7.0.0
+sphinx-rtd-theme>=2.0.0
+
+# Markdown support
+myst-parser>=2.0.0
+
+# Extensions for better documentation
+sphinx-autodoc-typehints>=1.25.0
+sphinx-click>=5.0.0
+sphinx-copybutton>=0.5.0
+sphinx-tabs>=3.4.0
+
+# Development tools
+sphinx-autobuild>=2021.3.14
+doc8>=1.1.0
+
+# For API documentation
+autodoc>=0.5.0
+
+# For better code highlighting
+pygments>=2.17.0
