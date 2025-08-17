@@ -13,10 +13,15 @@ The system consists of several key components:
 - **FeedDatabase** (`feed_database.py`): PostgreSQL-based storage for article metadata, user labels, and predictions
 - **EmbeddingDatabase** (`embedding_database.py`): PostgreSQL-based storage for article embedding vectors using pgvector extension
 - **Tasks** (`tasks/`): CLI commands implemented as Click commands
+  - `init`: Initialize database schema
   - `update`: Fetch new articles, generate embeddings, and queue items for broadcast
-  - `train`: Train XGBoost model on labeled data
+  - `import`: Import articles from external sources (currently supports PubMed)
+    - `pubmed` subcommand: Downloads recent PubMed update files and imports with sampling
+  - `train`: Train XGBoost model on labeled data (requires --name or --output)
+  - `predict`: Generate embeddings and predictions for articles
   - `broadcast`: Process broadcast queue and send notifications to Slack
   - `serve`: Entry point for web interface (delegates to web package)
+  - `test`: Test various system components
 - **Web** (`web/`): Modular web interface implementation
   - `app.py`: Flask application factory
   - `main.py`: Main route handlers for feed list and labeling
@@ -38,6 +43,8 @@ The system consists of several key components:
 - **Providers** (`providers/`): Feed provider implementations
   - `base.py`: Abstract base class for feed providers
   - `rss.py`: RSS/Atom feed provider
+- **Utils** (`utils/`): Utility modules
+  - `pubmed_sync.py`: PubMed FTP sync and XML parsing functionality
 - **__main__.py**: Dynamic CLI command loader that imports all tasks from `tasks/__init__.py`
 
 ## Common Commands
@@ -47,18 +54,39 @@ The system consists of several key components:
 pip install -e .
 ```
 
-### Core Workflow
+### Initial Setup Workflow (New Users)
 ```bash
-# Train initial model (needs ~1000 articles with ~100 starred)
-papersorter train
+# 1. Initialize database
+papersorter init
 
-# Regular operations (typically run via cron)
+# 2. Import initial data
+papersorter import pubmed  # Downloads recent PubMed updates (10% sample by default)
+
+# 3. Generate embeddings for semantic search and training
+papersorter predict --count 10000
+
+# 4. Start web interface and label papers
+papersorter serve --skip-authentication user@example.com
+# Use semantic search to find papers in your field
+# Mark 10-20 papers as "Interested"
+
+# 5. Train initial model (auto-handles lack of negative labels)
+papersorter train --name "Initial Model"
+
+# 6. Generate predictions
+papersorter predict
+```
+
+### Regular Operations
+```bash
+# Periodic operations (typically run via cron)
 papersorter update     # Fetch new articles and generate embeddings
 papersorter broadcast  # Send notifications (respects per-channel broadcast hours)
 
 # Model improvement workflow
-papersorter serve                                          # Run web interface for labeling
-papersorter train                                          # Retrain model
+papersorter serve      # Run web interface for labeling
+papersorter train --name "Improved Model v2"  # Retrain model
+papersorter predict    # Generate new predictions
 ```
 
 ### Development Commands
@@ -72,10 +100,28 @@ python -m black PaperSorter/         # Code formatting
 
 ### Task-specific Options
 - All tasks support `--config` (default: `./config.yml`), `--log-file` and `-q/--quiet` options
+- `import pubmed`:
+  - `--files` (default: 10): Number of recent update files to download
+  - `--chunksize` (default: 2000): Articles per processing chunk
+  - `--sample-rate` (default: 0.1): Random sampling rate (0.0-1.0)
+  - `--seed`: Random seed for reproducible sampling
+  - `--limit`: Maximum number of articles to import
+  - `--parse-only`: Parse existing files instead of downloading
+- `train`:
+  - `--name`: Model name for database registration (mutually exclusive with --output)
+  - `-o/--output`: Output file path (legacy mode, mutually exclusive with --name)
+  - `-r/--rounds` (default: 1000): Number of boosting rounds
+  - `--user-id` (multiple): Specific user IDs to train on (omit for all users)
+  - `--embeddings-table` (default: embeddings): Embeddings table to use
+  - `--pos-cutoff` (default: 0.5): Threshold for positive pseudo-labels
+  - `--neg-cutoff` (default: 0.2): Threshold for negative pseudo-labels
+  - `--pseudo-weight` (default: 0.5): Weight for pseudo-labeled data
+- `predict`:
+  - `--count`: Number of articles to process (useful for initial setup)
+  - `--force`: Force re-prediction even if predictions exist
 - `update`: `--batch-size`, `--limit-sources` (max sources to scan), `--check-interval-hours` (check interval)
-- `train`: `-r/--rounds` (default: 100), `-o/--output` (model file), `--embeddings-table` (default: embeddings)
 - `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
-- `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`
+- `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`, `--skip-authentication` (dev mode)
 
 ## Configuration
 
@@ -110,6 +156,9 @@ embedding_api:
   api_url: ""   # Optional: custom API endpoint (defaults to https://api.openai.com/v1)
   model: ""     # Optional: model name (defaults to text-embedding-3-large)
   dimensions: ""  # Optional: embedding dimensions (e.g., 1536 for pgvector HNSW indexing)
+
+models:
+  path: "./models"  # Directory for storing trained model files
 
 summarization_api:
   api_key: "your_api_key"
@@ -180,6 +229,56 @@ The PostgreSQL database includes tables for:
 - Shareable search URLs with query parameters (`?q=search+terms`)
 - Real-time feed content loading and interactive labeling
 - AI-powered summarization and infographic generation for article collections
+
+## Recent Updates
+
+### Train Task Enhancement (2025)
+- Now requires either `--name` (for database registration) or `--output` (for file save)
+- Models registered with `--name` are saved as `model-{id}.pkl` in the models directory
+- Supports training on multiple users or all users (when --user-id is omitted)
+- Automatically handles initial training with only positive labels by using unlabeled articles as negatives
+- Applies reduced weights (50%) to auto-generated negative pseudo-labels
+
+### Import Task Addition (2025)
+- New `import pubmed` command for bulk article ingestion
+- Downloads recent update files from PubMed FTP server
+- Supports random sampling (default 10%) to reduce dataset size while maintaining diversity
+- Filters out articles without abstracts before sampling
+- Uses ISOAbbreviation for journal names when available
+- Processes articles in chronological order for consistency
+
+### Documentation Updates (2025)
+- Added complete initial setup workflow for new users
+- Emphasized importance of `predict --count 10000` for embedding generation
+- Updated all examples to use required `--name` option for training
+- Added guidance on using semantic search to find papers for labeling
+
+## Documentation Structure
+
+The project documentation is organized as follows:
+
+```
+docs/
+├── README.md                 # Documentation overview
+├── getting-started/
+│   ├── installation.md      # Installation guide
+│   ├── quickstart.md        # 15-minute quick start
+│   └── first-model.md       # Detailed training guide
+├── user-guide/
+│   └── notifications.md     # Notification setup
+├── admin-guide/
+│   └── authentication.md    # OAuth configuration
+├── cli-reference/
+│   ├── commands.rst         # CLI command reference
+│   └── examples.md          # Command examples
+└── api/
+    └── database.rst         # Database schema documentation
+```
+
+Key documentation updates:
+- **quickstart.md**: Fast track setup with complete workflow for new users
+- **first-model.md**: Comprehensive guide including initial training mode
+- **README.md**: Updated with step-by-step workflow and new command options
 
 ## Dependencies
 

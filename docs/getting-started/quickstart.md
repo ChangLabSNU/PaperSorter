@@ -1,40 +1,61 @@
 # Quick Start Guide
 
-Get PaperSorter up and running in 5 minutes! This guide assumes you've completed the [installation](installation.md).
+Get PaperSorter up and running in 15 minutes! This guide provides the fastest path to a working recommendation system.
 
-## 5-Minute Setup
+## Fast Track Setup (New Users)
+
+### Complete Initial Setup
+
+```bash
+# 1. Initialize database
+papersorter init
+
+# 2. Import PubMed data (fastest way to get started)
+papersorter import pubmed
+
+# 3. Generate embeddings (essential!)
+papersorter predict --count 10000
+
+# 4. Start web interface
+papersorter serve --skip-authentication yourname@domain.com
+
+# 5. Find and label papers in your field
+# Go to http://localhost:5001
+# Use search box: "your research keywords"
+# Mark 10-20 papers as "Interested"
+
+# 6. Train your first model
+papersorter train --name "My First Model"
+
+# 7. Generate predictions
+papersorter predict
+
+# Done! Your system is now recommending papers
+```
+
+## Alternative: RSS Feed Setup
+
+If you prefer using RSS feeds instead of PubMed:
 
 ### Step 1: Add Your First Feed
 
 ```bash
 # Start the web interface
-papersorter serve
-
-# For initial setup without OAuth configuration:
-# papersorter serve --skip-authentication yourname@domain.com
+papersorter serve --skip-authentication yourname@domain.com
 
 # Open browser to http://localhost:5001
 # Navigate to Settings > Feed Sources
-# Add an RSS feed (e.g., arXiv Computer Science)
+# Add RSS feeds (e.g., bioRxiv, arXiv, journal feeds)
 ```
 
-Or via command line:
-
-```python
-from PaperSorter.feed_database import FeedDatabase
-
-db = FeedDatabase()
-db.execute("""
-    INSERT INTO sources (name, url, type, is_active) 
-    VALUES ('arXiv CS', 'http://arxiv.org/rss/cs', 'rss', TRUE)
-""")
-```
-
-### Step 2: Fetch Papers
+### Step 2: Fetch Papers & Generate Embeddings
 
 ```bash
-# Fetch new papers from all active feeds
+# Fetch new papers from feeds
 papersorter update
+
+# Generate embeddings for semantic search
+papersorter predict --count 1000
 
 # Check what was fetched
 papersorter stats
@@ -48,35 +69,34 @@ Papers labeled: 0
 Active feeds: 1
 ```
 
-### Step 3: Label Some Papers
-
-Open the web interface and start labeling:
+### Step 3: Label Papers Using Search
 
 ```bash
-# Start web server if not already running
-papersorter serve --port 5001
+# Web interface should already be running
+# Go to http://localhost:5001
 
-# Open http://localhost:5001 in your browser
-# Click "Start Labeling" to begin
+# Use semantic search to find relevant papers:
+# - Search: "CRISPR"
+# - Search: "machine learning"
+# - Search: your specific research area
+
+# Mark papers as:
+# 👍 = Interested (for training)
+# 👎 = Not Interested (optional, for better accuracy)
 ```
-
-Quick labeling tips:
-- ⭐ = Very interesting (score: 5)
-- 👍 = Interesting (score: 4)
-- 🤷 = Maybe (score: 3)
-- 👎 = Not interesting (score: 2)
-- ❌ = Definitely not (score: 1)
 
 ### Step 4: Train Your First Model
 
-After labeling ~50-100 papers:
+After labeling 10+ papers as "Interested":
 
 ```bash
-# Train the model
-papersorter train
+# Train the model (name is required!)
+papersorter train --name "Initial Model"
 
-# View training results
-papersorter model-info
+# The system will:
+# - Detect you only have positive labels
+# - Automatically use unlabeled papers as negatives
+# - Create a balanced training set
 ```
 
 ### Step 5: Get Recommendations

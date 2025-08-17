@@ -11,30 +11,64 @@ PaperSorter uses **XGBoost regression** to predict your interest in papers:
 - **Training Data**: Your labeled papers
 - **Goal**: Predict which new papers you'll find interesting
 
+## Complete Initial Training Workflow
+
+For new users starting from scratch, follow this step-by-step workflow:
+
+### Step-by-Step Initial Setup
+
+```bash
+# 1. Initialize the database
+papersorter init
+
+# 2. Import PubMed data (10% sample, ~10,000-20,000 articles)
+papersorter import pubmed
+
+# 3. Generate embeddings (crucial step!)
+papersorter predict --count 10000
+
+# 4. Start the web interface
+papersorter serve --skip-authentication yourname@domain.com
+
+# 5. Find and label papers in your field
+# - Use semantic search: "machine learning", "cancer genomics", etc.
+# - Mark 10-20 papers as "Interested"
+
+# 6. Train your first model
+papersorter train --name "Initial Model"
+
+# 7. Generate predictions
+papersorter predict
+
+# 8. Optional: Improve the model
+# - Review predictions, mark false positives/negatives
+# - Retrain: papersorter train --name "Improved Model"
+# - Predict: papersorter predict
+```
+
 ## Prerequisites
 
 Before training your first model:
 
-1. ✅ Papers in database (run `papersorter update` or `papersorter import pubmed`)
-2. ✅ At least some papers marked as "interested" (for initial training) OR 50+ labeled papers (for standard training)
-3. ✅ For standard training: Diverse labels (both interested and not interested)
+1. ✅ Papers in database (via `papersorter import pubmed` or `papersorter update`)
+2. ✅ **Embeddings generated** (via `papersorter predict --count 10000`)
+3. ✅ At least some papers marked as "interested" (10+ for initial training)
+4. ✅ A name for your model (required with `--name` option)
+
+### Why Each Step Matters
+
+- **Import PubMed**: Provides diverse, recent papers for training
+- **Generate Embeddings**: Creates vector representations essential for:
+  - Semantic search in the interface
+  - ML model training
+  - Finding similar papers
+- **Predict --count 10000**: Processes many articles at once (more efficient than default)
 
 ### Initial Training Mode (New Users)
 **NEW**: You can now start training with just papers marked as "interested"! The system will automatically:
 - Detect when you have only positive labels (interested)
 - Use unlabeled articles as negative training examples
 - Apply appropriate weights to balance the model
-
-Check your readiness:
-```bash
-papersorter stats
-# For initial training:
-# Interested papers: 10+ (minimum)
-#
-# For standard training:
-# Papers labeled: 50+ (minimum)
-# Label distribution: Mixed (interested and not interested)
-```
 
 ## Step 1: Label Papers
 
@@ -113,7 +147,7 @@ If you're just starting and have only marked papers as "interested":
 
 ```bash
 # Train with automatic negative pseudo-labeling
-papersorter train
+papersorter train --name "Initial Model v1"
 
 # Output:
 # Initial training stage detected: No negative labels found
@@ -121,7 +155,8 @@ papersorter train
 # Data distribution: 25 labeled (25 positive, 0 negative), 0 pseudo-positive, 975 pseudo-negative
 # Initial training: Using reduced weight for negative pseudo-labels
 # Training XGBoost model...
-# Model saved to model.pkl
+# Model registered as 'Initial Model v1' with ID 2
+# Model file saved to ./models/model-2.pkl
 ```
 
 The system automatically:
@@ -134,7 +169,7 @@ The system automatically:
 
 ```bash
 # Train with defaults
-papersorter train
+papersorter train --name "Production Model v1"
 
 # Output:
 # Loading 150 labeled papers...
@@ -145,33 +180,54 @@ papersorter train
 # Best iteration: 87
 # Test RMSE: 0.652
 # Test R²: 0.743
-# Model saved to model.pkl
+# Model registered as 'Production Model v1' with ID 3
+# Model file saved to ./models/model-3.pkl
 ```
 
 ### Advanced Training Options
 
 ```bash
 # More training rounds for better accuracy
-papersorter train --rounds 500
+papersorter train --name "High Accuracy Model" --rounds 500
 
-# Save to specific location
+# Save to specific file instead of database (legacy mode)
 papersorter train --output models/my_model.pkl
 
 # Use specific embedding table
-papersorter train --embeddings-table embeddings_v2
+papersorter train --name "Alternative Embeddings" --embeddings-table embeddings_v2
 
 # Train on specific user's feedback
-papersorter train --user-id 1
+papersorter train --name "User1 Personal Model" --user-id 1
 
 # Train on multiple users' feedback (consensus model)
-papersorter train --user-id 1 --user-id 2 --user-id 3
+papersorter train --name "Team Consensus" --user-id 1 --user-id 2 --user-id 3
 
 # Train on ALL users' feedback (default when --user-id is omitted)
-papersorter train
+papersorter train --name "Global Model"
 
 # Verbose output for debugging
-papersorter train -v
+papersorter train --name "Debug Model" -v
 ```
+
+### Model Registration vs File Output
+
+**New behavior (recommended):**
+```bash
+# Register model in database with automatic ID assignment
+papersorter train --name "My Model v1"
+# Creates: ./models/model-{id}.pkl
+# Registers in database with metadata
+```
+
+**Legacy behavior:**
+```bash
+# Save to specific file without database registration
+papersorter train --output custom_model.pkl
+# Creates: custom_model.pkl
+# No database registration
+```
+
+**Note:** You cannot use both `--name` and `--output` together.
 
 ### Multi-User Training
 

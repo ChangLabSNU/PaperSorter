@@ -135,74 +135,145 @@ papersorter init --drop-existing
 
 ## Getting Started
 
+### Quick Start for New Users
+
+For a brand new installation, follow this recommended workflow:
+
+```bash
+# 1. Initialize database
+papersorter init
+
+# 2. Import PubMed data (10% sample by default)
+papersorter import pubmed
+
+# 3. Generate embeddings for the imported articles
+papersorter predict --count 10000
+
+# 4. Start web interface
+papersorter serve --skip-authentication yourname@domain.com
+
+# 5. Label some papers as "interested" using the web interface
+# Use semantic search to find papers in your field:
+# - Go to http://localhost:5001
+# - Use the search box to find papers (e.g., "CRISPR gene editing")
+# - Mark relevant papers as "Interested"
+
+# 6. Train your first model
+papersorter train --name "Initial Model"
+
+# 7. Generate predictions with the new model
+papersorter predict
+
+# 8. (Optional) Second round for better accuracy:
+# - Mark more papers as "Interested" AND "Not Interested"
+# - Retrain: papersorter train --name "Improved Model"
+# - Predict: papersorter predict
+```
+
+### Detailed Setup Guide
+
+#### 1. Initialize and Import Data
+
+```bash
+# Initialize database
+papersorter init
+
+# Import from PubMed (recommended for initial data)
+papersorter import pubmed  # Downloads 10 recent files, 10% sampling
+
+# OR fetch from configured RSS feeds
+papersorter update
+```
+
+#### 2. Generate Embeddings
+
+For initial setup, generate embeddings for many articles:
+
+```bash
+# Generate embeddings for up to 10,000 articles
+papersorter predict --count 10000
+```
+
+This step is crucial as it creates the vector representations needed for:
+- Semantic search in the web interface
+- Training the ML model
+- Finding similar papers
+
+#### 3. Label Training Data
+
 Start the web interface:
 
 ```bash
 papersorter serve
-```
-
-**For development or initial setup without OAuth configuration:**
-```bash
+# Or for development without OAuth:
 papersorter serve --skip-authentication yourname@domain.com
 ```
-This creates/uses an admin user with the specified email and bypasses OAuth authentication. Use this during initial deployment to configure the system. The same email can be used later with OAuth once configured, preserving all settings and preferences.
-
-### 1. Add Feed Sources
 
 Navigate to http://localhost:5001 and:
-- Log in with your preferred OAuth provider (ORCID, Google, or GitHub) - or you'll be automatically logged in if using --skip-authentication
-- Go to Settings → Feed Sources
-- Add RSS/Atom feed URLs for journals, preprint servers, or PubMed searches
+- Use **semantic search** to find papers in your research area
+- Mark papers as **"Interested"** (👍) for relevant research
+- Initially, you only need positive labels (the system handles the rest)
 
-### 2. Initial Data Collection
+Tips for effective labeling:
+- Search for key terms in your field
+- Look for papers from authors you follow
+- Check papers from your favorite journals
 
-Fetch articles from your configured feeds:
+#### 4. Train the Model
 
-```bash
-papersorter update
-```
-
-### 3. Label Training Data
-
-Use the web interface to label articles:
-- Mark articles as **"Interested"** for papers relevant to your research
-- Mark articles as **"Not Interested"** for irrelevant papers
-- Aim for at least 100 "Interested" articles out of 1000+ total for initial training
-
-### 4. Train the Model
-
-#### Initial Training (New Users)
-If you're just starting and have only marked papers as "interested" without any negative labels:
+All trained models must be registered with a name:
 
 ```bash
-# The system automatically detects initial training mode
-papersorter train
+# Initial training (only positive labels needed)
+papersorter train --name "Initial Model v1"
 
-# With PubMed data import (10% sampling by default):
-papersorter import pubmed  # Downloads recent PubMed updates
-papersorter train          # Trains on all users' feedback
+# The system will:
+# - Detect if you have only positive labels
+# - Automatically use unlabeled articles as negative examples
+# - Apply appropriate weights to balance the training
 ```
 
-The system will:
-- Detect the absence of negative labels
-- Automatically use unlabeled articles as negative examples
-- Apply appropriate weights to balance the training
+#### 5. Generate Predictions
 
-#### Standard Training
-Once you have both positive and negative labels:
+After training, generate predictions for all articles:
 
 ```bash
-# Train on specific user's feedback
-papersorter train --user-id 1
-
-# Train on multiple users' feedback
-papersorter train --user-id 1 --user-id 2 --user-id 3
-
-# Train on all users (default when --user-id is omitted)
-papersorter train
+papersorter predict
 ```
 
-The model performance (ROC-AUC) will be displayed. A score above 0.8 indicates good performance.
+This will score all articles and queue high-scoring ones for notifications.
+
+#### 6. Iterative Improvement (Optional but Recommended)
+
+For better accuracy, perform a second round:
+
+```bash
+# Review predictions in the web interface
+# Mark false positives as "Not Interested"
+# Mark false negatives as "Interested"
+
+# Retrain with mixed labels
+papersorter train --name "Improved Model v2"
+
+# Generate new predictions
+papersorter predict
+```
+
+### Training Options
+
+```bash
+# Train on all users (default)
+papersorter train --name "Consensus Model"
+
+# Train on specific users
+papersorter train --name "User1 Model" --user-id 1
+
+# Train on multiple specific users
+papersorter train --name "Team Model" --user-id 1 --user-id 2 --user-id 3
+
+# Advanced options
+papersorter train --name "Advanced Model" --rounds 500 --embeddings-table embeddings_v2
+```
 
 ### 5. Deploy Web Interface for Production
 
