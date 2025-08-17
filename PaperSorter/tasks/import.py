@@ -34,9 +34,9 @@ from ..utils.pubmed_sync import (
 )
 
 def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[int, int]:
-    """Insert or update articles from a DataFrame into the database."""
+    """Insert articles from a DataFrame into the database, skipping existing ones."""
     inserted = 0
-    updated = 0
+    skipped = 0
 
     for _, row in df.iterrows():
         # Convert PMID to our external_id format
@@ -58,26 +58,9 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
         existing = db.cursor.fetchone()
 
         if existing:
-            # Update existing article
-            db.cursor.execute(
-                """
-                UPDATE feeds
-                SET title = %s, content = %s, author = %s, origin = %s,
-                    link = %s, published = to_timestamp(%s)
-                WHERE external_id = %s
-                """,
-                (
-                    row['title'] if pd.notna(row['title']) else '',
-                    row['abstract'] if pd.notna(row['abstract']) else '',
-                    row['authors'] if pd.notna(row['authors']) else '',
-                    row['journal'] if pd.notna(row['journal']) else '',
-                    row['url'] if pd.notna(row['url']) else f"https://pubmed.ncbi.nlm.nih.gov/{row['pmid']}/",
-                    pub_date.timestamp(),
-                    external_id,
-                ),
-            )
-            updated += 1
-            log.debug(f"Updated: {external_id}")
+            # Skip update - keep the newest (first processed) version
+            skipped += 1
+            log.debug(f"Skipped (already exists): {external_id}")
         else:
             # Insert new article
             db.insert_feed_item(
@@ -92,7 +75,7 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
             inserted += 1
             log.debug(f"Inserted: {external_id}")
 
-    return inserted, updated
+    return inserted, skipped
 
 
 @click.group()
@@ -134,8 +117,8 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
     """Download recent PubMed update files and import to database.
 
     This command downloads the most recent PubMed update files from NCBI FTP
-    and imports them into the database. Articles are processed in chronological
-    order, and existing articles are updated if they already exist.
+    and imports them into the database. Articles are processed from newest to
+    oldest, and existing articles are skipped to preserve the most recent version.
 
     The --sample-rate option allows random subsampling to reduce the total
     number of articles while maintaining diversity across the entire dataset.
@@ -160,9 +143,9 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
 
     try:
         total_inserted = 0
-        total_updated = 0
+        total_skipped_existing = 0  # Track articles skipped because they already exist
         total_processed = 0
-        total_skipped = 0  # Track articles skipped due to sampling
+        total_skipped_sampling = 0  # Track articles skipped due to sampling
         total_no_abstract = 0  # Track articles without abstracts
 
         if parse_only:
@@ -217,10 +200,10 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
                 if n_samples > 0:
                     chunk_df = chunk_df.sample(n=n_samples, replace=False)
                     n_skipped = size_after_filter - n_samples
-                    total_skipped += n_skipped
+                    total_skipped_sampling += n_skipped
                     log.debug(f"Sampled {n_samples} articles from {size_after_filter} with abstracts (skipped {n_skipped})")
                 else:
-                    total_skipped += size_after_filter
+                    total_skipped_sampling += size_after_filter
                     continue
 
             # Apply limit if specified
@@ -233,15 +216,15 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
                 remaining = limit - total_processed
                 chunk_df = chunk_df.iloc[:remaining]
 
-            # Sort by publication date (oldest first)
+            # Sort by publication date (newest first)
             chunk_df['pub_date_parsed'] = pd.to_datetime(chunk_df['pub_date'], errors='coerce')
-            chunk_df = chunk_df.sort_values('pub_date_parsed', na_position='last')
+            chunk_df = chunk_df.sort_values('pub_date_parsed', ascending=False, na_position='last')
             chunk_df = chunk_df.drop('pub_date_parsed', axis=1)
 
-            # Upsert articles to database
-            inserted, updated = upsert_articles_from_dataframe(feeddb, chunk_df)
+            # Insert articles to database (skip existing ones)
+            inserted, skipped = upsert_articles_from_dataframe(feeddb, chunk_df)
             total_inserted += inserted
-            total_updated += updated
+            total_skipped_existing += skipped
             total_processed += len(chunk_df)
 
             # Commit after each chunk
@@ -250,25 +233,29 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
             # Log with filtering and sampling information if applicable
             if sample_rate is not None and sample_rate < 1.0:
                 log.info(f"Processed chunk: {len(chunk_df)} articles from {original_size} "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Updated: {total_updated}, "
+                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing}, "
                         f"No abstract: {n_no_abstract}, Skipped by sampling: {n_skipped})")
             elif n_no_abstract > 0:
                 log.info(f"Processed chunk: {len(chunk_df)} articles from {original_size} "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Updated: {total_updated}, "
+                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing}, "
                         f"No abstract: {n_no_abstract})")
             else:
                 log.info(f"Processed chunk: {len(chunk_df)} articles "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Updated: {total_updated})")
+                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing})")
 
         # Final summary
-        summary_parts = [f"{total_inserted} inserted", f"{total_updated} updated",
-                        f"{total_processed} total processed"]
+        summary_parts = [f"{total_inserted} inserted"]
+
+        if total_skipped_existing > 0:
+            summary_parts.append(f"{total_skipped_existing} skipped (already exist)")
+
+        summary_parts.append(f"{total_processed} total processed")
 
         if total_no_abstract > 0:
             summary_parts.append(f"{total_no_abstract} filtered (no abstract)")
 
         if sample_rate is not None and sample_rate < 1.0:
-            summary_parts.append(f"{total_skipped} skipped by sampling (rate: {sample_rate:.1%})")
+            summary_parts.append(f"{total_skipped_sampling} skipped by sampling (rate: {sample_rate:.1%})")
 
         log.info(f"Import complete: {', '.join(summary_parts)}")
 
@@ -277,7 +264,7 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
         log.info("Next steps to set up your paper recommendation system:")
         log.info("="*60)
         log.info("1. Generate embeddings for the imported articles:")
-        log.info("   papersorter predict --count 10000")
+        log.info(f"   papersorter predict --count {total_inserted}")
         log.info("")
         log.info("2. Start the web interface to label papers:")
         log.info("   papersorter serve --skip-authentication your@email.com")
