@@ -164,6 +164,21 @@ papersorter serve
 
 Navigate to `http://localhost:5001` and you should see login options for the configured OAuth providers.
 
+### Development and Initial Setup
+
+For development or initial deployment without OAuth configuration, you can use the `--skip-authentication` option:
+
+```bash
+papersorter serve --skip-authentication yourname@domain.com
+```
+
+This bypasses OAuth and automatically creates/logs in as an admin user with the specified email. This is useful for:
+- Initial system configuration before OAuth is set up
+- Development and testing environments
+- Emergency access when OAuth providers are unavailable
+
+**Important:** The email used with `--skip-authentication` can be the same as your OAuth email. When you later configure OAuth and log in normally, all your settings and preferences will be preserved.
+
 ## Backward Compatibility
 
 The system maintains backward compatibility with older configuration formats:

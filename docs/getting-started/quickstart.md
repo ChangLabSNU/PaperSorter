@@ -10,6 +10,9 @@ Get PaperSorter up and running in 5 minutes! This guide assumes you've completed
 # Start the web interface
 papersorter serve
 
+# For initial setup without OAuth configuration:
+# papersorter serve --skip-authentication yourname@domain.com
+
 # Open browser to http://localhost:5001
 # Navigate to Settings > Feed Sources
 # Add an RSS feed (e.g., arXiv Computer Science)

@@ -135,16 +135,22 @@ papersorter init --drop-existing
 
 ## Getting Started
 
-### 1. Add Feed Sources
-
-Start the web interface and configure your feed sources:
+Start the web interface:
 
 ```bash
 papersorter serve
 ```
 
+**For development or initial setup without OAuth configuration:**
+```bash
+papersorter serve --skip-authentication yourname@domain.com
+```
+This creates/uses an admin user with the specified email and bypasses OAuth authentication. Use this during initial deployment to configure the system. The same email can be used later with OAuth once configured, preserving all settings and preferences.
+
+### 1. Add Feed Sources
+
 Navigate to http://localhost:5001 and:
-- Log in with your preferred OAuth provider (ORCID, Google, or GitHub)
+- Log in with your preferred OAuth provider (ORCID, Google, or GitHub) - or you'll be automatically logged in if using --skip-authentication
 - Go to Settings → Feed Sources
 - Add RSS/Atom feed URLs for journals, preprint servers, or PubMed searches
 
@@ -348,6 +354,7 @@ All commands support:
 - `--host ADDRESS` - Bind address (default: 0.0.0.0)
 - `--port N` - Port number (default: 5001)
 - `--debug` - Enable Flask debug mode
+- `--skip-authentication USERNAME` - Bypass OAuth and auto-login as admin user (development only)
 
 ## Web Interface Features
 
