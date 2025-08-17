@@ -31,7 +31,7 @@ import threading
 import time
 from datetime import timedelta
 from flask import Flask, render_template
-from flask_login import LoginManager
+from flask_login import LoginManager, login_user
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 from ..log import log
@@ -40,7 +40,7 @@ from .main import main_bp
 from .api import feeds_bp, settings_bp, search_bp, user_bp
 
 
-def create_app(config_path):
+def create_app(config_path, skip_authentication=None):
     """Create and configure the Flask application."""
     app = Flask(__name__, template_folder="../templates")
 
@@ -65,6 +65,7 @@ def create_app(config_path):
     # Store configurations in app
     app.db_config = db_config
     app.config["CONFIG_PATH"] = config_path
+    app.config["SKIP_AUTHENTICATION"] = skip_authentication
 
     # Set up Flask secret key
     # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
@@ -91,6 +92,48 @@ def create_app(config_path):
         )
 
     app.config["get_db_connection"] = get_db_connection
+
+    # Handle skip-authentication mode
+    if skip_authentication:
+        # Create or update the admin user in the database
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Check if user exists
+        cursor.execute(
+            "SELECT id, username, is_admin FROM users WHERE username = %s",
+            (skip_authentication,)
+        )
+        user_data = cursor.fetchone()
+
+        if user_data:
+            # User exists - upgrade to admin if needed
+            if not user_data["is_admin"]:
+                cursor.execute(
+                    "UPDATE users SET is_admin = TRUE WHERE username = %s",
+                    (skip_authentication,)
+                )
+                conn.commit()
+                log.info(f"Upgraded user '{skip_authentication}' to admin status")
+            else:
+                log.info(f"Using existing admin user '{skip_authentication}'")
+            skip_auth_user_id = user_data["id"]
+        else:
+            # Create new admin user with 'oauth' as password placeholder
+            cursor.execute(
+                """INSERT INTO users (username, password, is_admin, timezone, feedlist_minscore)
+                   VALUES (%s, 'oauth', TRUE, 'Asia/Seoul', 25) RETURNING id""",
+                (skip_authentication,)
+            )
+            skip_auth_user_id = cursor.fetchone()["id"]
+            conn.commit()
+            log.info(f"Created new admin user '{skip_authentication}'")
+
+        cursor.close()
+        conn.close()
+
+        # Store the user ID for auto-login
+        app.config["SKIP_AUTH_USER_ID"] = skip_auth_user_id
 
     # Cleanup old jobs every 5 minutes
     def cleanup_old_jobs():
@@ -205,6 +248,22 @@ def create_app(config_path):
     app.register_blueprint(settings_bp)
     app.register_blueprint(search_bp)
     app.register_blueprint(user_bp)
+
+    # Auto-login middleware for skip-authentication mode
+    if skip_authentication:
+        @app.before_request
+        def auto_login():
+            from flask_login import current_user
+            if not current_user.is_authenticated:
+                # Load the skip-auth user
+                user_id = app.config.get("SKIP_AUTH_USER_ID")
+                if user_id:
+                    user = load_user(str(user_id))
+                    if user:
+                        login_user(user, remember=True)
+                        # Set session as permanent to match normal login behavior
+                        from flask import session
+                        session.permanent = True
 
     # Error handlers
     @app.errorhandler(403)
