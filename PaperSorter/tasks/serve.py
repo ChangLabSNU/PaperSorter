@@ -36,13 +36,23 @@ from ..web import create_app
 @click.option("--debug", is_flag=True, help="Enable debug mode.")
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
-def main(config, host, port, debug, log_file, quiet):
+@click.option(
+    "--skip-authentication",
+    default=None,
+    help="Skip OAuth authentication and auto-login as specified admin user (DEVELOPMENT ONLY).",
+)
+def main(config, host, port, debug, log_file, quiet, skip_authentication):
     """Serve web interface for article labeling and other tasks."""
     initialize_logging(task="serve", logfile=log_file, quiet=quiet)
 
+    if skip_authentication:
+        log.warning(
+            f"⚠️  AUTHENTICATION BYPASS ENABLED for user '{skip_authentication}' - DEVELOPMENT USE ONLY!"
+        )
+
     log.info(f"Starting web server on {host}:{port}")
 
-    app = create_app(config)
+    app = create_app(config, skip_authentication=skip_authentication)
 
     # Run the Flask app
     app.run(host=host, port=port, debug=debug)
