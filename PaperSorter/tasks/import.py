@@ -272,6 +272,26 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
 
         log.info(f"Import complete: {', '.join(summary_parts)}")
 
+        # Show guidance for next steps
+        log.info("\n" + "="*60)
+        log.info("Next steps to set up your paper recommendation system:")
+        log.info("="*60)
+        log.info("1. Generate embeddings for the imported articles:")
+        log.info("   papersorter predict --count 10000")
+        log.info("")
+        log.info("2. Start the web interface to label papers:")
+        log.info("   papersorter serve --skip-authentication your@email.com")
+        log.info("")
+        log.info("3. Use semantic search to find papers in your field")
+        log.info("   and mark them as 'Interested' (at least 10-20 papers)")
+        log.info("")
+        log.info("4. Train your first model:")
+        log.info("   papersorter train --name \"Initial Model\"")
+        log.info("")
+        log.info("5. Generate predictions:")
+        log.info("   papersorter predict")
+        log.info("="*60)
+
     except Exception as e:
         log.error(f"Import failed: {e}")
         feeddb.db.rollback()
