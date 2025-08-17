@@ -130,6 +130,7 @@ Start the web interface for labeling and management.
 * ``--debug``: Enable debug mode
 * ``--threaded``: Enable threading
 * ``--processes INTEGER``: Number of processes
+* ``--skip-authentication USERNAME``: Bypass OAuth and auto-login as admin user (development only)
 
 **Example:**
 
@@ -143,6 +144,9 @@ Start the web interface for labeling and management.
 
    # Production mode with multiple processes
    papersorter serve --processes 4
+
+   # Development mode without OAuth
+   papersorter serve --skip-authentication yourname@domain.com
 
 Information Commands
 --------------------
