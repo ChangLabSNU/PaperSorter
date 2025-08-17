@@ -171,9 +171,34 @@ Use the web interface to label articles:
 
 ### 4. Train the Model
 
-Once you have sufficient labeled data:
+#### Initial Training (New Users)
+If you're just starting and have only marked papers as "interested" without any negative labels:
 
 ```bash
+# The system automatically detects initial training mode
+papersorter train
+
+# With PubMed data import (10% sampling by default):
+papersorter import pubmed  # Downloads recent PubMed updates
+papersorter train          # Trains on all users' feedback
+```
+
+The system will:
+- Detect the absence of negative labels
+- Automatically use unlabeled articles as negative examples
+- Apply appropriate weights to balance the training
+
+#### Standard Training
+Once you have both positive and negative labels:
+
+```bash
+# Train on specific user's feedback
+papersorter train --user-id 1
+
+# Train on multiple users' feedback
+papersorter train --user-id 1 --user-id 2 --user-id 3
+
+# Train on all users (default when --user-id is omitted)
 papersorter train
 ```
 
@@ -452,7 +477,7 @@ PaperSorter consists of several key components that work together to fetch, anal
 ### Key Components:
 
 - **Feed Provider System**: Modular architecture for different feed sources (RSS/Atom)
-- **Background Workflows**: 
+- **Background Workflows**:
   - Update Task: Fetches articles, generates embeddings, manages broadcast queue
   - Train Task: Trains XGBoost model using labeled data
   - Broadcast Task: Processes queue and sends notifications
