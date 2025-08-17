@@ -64,6 +64,11 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, count, batch_size, log_file, quiet):
+    """Generate embeddings and predictions for articles in the database.
+    
+    Creates vector embeddings for articles and optionally generates interest
+    predictions using trained models. Essential for semantic search and recommendations.
+    """
     initialize_logging(task="predict", logfile=log_file, quiet=quiet)
 
     # Load configuration
