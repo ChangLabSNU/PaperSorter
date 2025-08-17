@@ -40,7 +40,7 @@ import yaml
 )
 @click.option("-o", "--output", default="model.pkl", help="Output file name.")
 @click.option("-r", "--rounds", default=1000, help="Number of boosting rounds.")
-@click.option("--user-id", default=1, help="User ID for training preferences.")
+@click.option("--user-id", "-u", multiple=True, type=int, help="User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users.")
 @click.option(
     "--pos-cutoff",
     default=0.5,
@@ -63,7 +63,7 @@ def main(
     config,
     output,
     rounds,
-    user_id,
+    user_id,  # This will be a tuple of user IDs or empty tuple
     pos_cutoff,
     neg_cutoff,
     pseudo_weight,
@@ -93,39 +93,72 @@ def main(
     register_vector(db)
 
     # Query to get all feeds with their embeddings, preferences, and predicted scores
-    log.info(
-        f'Loading training data for user_id={user_id} using table "{embeddings_table}"...'
-    )
+    # Convert user_id tuple to list, or use None for all users
+    user_ids = list(user_id) if user_id else None
+
+    if user_ids:
+        log.info(
+            f'Loading training data for user_id(s)={user_ids} using table "{embeddings_table}"...'
+        )
+    else:
+        log.info(
+            f'Loading training data for ALL users using table "{embeddings_table}"...'
+        )
 
     # Use psycopg2.sql to safely insert table name
     from psycopg2 import sql
 
+    # Build the WHERE clause for user filtering
+    if user_ids:
+        # Use IN clause for multiple user IDs
+        where_clause = sql.SQL("WHERE user_id = ANY(%s)")
+        query_params = (user_ids,)
+    else:
+        # No WHERE clause - get all users
+        where_clause = sql.SQL("")
+        query_params = ()
+
     query = sql.SQL("""
         WITH latest_preferences AS (
-            SELECT DISTINCT ON (feed_id)
-                feed_id, score, time, source
+            SELECT DISTINCT ON (feed_id, user_id)
+                feed_id, user_id, score, time, source
             FROM preferences
-            WHERE user_id = %s
-            ORDER BY feed_id, time DESC
+            {where_clause}
+            ORDER BY feed_id, user_id, time DESC
+        ),
+        aggregated_preferences AS (
+            -- Aggregate preferences across multiple users
+            SELECT
+                feed_id,
+                AVG(score) as preference_score,
+                MAX(time) as preference_time,
+                STRING_AGG(DISTINCT source::text, ', ') as preference_source,
+                COUNT(DISTINCT user_id) as user_count
+            FROM latest_preferences
+            GROUP BY feed_id
         )
         SELECT
             f.id as feed_id,
             f.external_id,
             f.title,
             f.published,
-            lp.score as preference_score,
-            lp.time as preference_time,
-            lp.source as preference_source,
+            ap.preference_score,
+            ap.preference_time,
+            ap.preference_source,
+            ap.user_count,
             pp.score as predicted_score,
             e.embedding
         FROM feeds f
         JOIN {embeddings_table} e ON f.id = e.feed_id
-        LEFT JOIN latest_preferences lp ON f.id = lp.feed_id
+        LEFT JOIN aggregated_preferences ap ON f.id = ap.feed_id
         LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
         ORDER BY f.id
-    """).format(embeddings_table=sql.Identifier(embeddings_table))
+    """).format(
+        where_clause=where_clause,
+        embeddings_table=sql.Identifier(embeddings_table)
+    )
 
-    cursor.execute(query, (user_id,))
+    cursor.execute(query, query_params)
 
     results = cursor.fetchall()
     cursor.close()
@@ -136,6 +169,12 @@ def main(
         return
 
     log.info(f"Found {len(results)} feeds with embeddings")
+
+    # Log information about user coverage if multiple users
+    if not user_ids or len(user_ids) > 1:
+        feeds_with_labels = sum(1 for r in results if r["preference_score"] is not None)
+        multi_user_feeds = sum(1 for r in results if r.get("user_count") is not None and r["user_count"] > 1)
+        log.info(f"Feeds with labels: {feeds_with_labels}, Multi-user labeled feeds: {multi_user_feeds}")
 
     # Prepare data
     feed_ids = []
@@ -189,8 +228,31 @@ def main(
     cnt_wopref_pos = len(embs_wopref_pos)
     cnt_wopref_neg = len(embs_wopref_neg)
 
+    # Count actual negative labels in the labeled data
+    cnt_negative_labels = sum(1 for score in labels_with_pref if score < 0.5) if cnt_with_pref > 0 else 0
+
+    # Initial training stage: if no negative labels and no negative pseudo-labels,
+    # use all unlabeled articles (except positive pseudo-labels) as negative pseudo-labels
+    if cnt_negative_labels == 0 and cnt_wopref_neg == 0:
+        log.info("Initial training stage detected: No negative labels found")
+        log.info("Using all unlabeled articles as negative pseudo-labels")
+
+        # Create mask for all articles without labels and not in positive pseudo-labels
+        pref_notavail_neg = np.array([
+            not avail and not pos
+            for avail, pos in zip(pref_available, pref_notavail_pos)
+        ])
+
+        # Re-extract negative pseudo-label data
+        embs_wopref_neg = embeddings[pref_notavail_neg]
+        fids_wopref_neg = np.array(
+            [fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg]
+        )
+        cnt_wopref_neg = len(embs_wopref_neg)
+
     log.info(
-        f"Data distribution: {cnt_with_pref} labeled, {cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative"
+        f"Data distribution: {cnt_with_pref} labeled ({cnt_with_pref - cnt_negative_labels} positive, {cnt_negative_labels} negative), "
+        f"{cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative"
     )
 
     # Calculate weights for pseudo-labeled data
@@ -200,12 +262,20 @@ def main(
     wopref_pos_weight = min(
         wopref_pos_weight, 1.0
     )  # Ensure weight does not exceed true label weight
-    wopref_neg_weight = (
-        cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
-    )
-    wopref_neg_weight = min(
-        wopref_neg_weight, 1.0
-    )  # Ensure weight does not exceed true label weight
+
+    # For negative pseudo-labels, adjust weight if this is initial training
+    if cnt_negative_labels == 0 and cnt_wopref_neg > 0:
+        # In initial training, use lower weight for negative pseudo-labels
+        # since they are just "everything else" rather than predicted negatives
+        wopref_neg_weight = pseudo_weight * 0.5  # Use half the normal pseudo weight
+        log.info(f"Initial training: Using reduced weight for negative pseudo-labels")
+    else:
+        wopref_neg_weight = (
+            cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
+        )
+        wopref_neg_weight = min(
+            wopref_neg_weight, 1.0
+        )  # Ensure weight does not exceed true label weight
 
     log.info(
         f"Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}"

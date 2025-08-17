@@ -15,16 +15,25 @@ PaperSorter uses **XGBoost regression** to predict your interest in papers:
 
 Before training your first model:
 
-1. ✅ Papers in database (run `papersorter update`)
-2. ✅ At least 50 labeled papers (100+ recommended)
-3. ✅ Diverse labels (not all 5-star ratings)
+1. ✅ Papers in database (run `papersorter update` or `papersorter import pubmed`)
+2. ✅ At least some papers marked as "interested" (for initial training) OR 50+ labeled papers (for standard training)
+3. ✅ For standard training: Diverse labels (both interested and not interested)
+
+### Initial Training Mode (New Users)
+**NEW**: You can now start training with just papers marked as "interested"! The system will automatically:
+- Detect when you have only positive labels (interested)
+- Use unlabeled articles as negative training examples
+- Apply appropriate weights to balance the model
 
 Check your readiness:
 ```bash
 papersorter stats
-# Should show:
+# For initial training:
+# Interested papers: 10+ (minimum)
+#
+# For standard training:
 # Papers labeled: 50+ (minimum)
-# Label distribution: Mixed ratings
+# Label distribution: Mixed (interested and not interested)
 ```
 
 ## Step 1: Label Papers
@@ -98,7 +107,30 @@ Warning signs:
 
 ## Step 3: Train the Model
 
-### Basic Training
+### Initial Training (Only Positive Labels)
+
+If you're just starting and have only marked papers as "interested":
+
+```bash
+# Train with automatic negative pseudo-labeling
+papersorter train
+
+# Output:
+# Initial training stage detected: No negative labels found
+# Using all unlabeled articles as negative pseudo-labels
+# Data distribution: 25 labeled (25 positive, 0 negative), 0 pseudo-positive, 975 pseudo-negative
+# Initial training: Using reduced weight for negative pseudo-labels
+# Training XGBoost model...
+# Model saved to model.pkl
+```
+
+The system automatically:
+1. Detects the absence of negative labels
+2. Uses all unlabeled articles as negative examples
+3. Applies reduced weights (50% of normal) to pseudo-negatives
+4. Balances the training to prevent bias
+
+### Basic Training (With Mixed Labels)
 
 ```bash
 # Train with defaults
@@ -106,6 +138,7 @@ papersorter train
 
 # Output:
 # Loading 150 labeled papers...
+# Data distribution: 150 labeled (100 positive, 50 negative), 0 pseudo-positive, 0 pseudo-negative
 # Splitting: 120 train, 30 test
 # Training XGBoost model...
 # Rounds: 100
@@ -127,9 +160,26 @@ papersorter train --output models/my_model.pkl
 # Use specific embedding table
 papersorter train --embeddings-table embeddings_v2
 
+# Train on specific user's feedback
+papersorter train --user-id 1
+
+# Train on multiple users' feedback (consensus model)
+papersorter train --user-id 1 --user-id 2 --user-id 3
+
+# Train on ALL users' feedback (default when --user-id is omitted)
+papersorter train
+
 # Verbose output for debugging
 papersorter train -v
 ```
+
+### Multi-User Training
+
+When training with multiple users:
+- The system averages scores when multiple users label the same paper
+- Shows statistics about multi-user labeled feeds
+- Creates a consensus model that learns from collective preferences
+- Useful for team-wide or department-wide models
 
 ### Training Parameters Explained
 
@@ -165,7 +215,7 @@ papersorter predict --recent 10
 # Output:
 # Title: "Attention Is All You Need Revisited"
 # Predicted Score: 4.7 ⭐⭐⭐⭐⭐
-# 
+#
 # Title: "Survey of Classical Mechanics"
 # Predicted Score: 1.8 ⭐⭐
 ```
