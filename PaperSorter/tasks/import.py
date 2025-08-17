@@ -109,10 +109,10 @@ def main(ctx, config, log_file, quiet):
 
 @main.command("pubmed")
 @click.option(
-    "--files", "-n", default=5, type=int, help="Number of recent update files to download (default: 5)"
+    "--files", "-n", default=10, type=int, help="Number of recent update files to download (default: 10)"
 )
 @click.option(
-    "--chunksize", "-c", default=1000, type=int, help="Number of articles per processing chunk (default: 1000)"
+    "--chunksize", "-c", default=2000, type=int, help="Number of articles per processing chunk (default: 2000)"
 )
 @click.option(
     "--tmpdir", "-t", help="Directory for downloaded files (default: $TMPDIR or ./tmp)"
@@ -124,7 +124,7 @@ def main(ctx, config, log_file, quiet):
     "--limit", "-l", type=int, help="Maximum number of articles to import"
 )
 @click.option(
-    "--sample-rate", "-s", type=float, help="Random sampling rate (0.0-1.0) to reduce total count while maintaining diversity"
+    "--sample-rate", "-s", default=0.1, type=float, help="Random sampling rate (0.0-1.0) to reduce total count while maintaining diversity (default: 0.1)"
 )
 @click.option(
     "--seed", type=int, help="Random seed for reproducible sampling"
