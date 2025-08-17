@@ -38,7 +38,8 @@ import yaml
 @click.option(
     "--config", "-c", default="./config.yml", help="Database configuration file."
 )
-@click.option("-o", "--output", default="model.pkl", help="Output file name.")
+@click.option("-o", "--output", help="Output file path. Mutually exclusive with --name.")
+@click.option("--name", help="Model name for database registration. Mutually exclusive with --output.")
 @click.option("-r", "--rounds", default=1000, help="Number of boosting rounds.")
 @click.option("--user-id", "-u", multiple=True, type=int, help="User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users.")
 @click.option(
@@ -62,6 +63,7 @@ import yaml
 def main(
     config,
     output,
+    name,
     rounds,
     user_id,  # This will be a tuple of user IDs or empty tuple
     pos_cutoff,
@@ -72,6 +74,15 @@ def main(
     quiet,
 ):
     initialize_logging(task="train", logfile=log_file, quiet=quiet)
+
+    # Validate output/name options
+    if output and name:
+        log.error("Error: --output and --name options are mutually exclusive. Please specify only one.")
+        return
+
+    if not output and not name:
+        log.error("Error: Either --output or --name must be specified.")
+        return
 
     # Load database configuration
     with open(config, "r") as f:
@@ -162,10 +173,14 @@ def main(
 
     results = cursor.fetchall()
     cursor.close()
-    db.close()
+    # Keep db connection open if we need to register the model
+    if output:
+        db.close()
 
     if not results:
         log.error("No feeds with embeddings found")
+        if not output:
+            db.close()
         return
 
     log.info(f"Found {len(results)} feeds with embeddings")
@@ -418,14 +433,59 @@ def main(
 
     # Save final model
     log.info("Saving final model...")
-    pickle.dump(
-        {
-            "model": final_model,
-            "scaler": scaler,
-        },
-        open(output, "wb"),
-    )
 
-    log.info(
-        f"Final model saved to {output} (best iteration: {final_model.best_iteration})"
-    )
+    if output:
+        # Save to specified file path
+        pickle.dump(
+            {
+                "model": final_model,
+                "scaler": scaler,
+            },
+            open(output, "wb"),
+        )
+        log.info(
+            f"Final model saved to {output} (best iteration: {final_model.best_iteration})"
+        )
+    else:
+        # Register model in database and save to models directory
+        # Get model directory from config
+        model_dir = config_data.get("models", {}).get("path", ".")
+
+        # Ensure model directory exists
+        import os
+        os.makedirs(model_dir, exist_ok=True)
+
+        # Build notes about the training
+        user_info = "all users" if not user_ids else f"user(s): {user_ids}"
+        notes = f"Trained on {user_info}, {len(X_all)} samples, ROC-AUC: {rocauc:.3f}"
+
+        # Need a new cursor for the insert
+        insert_cursor = db.cursor()
+        insert_cursor.execute(
+            """INSERT INTO models (name, created, is_active, notes)
+               VALUES (%s, NOW(), TRUE, %s)
+               RETURNING id""",
+            (name, notes)
+        )
+
+        model_id = insert_cursor.fetchone()[0]
+        db.commit()
+        insert_cursor.close()
+
+        # Save model file with the ID
+        model_path = f"{model_dir}/model-{model_id}.pkl"
+        pickle.dump(
+            {
+                "model": final_model,
+                "scaler": scaler,
+            },
+            open(model_path, "wb"),
+        )
+
+        log.info(
+            f"Model registered as '{name}' with ID {model_id}\n"
+            f"Model file saved to {model_path} (best iteration: {final_model.best_iteration})"
+        )
+
+        # Close database connection
+        db.close()
