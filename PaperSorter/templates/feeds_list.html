@@ -1411,7 +1411,42 @@
                     currentPage++;
 
                     if (!hasMore) {
-                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No more feeds to load</div>';
+                        // Check if this is the first page with no results
+                        if (currentPage === 2 && data.feeds.length === 0) {
+                            // No feeds at all - provide helpful message based on current filter
+                            let message = 'No feeds found';
+                            if (currentMinScore > 0) {
+                                const scoreLabel = scoreLabels[scoreThresholds.indexOf(currentMinScore)];
+                                message = `
+                                    <div style="padding: 20px; text-align: center; color: #7f8c8d;">
+                                        <div style="font-size: 16px; margin-bottom: 10px;">No feeds meet the current criteria</div>
+                                        <div style="font-size: 14px; line-height: 1.6;">
+                                            Current minimum score filter: <strong>${scoreLabel}</strong><br>
+                                            Try lowering the score threshold or wait for new articles to be processed.<br>
+                                            <span style="color: #95a5a6; font-size: 13px;">
+                                                Note: Articles need embeddings and predictions to have scores.
+                                            </span>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                message = `
+                                    <div style="padding: 20px; text-align: center; color: #7f8c8d;">
+                                        <div style="font-size: 16px; margin-bottom: 10px;">No feeds available</div>
+                                        <div style="font-size: 14px; line-height: 1.6;">
+                                            The database might be empty or articles are still being processed.<br>
+                                            <span style="color: #95a5a6; font-size: 13px;">
+                                                Please check back later or contact your administrator.
+                                            </span>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            document.getElementById('loading').innerHTML = message;
+                        } else {
+                            // End of pagination
+                            document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No more feeds to load</div>';
+                        }
                     } else {
                         document.getElementById('loading').style.display = 'none';
                     }
