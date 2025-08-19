@@ -31,6 +31,7 @@ import click
 import pickle
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import execute_batch
 from pgvector.psycopg2 import register_vector
 import yaml
 
@@ -60,12 +61,12 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     "--config", "-c", default="./config.yml", help="Database configuration file."
 )
 @click.option("--count", default=500, help="Number of recent feeds to process.")
-@click.option("--batch-size", default=100, help="Batch size for embedding generation.")
+@click.option("--batch-size", default=500, help="Batch size for database operations and embedding generation.")
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, count, batch_size, log_file, quiet):
     """Generate embeddings and predictions for articles in the database.
-    
+
     Creates vector embeddings for articles and optionally generates interest
     predictions using trained models. Essential for semantic search and recommendations.
     """
@@ -94,47 +95,62 @@ def main(config, count, batch_size, log_file, quiet):
     # Register pgvector extension
     register_vector(db)
 
-    # Get N most recent feeds by added time
-    log.info(f"Fetching {count} most recent feeds...")
-    cursor.execute(
-        """
-        SELECT f.*, e.embedding
-        FROM feeds f
-        LEFT JOIN embeddings e ON f.id = e.feed_id
-        ORDER BY f.added DESC
-        LIMIT %s
-    """,
-        (count,),
-    )
+    # Process feeds in batches to avoid memory issues
+    log.info(f"Processing {count} most recent feeds in batches of {batch_size}...")
 
-    recent_feeds = cursor.fetchall()
+    feeds_with_embeddings = []
+    feeds_without_embeddings = []
+    total_processed = 0
 
-    if not recent_feeds:
+    # Process in batches using OFFSET and LIMIT
+    for offset in range(0, count, batch_size):
+        current_batch_size = min(batch_size, count - offset)
+
+        cursor.execute(
+            """
+            SELECT f.*, e.embedding
+            FROM feeds f
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+        """,
+            (current_batch_size, offset),
+        )
+
+        batch_feeds = cursor.fetchall()
+
+        if not batch_feeds:
+            break
+
+        # Separate feeds with and without embeddings for this batch
+        for feed in batch_feeds:
+            if feed["embedding"] is None:
+                feeds_without_embeddings.append(feed)
+            else:
+                feeds_with_embeddings.append(feed)
+
+        total_processed += len(batch_feeds)
+
+        if len(batch_feeds) < current_batch_size:
+            # No more feeds available
+            break
+
+    if total_processed == 0:
         log.info("No feeds found")
         return
 
-    # Separate feeds with and without embeddings
-    feeds_with_embeddings = []
-    feeds_without_embeddings = []
-
-    for feed in recent_feeds:
-        if feed["embedding"] is None:
-            feeds_without_embeddings.append(feed)
-        else:
-            feeds_with_embeddings.append(feed)
-
     log.info(
-        f"Found {len(feeds_with_embeddings)} feeds with embeddings, {len(feeds_without_embeddings)} without"
+        f"Processed {total_processed} feeds: {len(feeds_with_embeddings)} with embeddings, {len(feeds_without_embeddings)} without"
     )
 
     # Generate embeddings for feeds that don't have them
     if feeds_without_embeddings:
         log.info(f"Generating embeddings for {len(feeds_without_embeddings)} feeds...")
 
-        # Extract feed IDs
+        # Process embedding generation in batches to avoid overwhelming the API
         feed_ids_without_embeddings = [f["id"] for f in feeds_without_embeddings]
 
-        # Use FeedPredictor to generate embeddings
+        # Use FeedPredictor to generate embeddings (it handles batching internally)
         all_new_embeddings = generate_embeddings_for_feeds(
             feed_ids_without_embeddings, feeddb, embeddingdb, config, batch_size
         )
@@ -142,12 +158,13 @@ def main(config, count, batch_size, log_file, quiet):
         # Add newly embedded feeds to the list
         if all_new_embeddings:
             log.info(f"Successfully generated {len(all_new_embeddings)} embeddings")
+            # Create a mapping for faster lookup
+            embedding_map = {emb["feed_id"]: emb["embedding"] for emb in all_new_embeddings}
+
             for feed in feeds_without_embeddings:
-                for emb_data in all_new_embeddings:
-                    if emb_data["feed_id"] == feed["id"]:
-                        feed["embedding"] = emb_data["embedding"]
-                        feeds_with_embeddings.append(feed)
-                        break
+                if feed["id"] in embedding_map:
+                    feed["embedding"] = embedding_map[feed["id"]]
+                    feeds_with_embeddings.append(feed)
 
     # Get all active models
     log.info("Loading active models...")
@@ -229,19 +246,26 @@ def main(config, count, batch_size, log_file, quiet):
             # Predict
             predictions = model.predict(dmatrix)
 
-            # Store predictions in database
+            # Store predictions in database in batches
             log.info(f"Storing {len(predictions)} predictions for model {model_id}...")
 
-            for feed_id, score in zip(feeds_to_predict, predictions):
-                cursor.execute(
-                    """
-                    INSERT INTO predicted_preferences (feed_id, model_id, score)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (feed_id, model_id) DO UPDATE
-                    SET score = EXCLUDED.score
+            # Use execute_batch for better performance with many predictions
+            prediction_data = [
+                (feed_id, model_id, float(score))
+                for feed_id, score in zip(feeds_to_predict, predictions)
+            ]
+
+            execute_batch(
+                cursor,
+                """
+                INSERT INTO predicted_preferences (feed_id, model_id, score)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (feed_id, model_id) DO UPDATE
+                SET score = EXCLUDED.score
                 """,
-                    (feed_id, model_id, float(score)),
-                )
+                prediction_data,
+                page_size=min(1000, batch_size)  # Use batch_size for consistency
+            )
 
             db.commit()
 
