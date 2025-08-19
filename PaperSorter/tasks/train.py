@@ -43,14 +43,19 @@ import yaml
 @click.option("-r", "--rounds", default=1000, help="Number of boosting rounds.")
 @click.option("--user-id", "-u", multiple=True, type=int, help="User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users.")
 @click.option(
+    "--base-model",
+    type=int,
+    help="Model ID to use for generating pseudo-labels. If not specified, pseudolabeling is disabled.",
+)
+@click.option(
     "--pos-cutoff",
-    default=0.5,
-    help="Predicted score cutoff for positive pseudo-labels.",
+    default=0.8,
+    help="Predicted score cutoff for positive pseudo-labels (default: 0.8).",
 )
 @click.option(
     "--neg-cutoff",
     default=0.2,
-    help="Predicted score cutoff for negative pseudo-labels.",
+    help="Predicted score cutoff for negative pseudo-labels (default: 0.2).",
 )
 @click.option("--pseudo-weight", default=0.5, help="Weight for pseudo-labeled data.")
 @click.option(
@@ -66,6 +71,7 @@ def main(
     name,
     rounds,
     user_id,  # This will be a tuple of user IDs or empty tuple
+    base_model,
     pos_cutoff,
     neg_cutoff,
     pseudo_weight,
@@ -74,7 +80,7 @@ def main(
     quiet,
 ):
     """Train XGBoost model on labeled paper preferences.
-    
+
     Trains a machine learning model to predict user interest in papers based on
     their labeled preferences. Supports initial training with only positive labels.
     """
@@ -121,6 +127,13 @@ def main(
             f'Loading training data for ALL users using table "{embeddings_table}"...'
         )
 
+    # Log pseudolabeling status
+    if base_model:
+        log.info(f"Pseudolabeling enabled using base model ID: {base_model}")
+        log.info(f"Pseudo-label thresholds: positive >= {pos_cutoff}, negative < {neg_cutoff}")
+    else:
+        log.info("Pseudolabeling disabled (no base model specified)")
+
     # Use psycopg2.sql to safely insert table name
     from psycopg2 import sql
 
@@ -162,16 +175,18 @@ def main(
             ap.preference_time,
             ap.preference_source,
             ap.user_count,
-            pp.score as predicted_score,
+            {predicted_score_field}
             e.embedding
         FROM feeds f
         JOIN {embeddings_table} e ON f.id = e.feed_id
         LEFT JOIN aggregated_preferences ap ON f.id = ap.feed_id
-        LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = 1
+        {predicted_join}
         ORDER BY f.id
     """).format(
         where_clause=where_clause,
-        embeddings_table=sql.Identifier(embeddings_table)
+        embeddings_table=sql.Identifier(embeddings_table),
+        predicted_join=sql.SQL(f"LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = {base_model}") if base_model else sql.SQL(""),
+        predicted_score_field=sql.SQL("pp.score as predicted_score,") if base_model else sql.SQL("NULL as predicted_score,")
     )
 
     cursor.execute(query, query_params)
@@ -212,18 +227,25 @@ def main(
 
     # Create masks for different data categories
     pref_available = np.array([p is not None for p in preference_scores])
-    pref_notavail_pos = np.array(
-        [
-            (p is not None and p >= pos_cutoff) and not avail
-            for p, avail in zip(predicted_scores, pref_available)
-        ]
-    )
-    pref_notavail_neg = np.array(
-        [
-            (p is not None and p < neg_cutoff) and not avail
-            for p, avail in zip(predicted_scores, pref_available)
-        ]
-    )
+
+    # Only create pseudo-label masks if base_model is specified
+    if base_model:
+        pref_notavail_pos = np.array(
+            [
+                (p is not None and p >= pos_cutoff) and not avail
+                for p, avail in zip(predicted_scores, pref_available)
+            ]
+        )
+        pref_notavail_neg = np.array(
+            [
+                (p is not None and p < neg_cutoff) and not avail
+                for p, avail in zip(predicted_scores, pref_available)
+            ]
+        )
+    else:
+        # No pseudolabeling without base model
+        pref_notavail_pos = np.array([False] * len(feed_ids))
+        pref_notavail_neg = np.array([False] * len(feed_ids))
 
     # Extract data for each category
     embs_with_pref = embeddings[pref_available]
@@ -251,29 +273,40 @@ def main(
     # Count actual negative labels in the labeled data
     cnt_negative_labels = sum(1 for score in labels_with_pref if score < 0.5) if cnt_with_pref > 0 else 0
 
-    # Initial training stage: if no negative labels and no negative pseudo-labels,
-    # use all unlabeled articles (except positive pseudo-labels) as negative pseudo-labels
-    if cnt_negative_labels == 0 and cnt_wopref_neg == 0:
-        log.info("Initial training stage detected: No negative labels found")
-        log.info("Using all unlabeled articles as negative pseudo-labels")
+    # Initial training stage: if no negative labels exist,
+    # use all unlabeled articles as negative pseudo-labels
+    if cnt_negative_labels == 0:
+        if base_model and cnt_wopref_neg == 0:
+            # With base model but no predicted negatives, use all unlabeled
+            log.info("Initial training stage: No negative labels or predicted negatives found")
+            log.info("Using all unlabeled articles as negative pseudo-labels")
 
-        # Create mask for all articles without labels and not in positive pseudo-labels
-        pref_notavail_neg = np.array([
-            not avail and not pos
-            for avail, pos in zip(pref_available, pref_notavail_pos)
-        ])
+            # Create mask for all articles without labels and not in positive pseudo-labels
+            pref_notavail_neg = np.array([
+                not avail and not pos
+                for avail, pos in zip(pref_available, pref_notavail_pos)
+            ])
+        elif not base_model:
+            # No base model and no negative labels - use all unlabeled as negatives
+            log.info("Initial training stage: No negative labels found (no base model)")
+            log.info("Using all unlabeled articles as negative pseudo-labels")
 
-        # Re-extract negative pseudo-label data
-        embs_wopref_neg = embeddings[pref_notavail_neg]
-        fids_wopref_neg = np.array(
-            [fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg]
-        )
-        cnt_wopref_neg = len(embs_wopref_neg)
+            # All unlabeled articles become negative pseudo-labels
+            pref_notavail_neg = np.array([not avail for avail in pref_available])
 
-    log.info(
-        f"Data distribution: {cnt_with_pref} labeled ({cnt_with_pref - cnt_negative_labels} positive, {cnt_negative_labels} negative), "
-        f"{cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative"
-    )
+        # Re-extract negative pseudo-label data if mask was updated
+        if cnt_negative_labels == 0 and (not base_model or cnt_wopref_neg == 0):
+            embs_wopref_neg = embeddings[pref_notavail_neg]
+            fids_wopref_neg = np.array(
+                [fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg]
+            )
+            cnt_wopref_neg = len(embs_wopref_neg)
+
+    # Log data distribution
+    log_msg = f"Data distribution: {cnt_with_pref} labeled ({cnt_with_pref - cnt_negative_labels} positive, {cnt_negative_labels} negative)"
+    if cnt_wopref_pos > 0 or cnt_wopref_neg > 0:
+        log_msg += f", {cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative"
+    log.info(log_msg)
 
     # Calculate weights for pseudo-labeled data
     wopref_pos_weight = (
@@ -283,23 +316,27 @@ def main(
         wopref_pos_weight, 1.0
     )  # Ensure weight does not exceed true label weight
 
-    # For negative pseudo-labels, adjust weight if this is initial training
+    # For negative pseudo-labels, adjust weight
     if cnt_negative_labels == 0 and cnt_wopref_neg > 0:
-        # In initial training, use lower weight for negative pseudo-labels
-        # since they are just "everything else" rather than predicted negatives
+        # In initial training (no real negative labels), use lower weight for negative pseudo-labels
+        # since they are just "everything else" rather than predicted/real negatives
         wopref_neg_weight = pseudo_weight * 0.5  # Use half the normal pseudo weight
-        log.info(f"Initial training: Using reduced weight for negative pseudo-labels")
-    else:
+        log.info("Initial training: Using reduced weight for negative pseudo-labels")
+    elif cnt_wopref_neg > 0:
+        # Normal case with some negative labels
         wopref_neg_weight = (
             cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
         )
         wopref_neg_weight = min(
             wopref_neg_weight, 1.0
         )  # Ensure weight does not exceed true label weight
+    else:
+        wopref_neg_weight = 0
 
-    log.info(
-        f"Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}"
-    )
+    if cnt_wopref_pos > 0 or cnt_wopref_neg > 0:
+        log.info(
+            f"Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}"
+        )
 
     # Combine all data
     X_all = []
