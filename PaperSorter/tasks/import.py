@@ -46,7 +46,7 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
         if pd.notna(row['pub_date']) and row['pub_date']:
             try:
                 pub_date = pd.to_datetime(row['pub_date'])
-            except:
+            except (ValueError, TypeError):
                 pub_date = datetime.now()
         else:
             pub_date = datetime.now()
@@ -112,8 +112,11 @@ def main(ctx, config, log_file, quiet):
 @click.option(
     "--seed", type=int, help="Random seed for reproducible sampling"
 )
+@click.option(
+    "--issn", multiple=True, help="Filter by ISSN (can specify multiple times). Articles matching any specified ISSN will be included."
+)
 @click.pass_context
-def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate, seed):
+def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate, seed, issn):
     """Download recent PubMed update files and import to database.
 
     This command downloads the most recent PubMed update files from NCBI FTP
@@ -124,6 +127,11 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
     number of articles while maintaining diversity across the entire dataset.
     This is useful for testing or when you want a representative subset
     of the data without importing everything.
+
+    The --issn option filters articles by journal ISSN. You can specify multiple
+    ISSNs, and articles from any matching journal will be included. Each article
+    can have multiple ISSNs (print and electronic), and matching any ISSN to any
+    of the specified filters will include the article.
     """
     config_path = ctx.obj["config"]
 
@@ -141,12 +149,18 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
     # Initialize database
     feeddb = FeedDatabase(config_path)
 
+    # Convert ISSN filter to set for efficient lookup
+    issn_filter = set(issn) if issn else None
+    if issn_filter:
+        log.info(f"Filtering by ISSNs: {', '.join(sorted(issn_filter))}")
+
     try:
         total_inserted = 0
         total_skipped_existing = 0  # Track articles skipped because they already exist
         total_processed = 0
         total_skipped_sampling = 0  # Track articles skipped due to sampling
         total_no_abstract = 0  # Track articles without abstracts
+        total_no_matching_issn = 0  # Track articles filtered by ISSN
 
         if parse_only:
             # Parse existing files in directory
@@ -174,6 +188,30 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
                 continue
 
             original_size = len(chunk_df)
+            n_no_match = 0  # Track ISSN filter removals for this chunk
+
+            # Apply ISSN filter if specified
+            if issn_filter:
+                # Check if any article ISSN matches any filter ISSN
+                def has_matching_issn(article_issns):
+                    if not article_issns or (isinstance(article_issns, list) and len(article_issns) == 0):
+                        return False
+                    if isinstance(article_issns, list):
+                        return any(issn in issn_filter for issn in article_issns)
+                    return False
+
+                has_match = chunk_df['issns'].apply(has_matching_issn)
+                n_no_match = (~has_match).sum()
+                total_no_matching_issn += n_no_match
+
+                if n_no_match > 0:
+                    chunk_df = chunk_df[has_match].copy()
+                    log.debug(f"Filtered out {n_no_match} articles not matching ISSN filter from chunk of {original_size}")
+
+                # Check if any articles remain after ISSN filtering
+                if len(chunk_df) == 0:
+                    log.debug("Skipping chunk - no articles matched ISSN filter")
+                    continue
 
             # Filter out articles without abstracts
             # Check for non-empty abstracts (abstract field contains the content)
@@ -231,17 +269,20 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
             feeddb.commit()
 
             # Log with filtering and sampling information if applicable
-            if sample_rate is not None and sample_rate < 1.0:
-                log.info(f"Processed chunk: {len(chunk_df)} articles from {original_size} "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing}, "
-                        f"No abstract: {n_no_abstract}, Skipped by sampling: {n_skipped})")
-            elif n_no_abstract > 0:
-                log.info(f"Processed chunk: {len(chunk_df)} articles from {original_size} "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing}, "
-                        f"No abstract: {n_no_abstract})")
-            else:
-                log.info(f"Processed chunk: {len(chunk_df)} articles "
-                        f"(Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing})")
+            log_parts = [f"Processed chunk: {len(chunk_df)} articles"]
+            if original_size != len(chunk_df):
+                log_parts.append(f" from {original_size}")
+            log_parts.append(f" (Total: {total_processed}, Inserted: {total_inserted}, Skipped existing: {total_skipped_existing}")
+
+            if n_no_abstract > 0:
+                log_parts.append(f", No abstract: {n_no_abstract}")
+            if issn_filter and n_no_match > 0:
+                log_parts.append(f", No ISSN match: {n_no_match}")
+            if sample_rate is not None and sample_rate < 1.0 and n_skipped > 0:
+                log_parts.append(f", Skipped by sampling: {n_skipped}")
+            log_parts.append(")")
+
+            log.info(''.join(log_parts))
 
         # Final summary
         summary_parts = [f"{total_inserted} inserted"]
@@ -256,6 +297,9 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
 
         if sample_rate is not None and sample_rate < 1.0:
             summary_parts.append(f"{total_skipped_sampling} skipped by sampling (rate: {sample_rate:.1%})")
+
+        if issn_filter and total_no_matching_issn > 0:
+            summary_parts.append(f"{total_no_matching_issn} filtered (no ISSN match)")
 
         log.info(f"Import complete: {', '.join(summary_parts)}")
 

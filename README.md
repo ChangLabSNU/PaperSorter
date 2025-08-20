@@ -135,40 +135,70 @@ papersorter init --drop-existing
 
 ## Getting Started
 
-### Quick Start for New Users
+### Recommended Setup Workflow for New Users
 
-For a brand new installation, follow this recommended workflow:
+For optimal model performance, follow this comprehensive workflow that uses a two-stage training process:
+
+#### Stage 1: Initial Model Training (Similarity-based)
 
 ```bash
 # 1. Initialize database
 papersorter init
 
-# 2. Import PubMed data (10% sample by default)
-papersorter import pubmed
+# 2. Import PubMed data with specific ISSNs for your field (target ~10,000 articles)
+# Find relevant journal ISSNs from the JOURNALS file or PubMed
+papersorter import pubmed --issn 1476-4687 --issn 0036-8075 --issn 1097-6256 --files 20
 
-# 3. Generate embeddings for the imported articles
-papersorter predict --count 10000
+# 3. Generate embeddings for all imported articles (essential for search and training)
+papersorter predict --all  # or --count 10000
 
 # 4. Start web interface
 papersorter serve --skip-authentication yourname@domain.com
 
-# 5. Label some papers as "interested" using the web interface
-# Use semantic search to find papers in your field:
+# 5. Find and label 5-10 diverse "interested" papers using semantic search
 # - Go to http://localhost:5001
-# - Use the search box to find papers (e.g., "CRISPR gene editing")
-# - Mark relevant papers as "Interested"
+# - Use search to find papers across different aspects of your research
+# - Examples: "CRISPR gene editing", "protein folding", "neural networks"
+# - Mark 5-10 papers as "Interested" (diversity is crucial!)
 
-# 6. Train your first model
-papersorter train --name "Initial Model"
+# 6. Create first labeling session based on similarity to interested papers
+papersorter labeling create --sample-size 200
 
-# 7. Generate predictions with the new model
+# 7. Complete the labeling session in the web interface
+# - Go to http://localhost:5001/labeling
+# - Label all 200 papers as "Interested" or "Not Interested"
+
+# 8. Train your initial model
+papersorter train --name "Initial Model v1"
+
+# 9. Generate predictions with the initial model
+papersorter predict
+```
+
+#### Stage 2: Model Refinement (Prediction-based) - Highly Recommended
+
+```bash
+# 10. Create second labeling session based on model predictions
+papersorter labeling create --base-model 1 --sample-size 1000
+
+# 11. Complete the second labeling session
+# - Go to http://localhost:5001/labeling
+# - Label all 1000 papers (this refines the model significantly)
+
+# 12. Train improved model with larger dataset
+papersorter train --name "Production Model v1"
+
+# 13. Generate final predictions
 papersorter predict
 
-# 8. (Optional) Second round for better accuracy:
-# - Mark more papers as "Interested" AND "Not Interested"
-# - Retrain: papersorter train --name "Improved Model"
-# - Predict: papersorter predict
+# 14. Set up notifications and regular operations
+# Configure channels, thresholds, and feed sources in the web interface
 ```
+
+**Note**: Stage 2 (steps 10-13) can be omitted but is highly recommended as it:
+- Prevents overfitting to the initial small set of papers
+- Creates a more generalized model
+- Significantly improves prediction accuracy
 
 ### Detailed Setup Guide
 
