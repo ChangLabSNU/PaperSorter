@@ -7,4 +7,5 @@ __all__ = [
     "serve",
     "test",
     "import",
+    "labeling",
 ]
