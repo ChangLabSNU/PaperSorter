@@ -577,3 +577,158 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
     finally:
         cursor.close()
         db.close()
+
+
+@main.command("clear")
+@click.option(
+    "--labeler-user-id", type=int, required=True,
+    help="User ID whose labeling session to clear"
+)
+@click.pass_context
+def clear_labeling_session(ctx, labeler_user_id):
+    """Clear labeling session for a specific user and show statistics.
+
+    This command:
+    1. Finds all labeling sessions for the specified user
+    2. Shows statistics about labeled vs unlabeled items
+    3. Removes all associated records from labeling_sessions table
+    """
+    config_path = ctx.parent.params["config"]
+
+    # Load database configuration
+    with open(config_path, "r") as f:
+        config_data = yaml.safe_load(f)
+
+    db_config = config_data.get("db", {})
+
+    try:
+        # Connect to database
+        db = psycopg2.connect(
+            host=db_config["host"],
+            database=db_config["database"],
+            user=db_config["user"],
+            password=db_config["password"],
+        )
+        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # First, get statistics about the current session
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total_items,
+                COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
+                COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
+                COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
+                COUNT(CASE WHEN score < 0.5 THEN 1 END) as not_interested_items,
+                MIN(update_time) as first_label_time,
+                MAX(update_time) as last_label_time
+            FROM labeling_sessions
+            WHERE user_id = %s
+        """, (labeler_user_id,))
+
+        stats = cursor.fetchone()
+
+        if not stats or stats["total_items"] == 0:
+            log.info(f"No labeling session found for user ID {labeler_user_id}")
+            cursor.close()
+            db.close()
+            return
+
+        # Get user information
+        cursor.execute("""
+            SELECT username
+            FROM users
+            WHERE id = %s
+        """, (labeler_user_id,))
+
+        user_info = cursor.fetchone()
+        username = user_info["username"] if user_info else f"User {labeler_user_id}"
+
+        # Display statistics before deletion
+        log.info("="*60)
+        log.info("Labeling Session Statistics")
+        log.info("="*60)
+        log.info(f"User: {username} (ID: {labeler_user_id})")
+        log.info(f"Total items in session: {stats['total_items']}")
+        log.info(f"Labeled items: {stats['labeled_items']} ({stats['labeled_items']*100/stats['total_items']:.1f}%)")
+        log.info(f"Unlabeled items: {stats['unlabeled_items']} ({stats['unlabeled_items']*100/stats['total_items']:.1f}%)")
+
+        if stats['labeled_items'] > 0:
+            log.info("")
+            log.info("Label distribution:")
+            log.info(f"  Interested: {stats['interested_items']} ({stats['interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
+            log.info(f"  Not interested: {stats['not_interested_items']} ({stats['not_interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
+
+            if stats['first_label_time'] and stats['last_label_time']:
+                log.info("")
+                log.info(f"First label: {stats['first_label_time']}")
+                log.info(f"Last label: {stats['last_label_time']}")
+
+                # Calculate session duration if both timestamps exist
+                if stats['first_label_time'] != stats['last_label_time']:
+                    duration = stats['last_label_time'] - stats['first_label_time']
+                    hours = duration.total_seconds() / 3600
+                    if hours >= 1:
+                        log.info(f"Session duration: {hours:.1f} hours")
+                    else:
+                        minutes = duration.total_seconds() / 60
+                        log.info(f"Session duration: {minutes:.0f} minutes")
+
+        # Get a sample of labeled items for reference
+        if stats['labeled_items'] > 0:
+            cursor.execute("""
+                SELECT
+                    f.title,
+                    ls.score
+                FROM labeling_sessions ls
+                JOIN feeds f ON ls.feed_id = f.id
+                WHERE ls.user_id = %s AND ls.score IS NOT NULL
+                ORDER BY ls.update_time DESC
+                LIMIT 5
+            """, (labeler_user_id,))
+
+            recent_labels = cursor.fetchall()
+            if recent_labels:
+                log.info("")
+                log.info("Last 5 labeled items:")
+                for item in recent_labels:
+                    label = "Interested" if item["score"] >= 0.5 else "Not interested"
+                    title = item["title"][:80] + "..." if len(item["title"]) > 80 else item["title"]
+                    log.info(f"  [{label:15s}] {title}")
+
+        # Ask for confirmation
+        log.info("")
+        log.info("="*60)
+        log.warning(f"This will permanently delete {stats['total_items']} items from the labeling session.")
+        log.warning("Note: Labels already saved to preferences table will be preserved.")
+
+        if not click.confirm("Do you want to proceed with clearing this session?"):
+            log.info("Operation cancelled.")
+            cursor.close()
+            db.close()
+            return
+
+        # Delete the labeling session
+        cursor.execute("""
+            DELETE FROM labeling_sessions
+            WHERE user_id = %s
+        """, (labeler_user_id,))
+
+        deleted_count = cursor.rowcount
+        db.commit()
+
+        log.info("")
+        log.info("="*60)
+        log.info(f"Successfully cleared labeling session for {username}")
+        log.info(f"Deleted {deleted_count} items from labeling_sessions table")
+        log.info("="*60)
+
+        cursor.close()
+        db.close()
+
+    except Exception as e:
+        log.error(f"Failed to clear labeling session: {e}")
+        if 'db' in locals():
+            db.rollback()
+            cursor.close()
+            db.close()
+        raise
