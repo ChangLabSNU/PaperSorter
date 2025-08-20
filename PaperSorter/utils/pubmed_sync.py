@@ -37,7 +37,7 @@ import os
 from pathlib import Path
 import gzip
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional, Generator, Union
+from typing import Optional, Generator, Union
 import pandas as pd
 from ..log import log
 
@@ -249,7 +249,8 @@ def extract_article_info(article_element):
         'journal': '',
         'abstract': '',
         'url': '',
-        'pub_date': ''
+        'pub_date': '',
+        'issns': []  # List of ISSNs (can have print and electronic)
     }
 
     try:
@@ -314,6 +315,22 @@ def extract_article_info(article_element):
                 journal_elem = article_element.find('.//MedlineJournalInfo/MedlineTA')
                 if journal_elem is not None:
                     info['journal'] = journal_elem.text.strip()
+
+        # Extract ISSNs (both print and electronic)
+        issns = []
+        journal = article_element.find('.//Journal')
+        if journal is not None:
+            # Look for ISSN elements with IssnType attribute
+            for issn_elem in journal.findall('.//ISSN'):
+                if issn_elem.text:
+                    issns.append(issn_elem.text.strip())
+        # Also check MedlineJournalInfo for ISSNLinking
+        issn_linking = article_element.find('.//MedlineJournalInfo/ISSNLinking')
+        if issn_linking is not None and issn_linking.text:
+            issns.append(issn_linking.text.strip())
+        # Remove duplicates while preserving order
+        seen = set()
+        info['issns'] = [x for x in issns if not (x in seen or seen.add(x))]
 
         # Extract Abstract
         abstract_texts = []
@@ -444,10 +461,10 @@ def parse_pubmed_xml_chunked(filepath: Union[str, Path], chunksize: int = 1000) 
     except ET.ParseError as e:
         log.error(f"XML parsing error in {filepath}: {e}")
         # Return empty DataFrame on error
-        yield pd.DataFrame(columns=['pmid', 'title', 'authors', 'journal', 'pub_date', 'abstract', 'url'])
+        yield pd.DataFrame(columns=['pmid', 'title', 'authors', 'journal', 'pub_date', 'abstract', 'url', 'issns'])
     except Exception as e:
         log.error(f"Error processing file {filepath}: {e}")
-        yield pd.DataFrame(columns=['pmid', 'title', 'authors', 'journal', 'pub_date', 'abstract', 'url'])
+        yield pd.DataFrame(columns=['pmid', 'title', 'authors', 'journal', 'pub_date', 'abstract', 'url', 'issns'])
 
 
 def parse_pubmed_directory_chunked(directory: Union[str, Path], chunksize: int = 1000,

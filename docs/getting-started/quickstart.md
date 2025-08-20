@@ -1,326 +1,302 @@
 # Quick Start Guide
 
-Get PaperSorter up and running in 15 minutes! This guide provides the fastest path to a working recommendation system.
+Get PaperSorter up and running with optimal performance using our comprehensive two-stage training workflow.
 
-## Fast Track Setup (New Users)
+## Prerequisites
 
-### Complete Initial Setup
+- PostgreSQL 12+ with pgvector extension
+- Python 3.8+
+- ~10,000 articles for training (provided via PubMed import)
+
+## Complete Setup Workflow
+
+### Stage 1: Initial Model Training (Similarity-based)
+
+#### Step 1: Initialize and Import Data (~5 minutes)
 
 ```bash
-# 1. Initialize database
+# Initialize database
 papersorter init
 
-# 2. Import PubMed data (fastest way to get started)
-papersorter import pubmed
+# Import PubMed data with specific journal ISSNs for your field
+# Target: ~10,000 articles for good model training
+# Find ISSNs from JOURNALS file or https://www.ncbi.nlm.nih.gov/nlmcatalog/
 
-# 3. Generate embeddings (essential!)
-papersorter predict --count 10000
+# Example for neuroscience/biology:
+papersorter import pubmed \
+  --issn 1476-4687 \  # Nature
+  --issn 0036-8075 \  # Science
+  --issn 1097-6256 \  # Nature Neuroscience
+  --issn 0896-6273 \  # Neuron
+  --files 20          # Download 20 recent update files
 
-# 4. Start web interface
-papersorter serve --skip-authentication yourname@domain.com
-
-# 5. Find and label papers in your field
-# Go to http://localhost:5001
-# Use search box: "your research keywords"
-# Mark 10-20 papers as "Interested"
-
-# 6. Train your first model
-papersorter train --name "My First Model"
-
-# 7. Generate predictions
-papersorter predict
-
-# Done! Your system is now recommending papers
+# Example for computer science/AI:
+papersorter import pubmed \
+  --issn 2640-3498 \  # Nature Machine Intelligence
+  --issn 1476-4687 \  # Nature
+  --files 20
 ```
 
-## Alternative: RSS Feed Setup
-
-If you prefer using RSS feeds instead of PubMed:
-
-### Step 1: Add Your First Feed
+#### Step 2: Generate Embeddings (~10 minutes)
 
 ```bash
-# Start the web interface
+# Generate embeddings for ALL imported articles
+# This is essential for semantic search and training
+papersorter predict --all
+
+# Alternative if you have limited API credits:
+papersorter predict --count 10000
+```
+
+#### Step 3: Find Diverse Seed Papers (~10 minutes)
+
+```bash
+# Start web interface
 papersorter serve --skip-authentication yourname@domain.com
 
 # Open browser to http://localhost:5001
-# Navigate to Settings > Feed Sources
-# Add RSS feeds (e.g., bioRxiv, arXiv, journal feeds)
 ```
 
-### Step 2: Fetch Papers & Generate Embeddings
+**Critical: Label 5-10 diverse "interested" papers**
+
+Use the search box to find papers across different aspects of your research:
+- Search for different methodologies (e.g., "CRISPR", "RNA sequencing", "proteomics")
+- Search for different topics (e.g., "cancer", "neurodegeneration", "development")
+- Search for different model organisms if applicable
+- Mark 5-10 papers as "Interested" (👍 button)
+
+**Why diversity matters**: The system will find papers similar to your seed papers. Diverse seeds = broader coverage.
+
+#### Step 4: Create First Labeling Session (~1 minute)
 
 ```bash
-# Fetch new papers from feeds
-papersorter update
+# Create labeling session with 100-200 papers similar to your interests
+papersorter labeling create --sample-size 200
 
-# Generate embeddings for semantic search
-papersorter predict --count 1000
-
-# Check what was fetched
-papersorter stats
+# Output will show:
+# - Papers selected from different distance bins
+# - Weighted sampling (4:1 ratio favoring similar papers)
+# - Link to labeling interface
 ```
 
-Expected output:
-```
-Papers in database: 523
-Papers with embeddings: 523
-Papers labeled: 0
-Active feeds: 1
-```
-
-### Step 3: Label Papers Using Search
+#### Step 5: Complete First Labeling (~20 minutes)
 
 ```bash
-# Web interface should already be running
-# Go to http://localhost:5001
-
-# Use semantic search to find relevant papers:
-# - Search: "CRISPR"
-# - Search: "machine learning"
-# - Search: your specific research area
-
-# Mark papers as:
-# 👍 = Interested (for training)
-# 👎 = Not Interested (optional, for better accuracy)
+# Go to http://localhost:5001/labeling
+# You'll see a progress bar: [0/200]
 ```
 
-### Step 4: Train Your First Model
+Label each paper as:
+- **Interested** (👍): Papers you'd want to read
+- **Not Interested** (👎): Papers you'd skip
 
-After labeling 10+ papers as "Interested":
+Tips for labeling:
+- Read title and abstract carefully
+- Consider: "Would I save this paper to read later?"
+- Be consistent with your criteria
+- Don't skip papers - the model needs complete data
+
+#### Step 6: Train Initial Model (~2 minutes)
 
 ```bash
-# Train the model (name is required!)
-papersorter train --name "Initial Model"
+# Train your first model
+papersorter train --name "Initial Model v1"
 
 # The system will:
-# - Detect you only have positive labels
-# - Automatically use unlabeled papers as negatives
-# - Create a balanced training set
+# - Use your ~200 labeled papers
+# - Balance positive and negative examples
+# - Create an XGBoost model
+# - Show ROC-AUC score (aim for >0.8)
 ```
 
-### Step 5: Get Recommendations
+#### Step 7: Generate Initial Predictions (~5 minutes)
 
 ```bash
-# Process papers and queue notifications
-papersorter update
+# Generate predictions for all papers
+papersorter predict
 
-# Send notifications (if configured)
-papersorter broadcast
+# This will:
+# - Score all papers using your model
+# - Queue high-scoring papers for notifications
+# - Enable "predicted score" sorting in web UI
 ```
 
-## Basic Workflow
+### Stage 2: Model Refinement (Highly Recommended)
 
-### Daily Routine
+This stage significantly improves model generalization and prevents overfitting.
+
+#### Step 8: Create Prediction-Based Labeling Session (~1 minute)
 
 ```bash
-# Morning: Fetch new papers and get recommendations
-papersorter update
-papersorter broadcast
+# Create larger session based on model predictions
+# Uses your Initial Model (ID: 1) to select diverse papers
+papersorter labeling create --base-model 1 --sample-size 1000
 
-# Throughout the day: Label interesting papers via web UI
-# Evening: Retrain model with new labels
-papersorter train
+# This selects papers across the prediction score spectrum:
+# - High-scoring papers (to verify true positives)
+# - Medium-scoring papers (boundary cases)
+# - Low-scoring papers (to verify true negatives)
 ```
 
-### Automated Setup (Cron)
+#### Step 9: Complete Second Labeling (~60-90 minutes)
 
 ```bash
-# Edit crontab
+# Go to http://localhost:5001/labeling
+# Progress bar: [0/1000]
+```
+
+This larger labeling session:
+- Refines the model's understanding of your preferences
+- Corrects false positives and false negatives
+- Provides much more training data
+
+Take breaks if needed - your progress is saved automatically.
+
+#### Step 10: Train Production Model (~2 minutes)
+
+```bash
+# Train refined model with full dataset
+papersorter train --name "Production Model v1"
+
+# With ~1200 labeled papers, expect:
+# - ROC-AUC score >0.85
+# - Better generalization to new papers
+# - More consistent predictions
+```
+
+#### Step 11: Generate Final Predictions (~5 minutes)
+
+```bash
+# Generate predictions with refined model
+papersorter predict
+
+# Check model performance in web UI:
+# - Sort by predicted score
+# - High-scoring papers should match your interests
+```
+
+### Stage 3: Configure Notifications
+
+#### Step 12: Set Up Channels
+
+In web interface (Settings → Channels):
+```yaml
+Channel Name: daily-digest
+Webhook URL: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+Score Threshold: 0.7  # Only papers scoring >0.7
+Model: Production Model v1
+Broadcast Hours: 9-10  # Send between 9-10 AM
+```
+
+#### Step 13: Schedule Regular Operations
+
+```bash
+# Add to crontab for automation
 crontab -e
 
-# Add these lines:
-# Fetch papers every 6 hours
-0 */6 * * * /path/to/venv/bin/papersorter update
+# Fetch new papers and generate predictions (every 6 hours)
+0 */6 * * * /path/to/papersorter update
 
-# Send morning digest at 9 AM
-0 9 * * * /path/to/venv/bin/papersorter broadcast
+# Send notifications (every hour - respects broadcast_hours)
+0 * * * * /path/to/papersorter broadcast
 
-# Retrain model weekly on Sunday night
-0 2 * * 0 /path/to/venv/bin/papersorter train
+# Weekly model retraining (Sunday night)
+0 2 * * 0 /path/to/papersorter train --name "Weekly Update"
 ```
 
-## Essential Commands
+## Time Investment Summary
 
-### Information Commands
+- **Stage 1** (Required): ~45 minutes active time
+  - Import & embeddings: 15 min (mostly waiting)
+  - Finding seed papers: 10 min
+  - First labeling: 20 min
+  
+- **Stage 2** (Recommended): ~90 minutes active time
+  - Second labeling: 60-90 min
+  - Can be split across multiple sessions
 
+- **Total**: ~2.5 hours for a production-ready system
+
+## Expected Results
+
+After completing both stages:
+- **Precision**: 80-90% of recommended papers are relevant
+- **Recall**: Catches most papers in your field
+- **Daily digest**: 2-5 highly relevant papers per day
+- **Generalization**: Works well on new journals/topics
+
+## Quick Troubleshooting
+
+### Not enough papers imported
 ```bash
-# Show statistics
-papersorter stats
-
-# List active feeds
-papersorter list-feeds
-
-# Show recent papers
-papersorter recent --limit 10
-
-# Search papers
-papersorter search "transformer attention"
+# Import more files or reduce sampling rate
+papersorter import pubmed --files 30 --sample-rate 0.2
 ```
 
-### Management Commands
-
-```bash
-# Update papers from feeds
-papersorter update [OPTIONS]
-  --limit-sources N    # Process only N sources
-  --batch-size N       # Papers per batch (default: 50)
-
-# Train model
-papersorter train [OPTIONS]
-  -r, --rounds N       # XGBoost rounds (default: 100)
-  -o, --output FILE    # Model file path
-
-# Send notifications
-papersorter broadcast [OPTIONS]
-  --limit N            # Max items per channel
-  --dry-run           # Preview without sending
-```
-
-## Configuration Basics
-
-### Minimal config.yml
-
-```yaml
-# Database (required)
-db:
-  type: postgres
-  host: localhost
-  user: papersorter
-  database: papersorter
-  password: "your_password"
-
-# Web interface (required for labeling)
-web:
-  base_url: "http://localhost:5001"
-  flask_secret_key: "generate_random_key_here"
-
-# Embeddings (required for ML)
-embedding_api:
-  api_key: "your_openai_api_key"
-  model: "text-embedding-3-small"  # Cheaper option
-```
-
-### Adding Slack Notifications
-
-```yaml
-# In web interface: Settings > Channels
-# Or add to database directly:
-```
-
-```sql
-INSERT INTO channels (name, webhook_url, is_active, score_threshold)
-VALUES (
-  'research-papers',
-  'https://hooks.slack.com/services/YOUR/WEBHOOK/URL',
-  TRUE,
-  3.5  -- Only papers scored > 3.5
-);
-```
-
-## Quick Tips
-
-### Performance Optimization
-
-```bash
-# Process feeds in parallel
-papersorter update --parallel --workers 4
-
-# Limit embedding dimensions for faster search
-# In config.yml:
-embedding_api:
-  dimensions: 1536  # Smaller = faster
-```
-
-### Debugging Issues
-
-```bash
-# Verbose output
-papersorter -v update
-
-# Check logs
-tail -f papersorter.log
-
-# Test specific component
-papersorter test-db
-papersorter test-embedding --text "test"
-```
-
-### Managing Multiple Models
-
-```bash
-# Train model for specific topic
-papersorter train -o models/ml_model.pkl --filter "machine learning"
-
-# Use different model for channel
-# In database:
-UPDATE channels SET model_id = 2 WHERE name = 'ml-papers';
-```
-
-## Common Workflows
-
-### Research Group Setup
-
-1. **Shared Database**: Multiple users label papers
-2. **Personalized Models**: Each user trains their own model
-3. **Group Channels**: Shared Slack channels for different topics
-
-### Personal Research Assistant
-
-1. **Morning Digest**: Daily email with top papers
-2. **Weekly Training**: Retrain model with week's labels
-3. **Archive Search**: Find similar papers to interesting ones
-
-### Conference Tracking
-
-1. **Conference Feeds**: Add RSS for specific conferences
-2. **Deadline Reminders**: Set up notification timing
-3. **Collaboration**: Share interesting papers with team
-
-## Troubleshooting Quick Fixes
-
-### No Papers Fetched
-```bash
-# Check feed is active
-papersorter list-feeds --active
-
-# Test feed manually
-curl -I "http://arxiv.org/rss/cs"
-
-# Force update
-papersorter update --force --limit-sources 1
-```
-
-### Model Not Improving
+### Model performance is poor
 ```bash
 # Check label distribution
-papersorter label-stats
+papersorter labeling stats
 
-# Need diverse labels (not all 5-star)
-# Aim for: 20% five-star, 60% middle, 20% one-star
+# Need balance: aim for 30-40% interested papers
+# If too skewed, label more of the minority class
 ```
 
-### Notifications Not Sending
+### Predictions seem random
 ```bash
-# Test webhook
-papersorter test-webhook --channel "channel-name"
+# Ensure embeddings exist for all papers
+papersorter predict --all --force
 
-# Check broadcast hours (if configured)
-# Notifications only send during configured hours
+# Retrain with more data
+papersorter train --name "Improved Model" --rounds 1500
+```
+
+## Advanced Tips
+
+### Using Multiple Models
+
+```bash
+# Train specialized models for different topics
+papersorter train --name "Cancer Research" --user-id 1
+papersorter train --name "Methods Papers" --user-id 2
+
+# Assign different models to different channels
+# In web UI: Settings → Channels → Edit → Model Selection
+```
+
+### Collaborative Labeling
+
+```bash
+# Multiple users can label papers
+# Train consensus model using all labels
+papersorter train --name "Team Consensus Model"
+
+# Or train on specific users
+papersorter train --name "PI Preferences" --user-id 1 --user-id 2
+```
+
+### Continuous Improvement
+
+```bash
+# Weekly workflow:
+# 1. Review the week's recommendations in web UI
+# 2. Mark false positives as "Not Interested"
+# 3. Search for missed papers and mark as "Interested"
+# 4. Retrain model
+
+papersorter train --name "Week $(date +%U) Model"
 ```
 
 ## What's Next?
 
-Now that you have PaperSorter running:
-
-1. **Customize**: See [Configuration Guide](../user-guide/configuration.md)
-2. **Add Sources**: Learn about [Feed Sources](../user-guide/feed-sources.md)
-3. **Improve Model**: Read [Training Models](../user-guide/training-models.md)
-4. **Scale Up**: Check [Deployment Guide](../admin-guide/deployment.md)
+1. **Fine-tune thresholds**: Adjust score thresholds per channel
+2. **Add more sources**: Configure RSS feeds for journals/preprint servers
+3. **Explore features**: Try AI summaries, similar paper search, poster generation
+4. **Scale up**: Deploy with proper web server and HTTPS
 
 ## Getting Help
 
-- 📖 [Full Documentation](../index.rst)
-- 💬 [Community Forum](https://forum.papersorter.org)
-- 🐛 [Report Issues](https://github.com/yourusername/papersorter/issues)
-- 📧 Email: support@papersorter.org
+- Check logs: `tail -f ~/.papersorter/logs/papersorter.log`
+- Database issues: `papersorter test-db`
+- API issues: `papersorter test-embedding --text "test"`
+- Full documentation: [User Guide](../user-guide/index.md)
