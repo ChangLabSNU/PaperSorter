@@ -60,17 +60,22 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 @click.option(
     "--config", "-c", default="./config.yml", help="Database configuration file."
 )
-@click.option("--count", default=500, help="Number of recent feeds to process.")
+@click.option("--count", default=500, help="Number of recent feeds to process (0 for all).")
+@click.option("--all", "process_all", is_flag=True, help="Process all feeds without limit (equivalent to --count 0).")
 @click.option("--batch-size", default=500, help="Batch size for database operations and embedding generation.")
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
-def main(config, count, batch_size, log_file, quiet):
+def main(config, count, process_all, batch_size, log_file, quiet):
     """Generate embeddings and predictions for articles in the database.
 
     Creates vector embeddings for articles and optionally generates interest
     predictions using trained models. Essential for semantic search and recommendations.
     """
     initialize_logging(task="predict", logfile=log_file, quiet=quiet)
+    
+    # Handle --all flag: set count to 0 to process all feeds
+    if process_all:
+        count = 0
 
     # Load configuration
     with open(config, "r") as f:
@@ -96,26 +101,47 @@ def main(config, count, batch_size, log_file, quiet):
     register_vector(db)
 
     # Process feeds in batches to avoid memory issues
-    log.info(f"Processing {count} most recent feeds in batches of {batch_size}...")
+    if count == 0:
+        log.info(f"Processing all feeds in batches of {batch_size}...")
+    else:
+        log.info(f"Processing {count} most recent feeds in batches of {batch_size}...")
 
     feeds_with_embeddings = []
     feeds_without_embeddings = []
     total_processed = 0
+    offset = 0
 
-    # Process in batches using OFFSET and LIMIT
-    for offset in range(0, count, batch_size):
-        current_batch_size = min(batch_size, count - offset)
-
-        cursor.execute(
-            """
-            SELECT f.*, e.embedding
-            FROM feeds f
-            LEFT JOIN embeddings e ON f.id = e.feed_id
-            ORDER BY f.added DESC
-            LIMIT %s OFFSET %s
-        """,
-            (current_batch_size, offset),
-        )
+    # Process in batches - handle count=0 (all feeds) specially
+    while True:
+        # Determine batch size and query
+        if count == 0:
+            # Process all feeds - no total limit
+            cursor.execute(
+                """
+                SELECT f.*, e.embedding
+                FROM feeds f
+                LEFT JOIN embeddings e ON f.id = e.feed_id
+                ORDER BY f.added DESC
+                LIMIT %s OFFSET %s
+            """,
+                (batch_size, offset),
+            )
+        else:
+            # Process specific count
+            current_batch_size = min(batch_size, count - offset)
+            if current_batch_size <= 0:
+                break
+                
+            cursor.execute(
+                """
+                SELECT f.*, e.embedding
+                FROM feeds f
+                LEFT JOIN embeddings e ON f.id = e.feed_id
+                ORDER BY f.added DESC
+                LIMIT %s OFFSET %s
+            """,
+                (current_batch_size, offset),
+            )
 
         batch_feeds = cursor.fetchall()
 
@@ -130,9 +156,14 @@ def main(config, count, batch_size, log_file, quiet):
                 feeds_with_embeddings.append(feed)
 
         total_processed += len(batch_feeds)
+        offset += len(batch_feeds)
 
-        if len(batch_feeds) < current_batch_size:
-            # No more feeds available
+        # For specific count, check if we've reached the limit
+        if count > 0 and total_processed >= count:
+            break
+
+        # If we got fewer feeds than batch_size, we've reached the end
+        if len(batch_feeds) < batch_size:
             break
 
     if total_processed == 0:
