@@ -54,26 +54,44 @@ The system consists of several key components:
 pip install -e .
 ```
 
-### Initial Setup Workflow (New Users)
+### Recommended Initial Setup Workflow (New Users)
 ```bash
+# Stage 1: Initial Model Training (Similarity-based)
 # 1. Initialize database
 papersorter init
 
-# 2. Import initial data
-papersorter import pubmed  # Downloads recent PubMed updates (10% sample by default)
+# 2. Import PubMed data with relevant ISSNs (target ~10,000 articles)
+papersorter import pubmed --issn 1476-4687 --issn 0036-8075 --files 20
 
-# 3. Generate embeddings for semantic search and training
-papersorter predict --count 10000
+# 3. Generate embeddings for all articles
+papersorter predict --all
 
-# 4. Start web interface and label papers
+# 4. Start web interface
 papersorter serve --skip-authentication user@example.com
-# Use semantic search to find papers in your field
-# Mark 10-20 papers as "Interested"
 
-# 5. Train initial model (auto-handles lack of negative labels)
-papersorter train --name "Initial Model"
+# 5. Use semantic search to find and mark 5-10 diverse papers as "Interested"
 
-# 6. Generate predictions
+# 6. Create labeling session based on similarity
+papersorter labeling create --sample-size 200
+
+# 7. Complete labeling session at /labeling
+
+# 8. Train initial model
+papersorter train --name "Initial Model v1"
+
+# 9. Generate predictions
+papersorter predict
+
+# Stage 2: Model Refinement (Prediction-based) - Highly Recommended
+# 10. Create second labeling session based on predictions
+papersorter labeling create --base-model 1 --sample-size 1000
+
+# 11. Complete second labeling session
+
+# 12. Train refined model
+papersorter train --name "Production Model v1"
+
+# 13. Generate final predictions
 papersorter predict
 ```
 
@@ -118,7 +136,17 @@ python -m black PaperSorter/         # Code formatting
   - `--pseudo-weight` (default: 0.5): Weight for pseudo-labeled data
 - `predict`:
   - `--count`: Number of articles to process (useful for initial setup)
+  - `--all`: Process all feeds without limit (equivalent to --count 0)
   - `--force`: Force re-prediction even if predictions exist
+- `labeling create`:
+  - `--sample-size` (default: 1000): Number of feeds for labeling session
+  - `--bins` (default: 10): Number of distance/score bins for sampling
+  - `--score-threshold` (default: 0.5): Threshold for considering feeds as interested
+  - `--user-id` (multiple): Filter preferences by user IDs
+  - `--labeler-user-id`: User to assign the session to
+  - `--base-model`: Model ID for score-based sampling instead of distance-based
+- `labeling clear`:
+  - `--labeler-user-id` (required): User whose session to clear
 - `update`: `--batch-size`, `--limit-sources` (max sources to scan), `--check-interval-hours` (check interval)
 - `broadcast`: `--limit` (max items to process per channel), `--max-content-length`, `--clear-old-days` (default: 30)
 - `serve`: `--host` (default: 0.0.0.0), `--port` (default: 5001), `--debug`, `--skip-authentication` (dev mode)
