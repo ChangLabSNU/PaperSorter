@@ -28,6 +28,27 @@
             padding: 20px;
             text-align: center;
         }
+        
+        .back-button {
+            position: fixed;
+            right: 30px;
+            bottom: 140px;  /* Position above the control panel with extra padding */
+            padding: 12px 20px;
+            background: #34495e;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        
+        .back-button:hover {
+            background: #3498db;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
 
         .progress {
             background: #34495e;
@@ -280,6 +301,8 @@
             Use keyboard shortcuts: Z/. = Interesting, X// = Not Interesting, Space = Skip, V = Visit, Backspace = Previous
         </div>
     </div>
+
+    <a href="/" class="back-button">← Back to Feed List</a>
 
     <script>
         let currentItemId = null;
