@@ -89,6 +89,33 @@
 </head>
 <body>
     <div class="container">
+        {% if stats.total == 0 %}
+        <div class="success-icon" style="color: #e67e22;">📋</div>
+        <div class="title">No Labeling Session</div>
+        <div class="message">
+            There are no items in the labeling session. To create a new labeling session, run the following command:
+        </div>
+        
+        <div class="stats" style="text-align: left; font-family: monospace;">
+            <div style="margin-bottom: 15px; color: #2c3e50;">
+                <strong>For similarity-based sampling (initial training):</strong>
+            </div>
+            <div style="background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                papersorter labeling create --sample-size 200
+            </div>
+            
+            <div style="margin-bottom: 15px; color: #2c3e50;">
+                <strong>For model-based sampling (refinement):</strong>
+            </div>
+            <div style="background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px;">
+                papersorter labeling create --base-model 1 --sample-size 1000
+            </div>
+        </div>
+        
+        <div class="message" style="font-size: 14px; margin-top: 20px;">
+            After creating a labeling session, return here to start labeling papers.
+        </div>
+        {% else %}
         <div class="success-icon">✓</div>
         <div class="title">Labeling Complete!</div>
         <div class="message">
@@ -109,8 +136,9 @@
                 <span class="stat-value">{{ "%.1f"|format(stats.progress) }}%</span>
             </div>
         </div>
+        {% endif %}
 
-        <a href="/" class="btn">Check for New Items</a>
+        <a href="/" class="btn">Back to Feed List</a>
     </div>
 </body>
 </html>
