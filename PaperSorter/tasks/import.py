@@ -46,7 +46,7 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
         if pd.notna(row['pub_date']) and row['pub_date']:
             try:
                 pub_date = pd.to_datetime(row['pub_date'])
-            except:
+            except (ValueError, TypeError):
                 pub_date = datetime.now()
         else:
             pub_date = datetime.now()
@@ -210,7 +210,7 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
 
                 # Check if any articles remain after ISSN filtering
                 if len(chunk_df) == 0:
-                    log.debug(f"Skipping chunk - no articles matched ISSN filter")
+                    log.debug("Skipping chunk - no articles matched ISSN filter")
                     continue
 
             # Filter out articles without abstracts
