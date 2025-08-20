@@ -37,7 +37,7 @@ import os
 from pathlib import Path
 import gzip
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional, Generator, Union
+from typing import Optional, Generator, Union
 import pandas as pd
 from ..log import log
 

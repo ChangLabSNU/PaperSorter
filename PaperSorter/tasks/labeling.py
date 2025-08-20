@@ -29,6 +29,8 @@ from pgvector.psycopg2 import register_vector
 import yaml
 from ..log import log, initialize_logging
 
+# Module constants
+MIN_INTERESTED_FEEDS = 5  # Minimum number of interested feeds required to create session
 
 @click.group()
 @click.option("--config", default="./config.yml", help="Path to configuration file")
@@ -52,10 +54,6 @@ def main(ctx, config, log_file, quiet):
     help="Number of distance bins for equal sampling (default: 10)"
 )
 @click.option(
-    "--min-interested", default=5, type=int,
-    help="Minimum number of interested feeds required to create session (default: 5)"
-)
-@click.option(
     "--score-threshold", default=0.5, type=float,
     help="Preference score threshold for considering a feed as interested (default: 0.5)"
 )
@@ -68,7 +66,7 @@ def main(ctx, config, log_file, quiet):
     help="User ID to assign the labeling session to. If omitted with single --user-id, uses that user. Otherwise uses oldest admin."
 )
 @click.pass_context
-def create_labeling_session(ctx, sample_size, bins, min_interested, score_threshold, user_id, labeler_user_id):
+def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, labeler_user_id):
     """Create a new labeling session with balanced sampling based on distance to interested feeds.
 
     This command:
@@ -151,9 +149,13 @@ def create_labeling_session(ctx, sample_size, bins, min_interested, score_thresh
                 log.info("You can do this by:")
                 log.info("  1. Running: papersorter serve")
                 log.info("  2. Opening the web interface")
-                log.info("  3. Marking some papers as 'Interested' or 'Not Interested'")
+                log.info("  3. Marking some papers as 'Interested'")
                 log.info("")
-                log.info("After labeling at least 5-10 papers as interested, run this command again.")
+                log.info("TIP: A diverse set of 'interested' papers across different topics and subtopics")
+                log.info("     produces a more efficient labeling dataset and yields better performing models.")
+                log.info("     Consider marking papers from various aspects of your research interests.")
+                log.info("")
+                log.info(f"After labeling at least {MIN_INTERESTED_FEEDS} papers as interested, run this command again.")
             cursor.close()
             db.close()
             return
@@ -203,13 +205,16 @@ def create_labeling_session(ctx, sample_size, bins, min_interested, score_thresh
             db.close()
             return
 
-        if interested_count < min_interested:
-            log.error(f"Not enough interested feeds found{user_filter_msg}. Need at least {min_interested}, found {interested_count}")
+        if interested_count < MIN_INTERESTED_FEEDS:
+            log.error(f"Not enough interested feeds found{user_filter_msg}. Need at least {MIN_INTERESTED_FEEDS}, found {interested_count}")
             log.info("")
             log.info(f"Please label more feeds as interested (score >= {score_threshold}) before creating a session.")
-            log.info("You can:")
-            log.info(f"  1. Label {min_interested - interested_count} more papers as interested")
-            log.info(f"  2. Lower the minimum requirement: --min-interested {interested_count}")
+            log.info("You need to:")
+            log.info(f"  1. Label {MIN_INTERESTED_FEEDS - interested_count} more papers as interested")
+            log.info("")
+            log.info("TIP: For best results, select papers from diverse topics within your field.")
+            log.info("     A varied set of interests helps create a more balanced labeling dataset")
+            log.info("     and ultimately trains a model that better captures your preferences.")
             if user_ids:
                 log.info("  3. Use all users: omit the --user-id option")
             cursor.close()
@@ -552,6 +557,17 @@ def create_labeling_session(ctx, sample_size, bins, min_interested, score_thresh
             log.info(f"Total feeds in session: {stats['total_feeds']}")
             log.info(f"User ID: {session_user_id}")
 
+        # Show link to labeling interface (common for both branches)
+        log.info("")
+        log.info("="*60)
+        log.info("Ready to start labeling!")
+        log.info("")
+        if "web" in config_data and "base_url" in config_data["web"]:
+            base_url = config_data["web"]["base_url"].rstrip('/')
+            log.info(f"Open the labeling interface at: {base_url}/labeling")
+        else:
+            log.info("Open the labeling interface at: http://localhost:5001/labeling")
+            log.info("(Or use: papersorter serve --skip-authentication <username>)")
         log.info("="*60)
 
     except Exception as e:
