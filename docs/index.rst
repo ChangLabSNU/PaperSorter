@@ -23,6 +23,7 @@ Key Features
 - 🎯 **Personalized Models**: Train custom models for different research areas
 - 🌐 **Web Interface**: User-friendly labeling and management interface
 - 🔍 **Semantic Search**: Find related papers using embedding similarity
+- 📄 **Search from PDF**: Select text from PDFs to find similar papers (Paper Connect)
 
 Quick Start
 ===========
@@ -66,6 +67,7 @@ Documentation Overview
    user-guide/feed-sources
    user-guide/training-models
    user-guide/notifications
+   user-guide/search-from-pdf
    user-guide/web-interface
    user-guide/workflows
 

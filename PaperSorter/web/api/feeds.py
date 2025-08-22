@@ -221,16 +221,23 @@ def api_star_feed(feed_id):
                     (feed_id, user_id),
                 )
 
-            # When starring, add to broadcasts table for user's primary channel (if set)
+            # When starring, add to broadcasts table for user's primary channel (if set and valid)
             if current_user.primary_channel_id:
+                # First check if the channel exists
                 cursor.execute(
-                    """
-                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                    VALUES (%s, %s, NULL)
-                    ON CONFLICT (feed_id, channel_id) DO NOTHING
-                """,
-                    (feed_id, current_user.primary_channel_id),
+                    "SELECT id FROM channels WHERE id = %s",
+                    (current_user.primary_channel_id,)
                 )
+                if cursor.fetchone():
+                    # Channel exists, safe to insert
+                    cursor.execute(
+                        """
+                        INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                        VALUES (%s, %s, NULL)
+                        ON CONFLICT (feed_id, channel_id) DO NOTHING
+                    """,
+                        (feed_id, current_user.primary_channel_id),
+                    )
 
         conn.commit()
         cursor.close()

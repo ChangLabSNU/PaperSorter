@@ -24,6 +24,7 @@ PaperSorter helps you:
    feed-sources
    training-models
    notifications
+   search-from-pdf
    web-interface
    workflows
 
