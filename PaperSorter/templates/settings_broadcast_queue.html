@@ -83,6 +83,7 @@
         .stat-info {
             display: flex;
             flex-direction: column;
+            min-width: 140px;
         }
 
         .stat-value {
@@ -90,10 +91,13 @@
             font-weight: bold;
             color: #2c3e50;
         }
-
-        .stat-label {
+        
+        .stat-value .stat-label {
             font-size: 14px;
             color: #7f8c8d;
+            white-space: nowrap;
+            font-weight: normal;
+            margin-left: 4px;
         }
 
         .btn {
@@ -120,19 +124,19 @@
         }
 
         .btn-warning {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #95a5a6;
             color: white;
             padding: 5px 15px;
             font-size: 14px;
             line-height: 1.4;
             border: none;
-            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             transition: all 0.3s ease;
         }
 
         .btn-warning:hover {
-            background: linear-gradient(135deg, #5a67d8 0%, #6b4196 100%);
-            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+            background: #7f8c8d;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
             transform: translateY(-1px);
         }
 
@@ -346,15 +350,13 @@
                 <div class="stat-item">
                     <div class="stat-icon">📮</div>
                     <div class="stat-info">
-                        <div class="stat-value" id="totalCount">0</div>
-                        <div class="stat-label">Items in Queue</div>
+                        <div class="stat-value"><span id="totalCount">0</span> <span class="stat-label">Items in Queue</span></div>
                     </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-icon">📡</div>
                     <div class="stat-info">
-                        <div class="stat-value" id="channelCount">0</div>
-                        <div class="stat-label">Channels</div>
+                        <div class="stat-value"><span id="channelCount">0</span> <span class="stat-label">Channels</span></div>
                     </div>
                 </div>
             </div>
@@ -492,95 +494,35 @@
                 channelGroups[key].items.push(item);
             });
 
-            // Build HTML with channel groups
-            let showGroups = Object.keys(channelGroups).length > 1;
-
-            if (showGroups) {
-                // Multiple channels - show grouped layout
-                let groupsHtml = Object.entries(channelGroups).map(([channelId, channel]) => `
-                    <div class="channel-group">
-                        <table class="data-table">
-                            <thead>
-                                <tr class="channel-divider">
-                                    <td colspan="4">
-                                        <strong>${channel.name}</strong>
-                                        <span class="channel-badge ${getChannelTypeClass(channel.endpoint)}" style="margin-left: 10px;">
-                                            ${getChannelTypeLabel(channel.endpoint)}
-                                        </span>
-                                        <div class="channel-header-controls">
-                                            <span class="channel-item-count">${channel.items.length} item${channel.items.length !== 1 ? 's' : ''}</span>
-                                            <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
-                                                    title="Remove all items from this channel's queue">
-                                                Empty
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${channel.items.map(item => `
-                                    <tr>
-                                        <td style="width: 50%">
-                                            <a href="${item.link}" target="_blank" class="article-title">${item.title}</a>
-                                            <div class="article-meta">
-                                                ${formatAuthors(item.author)} • ${item.origin}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="score-badge ${getScoreClass(item.score || 0)}">
-                                                ${item.score ? item.score.toFixed(3) : 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td>${formatDate(item.published)}</td>
-                                        <td>
-                                            <button class="btn btn-danger"
-                                                    onclick="removeFromQueue(${item.feed_id}, ${item.channel_id})"
-                                                    title="Remove from broadcast queue">
-                                                Remove
-                                            </button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `).join('');
-
-                container.innerHTML = groupsHtml;
-            } else {
-                // Single channel - show regular table
-                const channelId = Object.keys(channelGroups)[0];
-                const channel = channelGroups[channelId];
-                const allItems = channel?.items || [];
-                container.innerHTML = `
+            // Build HTML with channel groups - always show grouped layout
+            let groupsHtml = Object.entries(channelGroups).map(([channelId, channel]) => `
+                <div class="channel-group">
                     <table class="data-table">
                         <thead>
-                            <tr>
-                                <th style="width: 40%">Article</th>
-                                <th>Channel</th>
-                                <th>Score</th>
-                                <th>Published</th>
-                                <th>
-                                    Actions
-                                    <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
-                                            title="Remove all items from this channel's queue"
-                                            style="float: right;">
-                                        Empty Queue
-                                    </button>
-                                </th>
+                            <tr class="channel-divider">
+                                <td colspan="4">
+                                    <strong>${channel.name}</strong>
+                                    <span class="channel-badge ${getChannelTypeClass(channel.endpoint)}" style="margin-left: 10px;">
+                                        ${getChannelTypeLabel(channel.endpoint)}
+                                    </span>
+                                    <div class="channel-header-controls">
+                                        <span class="channel-item-count">${channel.items.length} item${channel.items.length !== 1 ? 's' : ''}</span>
+                                        <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
+                                                title="Remove all items from this channel's queue">
+                                            Empty
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         </thead>
                         <tbody>
-                            ${allItems.map(item => `
+                            ${channel.items.map(item => `
                                 <tr>
-                                    <td>
+                                    <td style="width: 50%">
                                         <a href="${item.link}" target="_blank" class="article-title">${item.title}</a>
                                         <div class="article-meta">
                                             ${formatAuthors(item.author)} • ${item.origin}
                                         </div>
-                                    </td>
-                                    <td>
-                                        <span class="channel-badge ${getChannelTypeClass(item.channel_endpoint)}">${item.channel_name}</span>
                                     </td>
                                     <td>
                                         <span class="score-badge ${getScoreClass(item.score || 0)}">
@@ -599,8 +541,10 @@
                             `).join('')}
                         </tbody>
                     </table>
-                `;
-            }
+                </div>
+            `).join('');
+
+            container.innerHTML = groupsHtml;
         }
 
         function removeFromQueue(feedId, channelId) {
