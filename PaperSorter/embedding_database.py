@@ -176,17 +176,17 @@ class EmbeddingDatabase:
         # Use provided model_id or default to 1
         if model_id is None:
             model_id = 1
-        # Use WITH statement to avoid transferring embedding vectors
+        
         # Build the SELECT fields based on include_content parameter
         select_fields = """
-                    e.feed_id,
+                    sf.feed_id,
                     f.external_id,
                     f.title,
                     f.author,
                     f.origin,
                     f.link,
                     EXTRACT(EPOCH FROM f.published)::integer as published,
-                    1 - (e.embedding <=> se.embedding) as similarity,
+                    sf.similarity,
                     pp.score as predicted_score,
                     CASE WHEN p.score > 0 THEN true ELSE false END as starred,
                     CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
@@ -203,10 +203,14 @@ class EmbeddingDatabase:
             # If no user_id provided, don't filter preferences
             self.cursor.execute(
                 f"""
-                WITH source_embedding AS (
-                    SELECT embedding
+                WITH similar_feeds AS (
+                    SELECT 
+                        feed_id,
+                        1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
                     FROM embeddings
-                    WHERE feed_id = %s
+                    WHERE feed_id != %s
+                    ORDER BY embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)
+                    LIMIT %s
                 ),
                 all_prefs AS (
                     SELECT DISTINCT ON (feed_id)
@@ -214,72 +218,77 @@ class EmbeddingDatabase:
                         score
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC
-                )
-                SELECT
-                    {select_fields}
-                FROM embeddings e
-                CROSS JOIN source_embedding se
-                JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN (
+                ),
+                vote_counts AS (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     GROUP BY feed_id
-                ) vote_counts ON f.id = vote_counts.feed_id
-                WHERE e.feed_id != %s
-                ORDER BY e.embedding <=> se.embedding
-                LIMIT %s
+                )
+                SELECT
+                    {select_fields}
+                FROM similar_feeds sf
+                JOIN feeds f ON sf.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
+                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY sf.similarity DESC
             """,
-                (feed_id, model_id, feed_id, limit),
+                (feed_id, feed_id, feed_id, limit, model_id),
             )
         else:
             # Filter preferences by user_id
             self.cursor.execute(
                 f"""
-                WITH source_embedding AS (
-                    SELECT embedding
+                WITH similar_feeds AS (
+                    SELECT 
+                        feed_id,
+                        1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
                     FROM embeddings
-                    WHERE feed_id = %s
+                    WHERE feed_id != %s
+                    ORDER BY embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)
+                    LIMIT %s
                 ),
                 user_prefs AS (
                     SELECT DISTINCT ON (feed_id)
                         feed_id,
                         score
                     FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback') AND user_id = %s
+                    WHERE source IN ('interactive', 'alert-feedback') 
+                        AND user_id = %s
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC
-                )
-                SELECT
-                    {select_fields}
-                FROM embeddings e
-                CROSS JOIN source_embedding se
-                JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN (
+                ),
+                vote_counts AS (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     GROUP BY feed_id
-                ) vote_counts ON f.id = vote_counts.feed_id
-                WHERE e.feed_id != %s
-                ORDER BY e.embedding <=> se.embedding
-                LIMIT %s
+                )
+                SELECT
+                    {select_fields}
+                FROM similar_feeds sf
+                JOIN feeds f ON sf.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
+                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY sf.similarity DESC
             """,
-                (feed_id, user_id, model_id, user_id, feed_id, limit),
+                (feed_id, feed_id, feed_id, limit, user_id, model_id, user_id),
             )
 
         results = self.cursor.fetchall()
@@ -316,7 +325,7 @@ class EmbeddingDatabase:
 
         # Build the SELECT fields based on include_content parameter
         select_fields = """
-                    e.feed_id,
+                    sf.feed_id,
                     f.external_id,
                     f.title,
                     f.author,
@@ -324,7 +333,7 @@ class EmbeddingDatabase:
                     f.link,
                     EXTRACT(EPOCH FROM f.published)::integer as published,
                     EXTRACT(EPOCH FROM f.added)::integer as added,
-                    1 - (e.embedding <=> %s::vector) as similarity,
+                    sf.similarity,
                     pp.score as predicted_score,
                     CASE WHEN p.score > 0 THEN true ELSE false END as starred,
                     CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
@@ -342,69 +351,90 @@ class EmbeddingDatabase:
             # If no user_id provided, don't filter preferences
             self.cursor.execute(
                 f"""
-                WITH all_prefs AS (
+                WITH similar_feeds AS (
+                    SELECT 
+                        feed_id,
+                        1 - (embedding <=> %s::vector) as similarity
+                    FROM embeddings
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                ),
+                all_prefs AS (
                     SELECT DISTINCT ON (feed_id)
                         feed_id,
                         score
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC
-                )
-                SELECT
-                    {select_fields}
-                FROM embeddings e
-                JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN (
+                ),
+                vote_counts AS (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     GROUP BY feed_id
-                ) vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY e.embedding <=> %s::vector
-                LIMIT %s
+                )
+                SELECT
+                    {select_fields}
+                FROM similar_feeds sf
+                JOIN feeds f ON sf.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
+                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY sf.similarity DESC
             """,
-                (query_embedding, model_id, query_embedding, limit),
+                (query_embedding, query_embedding, limit, model_id),
             )
         else:
             # Filter preferences by user_id
             self.cursor.execute(
                 f"""
-                WITH user_prefs AS (
+                WITH similar_feeds AS (
+                    SELECT 
+                        feed_id,
+                        1 - (embedding <=> %s::vector) as similarity
+                    FROM embeddings
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                ),
+                user_prefs AS (
                     SELECT DISTINCT ON (feed_id)
                         feed_id,
                         score
                     FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback') AND user_id = %s
+                    WHERE source IN ('interactive', 'alert-feedback') 
+                        AND user_id = %s
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC
-                )
-                SELECT
-                    {select_fields}
-                FROM embeddings e
-                JOIN feeds f ON e.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN (
+                ),
+                vote_counts AS (
                     SELECT
                         feed_id,
                         SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
                         SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
                     FROM preferences
                     WHERE source IN ('interactive', 'alert-feedback')
+                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     GROUP BY feed_id
-                ) vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY e.embedding <=> %s::vector
-                LIMIT %s
+                )
+                SELECT
+                    {select_fields}
+                FROM similar_feeds sf
+                JOIN feeds f ON sf.feed_id = f.id
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
+                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
+                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+                ORDER BY sf.similarity DESC
             """,
-                (user_id, query_embedding, model_id, user_id, query_embedding, limit),
+                (query_embedding, query_embedding, limit, user_id, model_id, user_id),
             )
 
         results = self.cursor.fetchall()
