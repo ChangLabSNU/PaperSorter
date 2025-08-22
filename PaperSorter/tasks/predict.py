@@ -62,17 +62,18 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 )
 @click.option("--count", default=500, help="Number of recent feeds to process (0 for all).")
 @click.option("--all", "process_all", is_flag=True, help="Process all feeds without limit (equivalent to --count 0).")
-@click.option("--batch-size", default=500, help="Batch size for database operations and embedding generation.")
+@click.option("--only-without-embeddings", is_flag=True, help="Only process feeds that don't have embeddings yet.")
+@click.option("--batch-size", default=100, help="Batch size for database operations and embedding generation.")
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
-def main(config, count, process_all, batch_size, log_file, quiet):
+def main(config, count, process_all, only_without_embeddings, batch_size, log_file, quiet):
     """Generate embeddings and predictions for articles in the database.
 
     Creates vector embeddings for articles and optionally generates interest
     predictions using trained models. Essential for semantic search and recommendations.
     """
     initialize_logging(task="predict", logfile=log_file, quiet=quiet)
-    
+
     # Handle --all flag: set count to 0 to process all feeds
     if process_all:
         count = 0
@@ -101,7 +102,9 @@ def main(config, count, process_all, batch_size, log_file, quiet):
     register_vector(db)
 
     # Process feeds in batches to avoid memory issues
-    if count == 0:
+    if only_without_embeddings:
+        log.info(f"Processing only feeds without embeddings in batches of {batch_size}...")
+    elif count == 0:
         log.info(f"Processing all feeds in batches of {batch_size}...")
     else:
         log.info(f"Processing {count} most recent feeds in batches of {batch_size}...")
@@ -111,37 +114,40 @@ def main(config, count, process_all, batch_size, log_file, quiet):
     total_processed = 0
     offset = 0
 
+    # Build the base query based on --only-without-embeddings flag
+    if only_without_embeddings:
+        # Only select feeds that don't have embeddings yet
+        base_query = """
+            SELECT f.*, NULL as embedding
+            FROM feeds f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+            )
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+        """
+    else:
+        base_query = """
+            SELECT f.*, e.embedding
+            FROM feeds f
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+        """
+
     # Process in batches - handle count=0 (all feeds) specially
     while True:
         # Determine batch size and query
         if count == 0:
             # Process all feeds - no total limit
-            cursor.execute(
-                """
-                SELECT f.*, e.embedding
-                FROM feeds f
-                LEFT JOIN embeddings e ON f.id = e.feed_id
-                ORDER BY f.added DESC
-                LIMIT %s OFFSET %s
-            """,
-                (batch_size, offset),
-            )
+            cursor.execute(base_query, (batch_size, offset))
         else:
             # Process specific count
             current_batch_size = min(batch_size, count - offset)
             if current_batch_size <= 0:
                 break
-                
-            cursor.execute(
-                """
-                SELECT f.*, e.embedding
-                FROM feeds f
-                LEFT JOIN embeddings e ON f.id = e.feed_id
-                ORDER BY f.added DESC
-                LIMIT %s OFFSET %s
-            """,
-                (current_batch_size, offset),
-            )
+
+            cursor.execute(base_query, (current_batch_size, offset))
 
         batch_feeds = cursor.fetchall()
 
