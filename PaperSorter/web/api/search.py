@@ -53,7 +53,7 @@ def api_search():
         query = data.get("query", "").strip() if data else ""
     else:
         query = request.args.get("q", "").strip()
-    
+
     if not query:
         return jsonify({"error": "Query parameter is required"}), 400
 

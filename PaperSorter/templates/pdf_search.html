@@ -55,7 +55,7 @@
             overflow-y: auto;
             position: relative;
         }
-        
+
         /* Resize Handle */
         .resize-handle {
             width: 8px;
@@ -65,15 +65,15 @@
             transition: background-color 0.2s;
             flex-shrink: 0;
         }
-        
+
         .resize-handle:hover {
             background: #cbd5e0;
         }
-        
+
         .resize-handle:active {
             background: #a0aec0;
         }
-        
+
         .resize-handle::before {
             content: '';
             position: absolute;
@@ -630,19 +630,19 @@
             .main-container {
                 flex-direction: column;
             }
-            
+
             .pdf-column, .text-column {
                 flex: none;
                 height: 50vh;
                 width: 100% !important;
                 min-width: unset;
             }
-            
+
             .pdf-column {
                 border-right: none;
                 border-bottom: 2px solid #e2e8f0;
             }
-            
+
             .resize-handle {
                 display: none;
             }
@@ -685,9 +685,9 @@
                     Select text in the PDF to search for related papers (minimum 10 characters)
                 </div>
                 <div class="search-section">
-                    <textarea 
-                        id="textArea" 
-                        class="text-area-small" 
+                    <textarea
+                        id="textArea"
+                        class="text-area-small"
                         placeholder="Selected text from the PDF will appear here."
                         style="display: none;"
                     ></textarea>
@@ -801,7 +801,7 @@
 
                 // Get text content
                 const textContent = await page.getTextContent();
-                
+
                 // Render text layer
                 pdfjsLib.renderTextLayer({
                     textContent: textContent,
@@ -840,7 +840,7 @@
         function handleTextSelect() {
             const selection = window.getSelection();
             const selectedText = selection.toString().trim();
-            
+
             if (selectedText && selectedText.length >= 10) {
                 textArea.value = selectedText;
                 // Automatically perform search when text is selected
@@ -853,9 +853,9 @@
         function starFeed(feedId, button) {
             // Prevent event bubbling if needed
             if (event) event.stopPropagation();
-            
+
             const isStarred = button.getAttribute('data-starred') === 'true';
-            
+
             fetch(`/api/feeds/${feedId}/star`, {
                 method: 'POST',
                 headers: {
@@ -890,7 +890,7 @@
         function feedbackFeed(feedId, score, button) {
             const currentLabel = parseInt(button.getAttribute('data-label'));
             const newScore = currentLabel === score ? null : score;
-            
+
             fetch(`/api/feeds/${feedId}/feedback`, {
                 method: 'POST',
                 headers: {
@@ -905,13 +905,13 @@
                     const feedItem = button.closest('.feed-item');
                     const thumbsUp = feedItem.querySelector('.btn-thumbs-up');
                     const thumbsDown = feedItem.querySelector('.btn-thumbs-down');
-                    
+
                     // Reset both buttons
                     thumbsUp.classList.remove('active');
                     thumbsDown.classList.remove('active');
                     thumbsUp.setAttribute('data-label', newScore);
                     thumbsDown.setAttribute('data-label', newScore);
-                    
+
                     // Set active state on the appropriate button
                     if (newScore === 1) {
                         thumbsUp.classList.add('active');
@@ -931,15 +931,15 @@
         // Perform semantic search
         async function performSearch() {
             const query = textArea.value.trim();
-            
+
             if (query.length < 10) {
                 return;
             }
-            
+
             // Show loading
             resultsContainer.innerHTML = '<div class="loading-results">Searching for similar papers...</div>';
             document.querySelector('.results-header').style.display = 'flex';
-            
+
             try {
                 // Use POST method to handle long text
                 const response = await fetch('/api/search', {
@@ -950,7 +950,7 @@
                     body: JSON.stringify({ query: query })
                 });
                 const data = await response.json();
-                
+
                 if (response.ok && data.feeds) {
                     displaySearchResults(data.feeds);
                 } else {
@@ -965,10 +965,10 @@
         // Helper function to calculate score color
         function calculateScoreColor(score) {
             if (score === null || score === undefined) return '#95a5a6'; // Gray for N/A
-            
+
             // Convert score from 0-1 to 0-100
             const percent = score * 100;
-            
+
             if (percent >= 70) {
                 // Green spectrum
                 const intensity = (percent - 70) / 30; // 0 to 1
@@ -996,7 +996,7 @@
         // Helper function to format date
         function formatDate(dateString) {
             if (!dateString) return 'Unknown Date';
-            
+
             // Handle Unix timestamp (in seconds)
             let date;
             if (typeof dateString === 'number' || /^\d+$/.test(dateString)) {
@@ -1006,12 +1006,12 @@
                 // Otherwise try to parse it as a date string
                 date = new Date(dateString);
             }
-            
+
             // Check if date is valid
             if (isNaN(date.getTime())) {
                 return 'Unknown Date';
             }
-            
+
             const options = { year: 'numeric', month: 'short', day: 'numeric' };
             return date.toLocaleDateString('en-US', options);
         }
@@ -1095,37 +1095,37 @@
                 currentSearchResults = [];
                 return;
             }
-            
+
             // Store results globally for access in event handlers
             currentSearchResults = feeds;
-            
+
             resultsCount.textContent = `${feeds.length} papers`;
             resultsContainer.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
-            
+
             // Add click handlers to expand/collapse feed details
             document.querySelectorAll('.feed-item').forEach(item => {
                 const header = item.querySelector('.feed-header');
                 const details = item.querySelector('.feed-details');
                 const feedId = item.getAttribute('data-feed-rowid');
-                
+
                 header.addEventListener('click', async function(e) {
                     // Don't expand if clicking on buttons or links
-                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || 
+                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' ||
                         e.target.closest('button') || e.target.closest('a')) {
                         return;
                     }
-                    
+
                     // Toggle expanded state
                     details.classList.toggle('expanded');
-                    
+
                     // Load content if expanding and not already loaded
                     if (details.classList.contains('expanded') && details.getAttribute('data-loaded') !== 'true') {
                         const abstractDiv = details.querySelector('.feed-abstract');
-                        
+
                         // Fetch content from API
                         try {
                             const response = await fetch(`/api/feeds/${feedId}/content`);
-                            
+
                             if (response.ok) {
                                 const data = await response.json();
                                 if (data.content) {
@@ -1155,29 +1155,29 @@
             const resizeHandle = document.getElementById('resizeHandle');
             const pdfColumn = document.getElementById('pdfColumn');
             const mainContainer = document.getElementById('mainContainer');
-            
+
             if (!resizeHandle || !pdfColumn || !mainContainer) return;
-            
+
             // Mouse events
             resizeHandle.addEventListener('mousedown', startResize);
-            
+
             // Touch events for mobile
             resizeHandle.addEventListener('touchstart', startResize, { passive: false });
-            
+
             function startResize(e) {
                 isResizing = true;
-                
+
                 // Get starting position
                 startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 startWidthPdf = pdfColumn.offsetWidth;
-                
+
                 // Prevent text selection while resizing
                 document.body.style.userSelect = 'none';
                 document.body.style.cursor = 'col-resize';
-                
+
                 // Add active state to handle
                 resizeHandle.style.background = '#a0aec0';
-                
+
                 // Add event listeners for move and end
                 if (e.type.includes('touch')) {
                     document.addEventListener('touchmove', doResize, { passive: false });
@@ -1186,57 +1186,57 @@
                     document.addEventListener('mousemove', doResize);
                     document.addEventListener('mouseup', stopResize);
                 }
-                
+
                 e.preventDefault();
             }
-            
+
             function doResize(e) {
                 if (!isResizing) return;
-                
+
                 const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const diffX = currentX - startX;
                 const containerWidth = mainContainer.offsetWidth;
-                
+
                 // Calculate new width as percentage
                 let newWidthPdf = startWidthPdf + diffX;
-                
+
                 // Apply constraints (min 300px, max 80% of container)
                 const minWidth = 300;
                 const maxWidth = containerWidth * 0.8;
-                
+
                 newWidthPdf = Math.max(minWidth, Math.min(maxWidth, newWidthPdf));
-                
+
                 // Set the new width
                 pdfColumn.style.width = newWidthPdf + 'px';
-                
+
                 e.preventDefault();
             }
-            
+
             function stopResize() {
                 if (!isResizing) return;
-                
+
                 isResizing = false;
-                
+
                 // Restore cursor and selection
                 document.body.style.userSelect = '';
                 document.body.style.cursor = '';
-                
+
                 // Remove active state from handle
                 resizeHandle.style.background = '';
-                
+
                 // Remove event listeners
                 document.removeEventListener('mousemove', doResize);
                 document.removeEventListener('mouseup', stopResize);
                 document.removeEventListener('touchmove', doResize);
                 document.removeEventListener('touchend', stopResize);
-                
+
                 // Save the width to localStorage for persistence
                 const pdfColumn = document.getElementById('pdfColumn');
                 if (pdfColumn) {
                     localStorage.setItem('pdfColumnWidth', pdfColumn.style.width);
                 }
             }
-            
+
             // Restore saved width from localStorage
             const savedWidth = localStorage.getItem('pdfColumnWidth');
             if (savedWidth) {
