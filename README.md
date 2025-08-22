@@ -10,6 +10,7 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 - **ML-powered filtering**: Uses XGBoost regression on article embeddings to predict interest levels
 - **Flexible AI integration**: Compatible with Solar LLM, Gemini, or any OpenAI-compatible generative AI API
 - **Web-based labeling interface**: Interactive UI for labeling articles and improving the model
+- **Search from PDF (Paper Connect)**: Select text from PDFs to find semantically similar papers
 - **Slack & Discord integration**: Automated notifications for interesting papers with customizable thresholds
 - **Scholarly database integration**: Choose between Semantic Scholar (with TL;DR summaries) or OpenAlex (no API key needed) for metadata enrichment
 - **Multi-channel support**: Different models and thresholds for different research groups or topics
@@ -498,6 +499,13 @@ The web interface (http://localhost:5001) provides:
 - Find similar articles
 - Direct links to paper PDFs
 - Semantic Scholar integration for citations
+
+### Search from PDF (Paper Connect)
+- Upload and view PDF files directly in browser
+- Select text from PDFs to automatically search for similar papers
+- Split-pane interface with resizable columns
+- No server-side storage - PDFs processed entirely in browser
+- Automatic search triggers when selecting 10+ characters
 
 ### AI-Powered Tools
 - Generate article summaries

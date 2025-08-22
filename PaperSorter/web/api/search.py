@@ -43,11 +43,17 @@ from ..utils.database import get_user_model_id, save_search_query
 search_bp = Blueprint("search", __name__)
 
 
-@search_bp.route("/api/search")
+@search_bp.route("/api/search", methods=["GET", "POST"])
 @login_required
 def api_search():
     """API endpoint to search feeds by text similarity."""
-    query = request.args.get("q", "").strip()
+    # Support both GET and POST methods
+    if request.method == "POST":
+        data = request.get_json()
+        query = data.get("query", "").strip() if data else ""
+    else:
+        query = request.args.get("q", "").strip()
+    
     if not query:
         return jsonify({"error": "Query parameter is required"}), 400
 

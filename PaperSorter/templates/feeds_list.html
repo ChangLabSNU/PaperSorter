@@ -1027,10 +1027,13 @@
                     </button>
                     <div class="dropdown-menu" id="hamburgerDropdown">
                         <button class="dropdown-item" onclick="toggleGeneralSearch(); closeHamburgerMenu();">
-                            <span>🔍 Search</span>
+                            <span>🔍 Search from Text</span>
                         </button>
+                        <a href="/pdf-search" class="dropdown-item">
+                            <span>🌌 Search from PDF</span>
+                        </a>
                         <button class="dropdown-item" onclick="toggleSemanticSearch(); closeHamburgerMenu();">
-                            <span>🔬 Add Papers</span>
+                            <span>🔬 Add a Paper</span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <a href="/broadcast-queue" class="dropdown-item">
@@ -1069,6 +1072,7 @@
                 <button onclick="performGeneralSearch()" class="btn btn-primary search-btn">🔍 Search</button>
             </div>
         </div>
+
 
         <!-- General Search Results Container -->
         <div id="generalSearchResultsContainer" style="display: none;">
@@ -1858,6 +1862,7 @@
                 backToFeedList();
             }
         }
+
 
         function performGeneralSearch() {
             const query = document.getElementById('generalSearchInput').value.trim();

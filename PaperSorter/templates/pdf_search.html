@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Connect - PaperSorter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 2px solid #e2e8f0;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 24px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Main Container */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 70px);
+            position: relative;
+        }
+
+        /* PDF Column */
+        .pdf-column {
+            width: 50%;
+            min-width: 300px;
+            background-color: #f7fafc;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        /* Resize Handle */
+        .resize-handle {
+            width: 8px;
+            background: #e2e8f0;
+            cursor: col-resize;
+            position: relative;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .resize-handle:hover {
+            background: #cbd5e0;
+        }
+        
+        .resize-handle:active {
+            background: #a0aec0;
+        }
+        
+        .resize-handle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 30px;
+            background: #718096;
+            border-radius: 1px;
+            opacity: 0.5;
+        }
+
+        /* Upload Area */
+        .pdf-upload-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 40px;
+        }
+
+        .upload-box {
+            background: white;
+            padding: 60px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .upload-box h2 {
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .pdf-file-input-label {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #667eea;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .pdf-file-input-label:hover {
+            background-color: #5a67d8;
+        }
+
+        .pdf-file-name {
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        /* PDF Viewer */
+        .pdf-viewer {
+            padding: 20px;
+            min-height: 100%;
+        }
+
+        .pdf-page {
+            margin: 0 auto 20px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+            width: fit-content;
+        }
+
+        .pdf-canvas {
+            display: block;
+        }
+
+        .pdf-text-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            opacity: 1;
+            line-height: 1;
+        }
+
+        .pdf-text-layer > span {
+            color: transparent;
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+            user-select: text;
+        }
+
+        .pdf-text-layer ::selection {
+            background: rgba(255, 0, 0, 0.4);
+        }
+
+        .pdf-text-layer ::-moz-selection {
+            background: rgba(255, 0, 0, 0.4);
+        }
+
+        /* Text Column */
+        .text-column {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            overflow: hidden;
+        }
+
+        .text-panel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 20px;
+        }
+
+        .text-header {
+            margin-bottom: 15px;
+        }
+
+        .text-header h3 {
+            color: #2d3748;
+            font-size: 20px;
+            margin: 0;
+        }
+
+        .instruction-text {
+            color: #718096;
+            font-size: 14px;
+            font-style: italic;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #f7fafc;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+        }
+
+        .search-section {
+            margin-bottom: 20px;
+        }
+
+        .text-area-small {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.3s;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .text-area-small:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .text-stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+            padding: 12px;
+            background-color: #f7fafc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .word-count, .char-count {
+            color: #4a5568;
+        }
+
+        .word-count strong, .char-count strong {
+            color: #2d3748;
+        }
+
+        .search-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        /* Search Results - Matching feeds_list.html styles */
+        .search-results {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .results-header h4 {
+            margin: 0;
+            color: #2d3748;
+        }
+
+        .results-count {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        /* Feed Item Styles - Matching feeds_list.html exactly */
+        .feed-item {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .feed-item:hover {
+            background-color: #f0f4f8;
+        }
+
+        .feed-item:last-child {
+            border-bottom: none;
+        }
+
+        .feed-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            min-width: 50px;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .score-icons {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            display: flex;
+            gap: 2px;
+        }
+
+        .score-icon {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            border: 1px solid white;
+        }
+
+        .score-icon.starred {
+            background: #f39c12;
+            color: white;
+        }
+
+        .score-icon.broadcasted {
+            background: #1f295a;
+            color: white;
+        }
+
+        .similarity-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-width: 49px;
+        }
+
+        .badges-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .feed-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .feed-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+
+        .feed-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .feed-meta-item {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .feed-author {
+            max-width: 200px;
+        }
+
+        .feed-origin {
+            font-weight: bold;
+        }
+
+        .feed-date {
+            flex-shrink: 0;
+        }
+
+        .feed-labels {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .label-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .label-starred {
+            background: #f39c12;
+            color: white;
+        }
+
+        .label-positive {
+            background: #27ae60;
+            color: white;
+        }
+
+        .label-negative {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .feed-details {
+            display: none;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .feed-details.expanded {
+            display: block;
+        }
+
+        .feed-abstract {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+
+        .feed-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .loading-results {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #a0aec0;
+            font-style: italic;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+            vertical-align: middle;
+            line-height: 1.5;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #90caf9;
+        }
+
+        .btn-primary:hover {
+            background: #bbdefb;
+            border-color: #64b5f6;
+        }
+
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #34495e;
+            border: 1px solid #bdc3c7;
+        }
+
+        .btn-secondary:hover {
+            background: #d5dbdb;
+            border-color: #95a5a6;
+        }
+
+        .btn-star {
+            background: #fff3e0;
+            color: #f57c00;
+            border: 1px solid #ffcc80;
+        }
+
+        .btn-star:hover {
+            background: #ffe0b2;
+            border-color: #ffb74d;
+        }
+
+        .btn-star.starred {
+            background: #ffcc80;
+            border-color: #ff9800;
+            color: #e65100;
+        }
+
+        .btn-thumbs-up {
+            background: #e8f5e9;
+            color: #388e3c;
+            border: 1px solid #a5d6a7;
+        }
+
+        .btn-thumbs-up:hover {
+            background: #c8e6c9;
+            border-color: #81c784;
+        }
+
+        .btn-thumbs-up.active {
+            background: #a5d6a7;
+            border-color: #66bb6a;
+            color: #2e7d32;
+        }
+
+        .btn-thumbs-down {
+            background: #ffebee;
+            color: #d32f2f;
+            border: 1px solid #ef9a9a;
+        }
+
+        .btn-thumbs-down:hover {
+            background: #ffcdd2;
+            border-color: #e57373;
+        }
+
+        .btn-thumbs-down.active {
+            background: #ef9a9a;
+            border-color: #ef5350;
+            color: #c62828;
+        }
+
+        .btn-similar {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            border: 1px solid #ce93d8;
+        }
+
+        .btn-similar:hover {
+            background: #e1bee7;
+            border-color: #ba68c8;
+        }
+
+        .btn-danger {
+            background: #fc8181;
+            color: white;
+            border: 1px solid #f56565;
+        }
+
+        .btn-danger:hover {
+            background: #f56565;
+            border-color: #e53e3e;
+        }
+
+        .search-button {
+            flex: 1;
+        }
+
+        /* Loading spinner */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #718096;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .pdf-column, .text-column {
+                flex: none;
+                height: 50vh;
+                width: 100% !important;
+                min-width: unset;
+            }
+            
+            .pdf-column {
+                border-right: none;
+                border-bottom: 2px solid #e2e8f0;
+            }
+            
+            .resize-handle {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌌 Paper Connect</h1>
+        <div class="header-actions">
+            <a href="/" class="btn btn-secondary">← Back to Feeds</a>
+        </div>
+    </div>
+
+    <div class="main-container" id="mainContainer">
+        <div class="pdf-column" id="pdfColumn">
+            <div class="pdf-upload-area" id="pdfUploadArea">
+                <div class="upload-box">
+                    <h2>Upload PDF Document</h2>
+                    <label for="pdfFileInput" class="pdf-file-input-label">
+                        📄 Choose PDF File
+                    </label>
+                    <input type="file" id="pdfFileInput" accept=".pdf" hidden>
+                    <div id="pdfFileName" class="pdf-file-name"></div>
+                </div>
+            </div>
+            <div id="pdfViewerContainer" class="pdf-viewer" style="display: none;">
+                <div id="pdfLoadingIndicator" class="loading">Loading PDF...</div>
+            </div>
+        </div>
+
+        <div class="resize-handle" id="resizeHandle"></div>
+
+        <div class="text-column" id="textColumn">
+            <div class="text-panel">
+                <div class="text-header">
+                    <h3>Search Result</h3>
+                </div>
+                <div class="instruction-text">
+                    Select text in the PDF to search for related papers (minimum 10 characters)
+                </div>
+                <div class="search-section">
+                    <textarea 
+                        id="textArea" 
+                        class="text-area-small" 
+                        placeholder="Selected text from the PDF will appear here."
+                        style="display: none;"
+                    ></textarea>
+                </div>
+                <div class="search-results" id="searchResults">
+                    <div class="results-header" style="display: none;">
+                        <h4>Search Results</h4>
+                        <span class="results-count" id="resultsCount"></span>
+                    </div>
+                    <div class="results-container" id="resultsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configure PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Global variables
+        let pdfDoc = null;
+        let selectedFile = null;
+        let isResizing = false;
+        let startX = 0;
+        let startWidthPdf = 0;
+        let currentSearchResults = [];
+
+        // DOM Elements
+        const fileInput = document.getElementById('pdfFileInput');
+        const fileName = document.getElementById('pdfFileName');
+        const pdfUploadArea = document.getElementById('pdfUploadArea');
+        const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+        const pdfLoadingIndicator = document.getElementById('pdfLoadingIndicator');
+        const textArea = document.getElementById('textArea');
+        const searchResults = document.getElementById('searchResults');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsCount = document.getElementById('resultsCount');
+
+        // Event Listeners
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Initialize resize functionality
+        initializeResize();
+
+        // File selection handler
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                selectedFile = file;
+                fileName.textContent = `Selected: ${file.name}`;
+                loadPDFFromFile(file);
+            } else {
+                selectedFile = null;
+                fileName.textContent = 'Please select a valid PDF file';
+            }
+        }
+
+        // Load PDF from File object
+        async function loadPDFFromFile(file) {
+            try {
+                pdfUploadArea.style.display = 'none';
+                pdfViewerContainer.style.display = 'block';
+                pdfLoadingIndicator.style.display = 'block';
+                pdfViewerContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading PDF...</div>';
+
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+                pdfDoc = await loadingTask.promise;
+
+                // Clear viewer and render all pages
+                pdfViewerContainer.innerHTML = '';
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    await renderPage(pageNum);
+                }
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                pdfViewerContainer.innerHTML = '<div class="error">Error loading PDF. Please try again.</div>';
+            }
+        }
+
+        // Render a single page
+        async function renderPage(pageNumber) {
+            try {
+                const page = await pdfDoc.getPage(pageNumber);
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+
+                // Create page container
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'pdf-page';
+                pageDiv.style.width = viewport.width + 'px';
+                pageDiv.style.height = viewport.height + 'px';
+
+                // Create canvas
+                const canvas = document.createElement('canvas');
+                canvas.className = 'pdf-canvas';
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Render PDF page to canvas
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+
+                // Create text layer for selection
+                const textLayerDiv = document.createElement('div');
+                textLayerDiv.className = 'pdf-text-layer';
+
+                // Get text content
+                const textContent = await page.getTextContent();
+                
+                // Render text layer
+                pdfjsLib.renderTextLayer({
+                    textContent: textContent,
+                    container: textLayerDiv,
+                    viewport: viewport,
+                    textDivs: []
+                });
+
+                // Add event listeners for text selection
+                setupTextSelection(textLayerDiv);
+
+                pageDiv.appendChild(canvas);
+                pageDiv.appendChild(textLayerDiv);
+                pdfViewerContainer.appendChild(pageDiv);
+            } catch (error) {
+                console.error(`Error rendering page ${pageNumber}:`, error);
+            }
+        }
+
+        // Setup text selection handlers
+        function setupTextSelection(textLayer) {
+            // Handle mouse up (drag selection)
+            textLayer.addEventListener('mouseup', function() {
+                handleTextSelect();
+            });
+
+            // Handle double click (word selection)
+            textLayer.addEventListener('dblclick', function(event) {
+                setTimeout(() => {
+                    handleTextSelect();
+                }, 10);
+            });
+        }
+
+        // Handle text selection
+        function handleTextSelect() {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText && selectedText.length >= 10) {
+                textArea.value = selectedText;
+                // Automatically perform search when text is selected
+                performSearch();
+            }
+        }
+
+
+        // Feed action functions
+        function starFeed(feedId, button) {
+            // Prevent event bubbling if needed
+            if (event) event.stopPropagation();
+            
+            const isStarred = button.getAttribute('data-starred') === 'true';
+            
+            fetch(`/api/feeds/${feedId}/star`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'toggle' })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const newStarred = data.action === 'star';
+                    button.setAttribute('data-starred', newStarred.toString());
+                    if (newStarred) {
+                        button.classList.add('starred');
+                        button.innerHTML = '★';
+                        button.title = 'Starred';
+                    } else {
+                        button.classList.remove('starred');
+                        button.innerHTML = '☆';
+                        button.title = 'Star';
+                    }
+                }
+            })
+            .catch(error => console.error('Error starring feed:', error));
+        }
+
+        function feedbackFeed(feedId, score, button) {
+            const currentLabel = parseInt(button.getAttribute('data-label'));
+            const newScore = currentLabel === score ? null : score;
+            
+            fetch(`/api/feeds/${feedId}/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ score: newScore })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update both thumbs buttons
+                    const feedItem = button.closest('.feed-item');
+                    const thumbsUp = feedItem.querySelector('.btn-thumbs-up');
+                    const thumbsDown = feedItem.querySelector('.btn-thumbs-down');
+                    
+                    // Reset both buttons
+                    thumbsUp.classList.remove('active');
+                    thumbsDown.classList.remove('active');
+                    thumbsUp.setAttribute('data-label', newScore);
+                    thumbsDown.setAttribute('data-label', newScore);
+                    
+                    // Set active state on the appropriate button
+                    if (newScore === 1) {
+                        thumbsUp.classList.add('active');
+                    } else if (newScore === 0) {
+                        thumbsDown.classList.add('active');
+                    }
+                }
+            })
+            .catch(error => console.error('Error providing feedback:', error));
+        }
+
+        function moreLikeThis(feedId) {
+            // Open similar articles page in a new tab
+            window.open(`/similar/${feedId}`, '_blank');
+        }
+
+        // Perform semantic search
+        async function performSearch() {
+            const query = textArea.value.trim();
+            
+            if (query.length < 10) {
+                return;
+            }
+            
+            // Show loading
+            resultsContainer.innerHTML = '<div class="loading-results">Searching for similar papers...</div>';
+            document.querySelector('.results-header').style.display = 'flex';
+            
+            try {
+                // Use POST method to handle long text
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.feeds) {
+                    displaySearchResults(data.feeds);
+                } else {
+                    resultsContainer.innerHTML = `<div class="no-results">Search failed: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsContainer.innerHTML = '<div class="no-results">Failed to perform search. Please try again.</div>';
+            }
+        }
+
+        // Helper function to calculate score color
+        function calculateScoreColor(score) {
+            if (score === null || score === undefined) return '#95a5a6'; // Gray for N/A
+            
+            // Convert score from 0-1 to 0-100
+            const percent = score * 100;
+            
+            if (percent >= 70) {
+                // Green spectrum
+                const intensity = (percent - 70) / 30; // 0 to 1
+                const r = Math.round(46 - intensity * 20);
+                const g = Math.round(125 + intensity * 79);
+                const b = Math.round(50 - intensity * 18);
+                return `rgb(${r}, ${g}, ${b})`;
+            } else if (percent >= 40) {
+                // Yellow to orange spectrum
+                const intensity = (percent - 40) / 30; // 0 to 1
+                const r = Math.round(241 - intensity * 11);
+                const g = Math.round(196 - intensity * 40);
+                const b = Math.round(15 + intensity * 3);
+                return `rgb(${r}, ${g}, ${b})`;
+            } else {
+                // Red spectrum
+                const intensity = percent / 40; // 0 to 1
+                const r = Math.round(192 + intensity * 39);
+                const g = Math.round(57 + intensity * 99);
+                const b = Math.round(43 + intensity * 28);
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+        }
+
+        // Helper function to format date
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown Date';
+            
+            // Handle Unix timestamp (in seconds)
+            let date;
+            if (typeof dateString === 'number' || /^\d+$/.test(dateString)) {
+                // If it's a number or numeric string, assume it's a Unix timestamp in seconds
+                date = new Date(parseInt(dateString) * 1000);
+            } else {
+                // Otherwise try to parse it as a date string
+                date = new Date(dateString);
+            }
+            
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+                return 'Unknown Date';
+            }
+            
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Create feed element matching feeds_list.html
+        function createFeedElement(feed) {
+            const scoreColor = calculateScoreColor(feed.score);
+            const scoreText = feed.score !== null ? Math.round(feed.score * 100).toString() : 'N/A';
+
+            // Create icons for score badge
+            let icons = [];
+            if (feed.starred) icons.push('<div class="score-icon starred">★</div>');
+            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted">📡</div>');
+            const iconsHtml = icons.length > 0 ? `<div class="score-icons">${icons.join('')}</div>` : '';
+
+            let labels = [];
+            if (feed.starred) labels.push('<span class="label-badge label-starred">★</span>');
+
+            // Show vote badges with counts
+            if (feed.positive_votes > 0 || feed.label === 1) {
+                const count = feed.positive_votes || 0;
+                labels.push(`<span class="label-badge label-positive">+${count}</span>`);
+            }
+            if (feed.negative_votes > 0 || feed.label === 0) {
+                const count = feed.negative_votes || 0;
+                labels.push(`<span class="label-badge label-negative">−${count}</span>`);
+            }
+
+            // Create badges HTML - only show similarity badge for PDF search
+            let badgesHtml = '';
+            if (feed.similarity !== undefined && feed.similarity !== null) {
+                const similarityText = Math.round(feed.similarity * 100).toString();
+                badgesHtml = `
+                    <div class="similarity-badge score-badge">
+                        ${similarityText}
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}">
+                    <div class="feed-header">
+                        ${badgesHtml}
+                        <div class="feed-content">
+                            <div class="feed-title">${feed.title}</div>
+                            <div class="feed-meta">
+                                <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
+                                ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
+                                <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
+                            </div>
+                        </div>
+                        ${labels.length > 0 ? `<div class="feed-labels">${labels.join('')}</div>` : ''}
+                    </div>
+                    <div class="feed-details" data-feed-id="${feed.rowid}" data-loaded="false">
+                        <div class="feed-abstract">Loading content...</div>
+                        <div class="feed-actions">
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary" title="View Article">📄</a>` : ''}
+                            <button class="btn btn-star ${feed.starred ? 'starred' : ''}" onclick="starFeed(${feed.rowid}, this)" data-starred="${feed.starred ? 'true' : 'false'}" title="${feed.starred ? 'Starred' : 'Star'}">
+                                ${feed.starred ? '★' : '☆'}
+                            </button>
+                            <button class="btn btn-thumbs-up ${feed.label === 1 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 1, this)" data-label="${feed.label}" title="Interested">
+                                👍
+                            </button>
+                            <button class="btn btn-thumbs-down ${feed.label === 0 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 0, this)" data-label="${feed.label}" title="Not Interested">
+                                👎
+                            </button>
+                            <button class="btn btn-similar" onclick="moreLikeThis(${feed.rowid})" title="More Like This">
+                                🔍
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display search results
+        function displaySearchResults(feeds) {
+            if (!feeds || feeds.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">No similar papers found.</div>';
+                resultsCount.textContent = '0 papers';
+                currentSearchResults = [];
+                return;
+            }
+            
+            // Store results globally for access in event handlers
+            currentSearchResults = feeds;
+            
+            resultsCount.textContent = `${feeds.length} papers`;
+            resultsContainer.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
+            
+            // Add click handlers to expand/collapse feed details
+            document.querySelectorAll('.feed-item').forEach(item => {
+                const header = item.querySelector('.feed-header');
+                const details = item.querySelector('.feed-details');
+                const feedId = item.getAttribute('data-feed-rowid');
+                
+                header.addEventListener('click', async function(e) {
+                    // Don't expand if clicking on buttons or links
+                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || 
+                        e.target.closest('button') || e.target.closest('a')) {
+                        return;
+                    }
+                    
+                    // Toggle expanded state
+                    details.classList.toggle('expanded');
+                    
+                    // Load content if expanding and not already loaded
+                    if (details.classList.contains('expanded') && details.getAttribute('data-loaded') !== 'true') {
+                        const abstractDiv = details.querySelector('.feed-abstract');
+                        
+                        // Fetch content from API
+                        try {
+                            const response = await fetch(`/api/feeds/${feedId}/content`);
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.content) {
+                                    abstractDiv.textContent = data.content;
+                                    details.setAttribute('data-loaded', 'true');
+                                } else if (data.tldr) {
+                                    abstractDiv.textContent = `TL;DR: ${data.tldr}`;
+                                    details.setAttribute('data-loaded', 'true');
+                                } else {
+                                    abstractDiv.textContent = 'No abstract available';
+                                }
+                            } else {
+                                console.error('Failed to fetch content, status:', response.status);
+                                abstractDiv.textContent = 'No abstract available';
+                            }
+                        } catch (error) {
+                            console.error('Error loading feed content:', error);
+                            abstractDiv.textContent = 'Failed to load content';
+                        }
+                    }
+                });
+            });
+        }
+
+        // Resize functionality
+        function initializeResize() {
+            const resizeHandle = document.getElementById('resizeHandle');
+            const pdfColumn = document.getElementById('pdfColumn');
+            const mainContainer = document.getElementById('mainContainer');
+            
+            if (!resizeHandle || !pdfColumn || !mainContainer) return;
+            
+            // Mouse events
+            resizeHandle.addEventListener('mousedown', startResize);
+            
+            // Touch events for mobile
+            resizeHandle.addEventListener('touchstart', startResize, { passive: false });
+            
+            function startResize(e) {
+                isResizing = true;
+                
+                // Get starting position
+                startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                startWidthPdf = pdfColumn.offsetWidth;
+                
+                // Prevent text selection while resizing
+                document.body.style.userSelect = 'none';
+                document.body.style.cursor = 'col-resize';
+                
+                // Add active state to handle
+                resizeHandle.style.background = '#a0aec0';
+                
+                // Add event listeners for move and end
+                if (e.type.includes('touch')) {
+                    document.addEventListener('touchmove', doResize, { passive: false });
+                    document.addEventListener('touchend', stopResize);
+                } else {
+                    document.addEventListener('mousemove', doResize);
+                    document.addEventListener('mouseup', stopResize);
+                }
+                
+                e.preventDefault();
+            }
+            
+            function doResize(e) {
+                if (!isResizing) return;
+                
+                const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const diffX = currentX - startX;
+                const containerWidth = mainContainer.offsetWidth;
+                
+                // Calculate new width as percentage
+                let newWidthPdf = startWidthPdf + diffX;
+                
+                // Apply constraints (min 300px, max 80% of container)
+                const minWidth = 300;
+                const maxWidth = containerWidth * 0.8;
+                
+                newWidthPdf = Math.max(minWidth, Math.min(maxWidth, newWidthPdf));
+                
+                // Set the new width
+                pdfColumn.style.width = newWidthPdf + 'px';
+                
+                e.preventDefault();
+            }
+            
+            function stopResize() {
+                if (!isResizing) return;
+                
+                isResizing = false;
+                
+                // Restore cursor and selection
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                
+                // Remove active state from handle
+                resizeHandle.style.background = '';
+                
+                // Remove event listeners
+                document.removeEventListener('mousemove', doResize);
+                document.removeEventListener('mouseup', stopResize);
+                document.removeEventListener('touchmove', doResize);
+                document.removeEventListener('touchend', stopResize);
+                
+                // Save the width to localStorage for persistence
+                const pdfColumn = document.getElementById('pdfColumn');
+                if (pdfColumn) {
+                    localStorage.setItem('pdfColumnWidth', pdfColumn.style.width);
+                }
+            }
+            
+            // Restore saved width from localStorage
+            const savedWidth = localStorage.getItem('pdfColumnWidth');
+            if (savedWidth) {
+                pdfColumn.style.width = savedWidth;
+            }
+        }
+    </script>
+</body>
+</html>

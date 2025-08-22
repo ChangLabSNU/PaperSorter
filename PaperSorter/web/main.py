@@ -227,3 +227,10 @@ def events():
     if not current_user.is_admin:
         return render_template("error.html", error="Admin access required"), 403
     return render_template("settings_events.html")
+
+
+@main_bp.route("/pdf-search")
+@login_required
+def pdf_search():
+    """PDF search page for selecting text from PDFs to search for similar papers."""
+    return render_template("pdf_search.html")
