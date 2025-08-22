@@ -206,10 +206,41 @@
             font-weight: bold;
         }
 
-        button.user-info:hover {
-            background: #bbdefb !important;
+        /* Non-admin user button styles */
+        button.user-info {
+            cursor: pointer;
+            border: none;
+            outline: none;
             transition: background 0.2s ease;
         }
+
+        button.user-info.btn-search {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        button.user-info.btn-search:hover {
+            background: #bbdefb;
+        }
+
+        button.user-info.btn-pdf {
+            background: #ede7f6;
+            color: #5e35b1;
+        }
+
+        button.user-info.btn-pdf:hover {
+            background: #d1c4e9;
+        }
+
+        button.user-info.btn-logout {
+            background: #eeeeee;
+            color: #616161;
+        }
+
+        button.user-info.btn-logout:hover {
+            background: #e0e0e0;
+        }
+
 
         .feeds-container {
             background: white;
@@ -1014,10 +1045,6 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="user-info">
-                    <div class="user-icon">{{ current_user.username[0].upper() }}</div>
-                    <span>{{ current_user.username }}</span>
-                </div>
                 {% if current_user.is_admin %}
                 <!-- Hamburger menu for admins -->
                 <div class="hamburger-menu">
@@ -1058,10 +1085,15 @@
                 </div>
                 {% else %}
                 <!-- Non-admin users see buttons directly -->
-                <button id="generalSearchToggleBtn" class="user-info" onclick="toggleGeneralSearch()" style="cursor: pointer; background: #e3f2fd; border: none; outline: none;">
+                <button id="generalSearchToggleBtn" class="user-info btn-search" onclick="toggleGeneralSearch()">
                     <span style="margin-left: 0;">🔍 Search</span>
                 </button>
-                <a href="/logout" class="nav-link">🚪 Logout</a>
+                <button class="user-info btn-pdf" onclick="window.location.href='/pdf-search'">
+                    <span style="margin-left: 0;">🌌 PDF</span>
+                </button>
+                <button class="user-info btn-logout" onclick="window.location.href='/logout'">
+                    <span style="margin-left: 0;">🚪 Logout</span>
+                </button>
                 {% endif %}
             </div>
         </div>
