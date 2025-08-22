@@ -242,6 +242,19 @@ CREATE TABLE papersorter.labeling_sessions (
 
 
 
+CREATE SEQUENCE papersorter.labeling_sessions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE papersorter.labeling_sessions_id_seq OWNED BY papersorter.labeling_sessions.id;
+
+
+
 CREATE TABLE papersorter.models (
     id integer NOT NULL,
     name text,
@@ -368,6 +381,10 @@ ALTER TABLE ONLY papersorter.feed_sources ALTER COLUMN id SET DEFAULT nextval('p
 
 
 ALTER TABLE ONLY papersorter.feeds ALTER COLUMN id SET DEFAULT nextval('papersorter.feeds_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY papersorter.labeling_sessions ALTER COLUMN id SET DEFAULT nextval('papersorter.labeling_sessions_id_seq'::regclass);
 
 
 

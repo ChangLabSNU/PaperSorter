@@ -27,6 +27,7 @@ import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import yaml
+from datetime import datetime, timedelta
 from ..log import log, initialize_logging
 
 # Module constants
@@ -172,12 +173,23 @@ def check_prerequisites_for_model_mode(cursor, base_model, sample_size):
     return True, model_info
 
 
-def get_feeds_for_model_mode(cursor, base_model, user_ids):
+def get_feeds_for_model_mode(cursor, base_model, user_ids, max_age=0):
     """Get feeds with prediction scores for model-based sampling."""
     log.info("Fetching feeds with prediction scores...")
 
+    # Build age filter
+    age_filter = ""
+    params = [base_model]
+
+    if max_age > 0:
+        cutoff_date = datetime.now() - timedelta(days=max_age)
+        age_filter = "AND f.added >= %s"
+        params.append(cutoff_date)
+        log.info(f"Filtering to feeds added after {cutoff_date.strftime('%Y-%m-%d')}")
+
     if user_ids:
-        cursor.execute("""
+        params.append(user_ids)
+        cursor.execute(f"""
             SELECT
                 f.id as feed_id,
                 f.external_id,
@@ -191,14 +203,15 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids):
             JOIN predicted_preferences pp ON f.id = pp.feed_id
             JOIN embeddings e ON f.id = e.feed_id
             WHERE pp.model_id = %s
+            {age_filter}
             AND NOT EXISTS (
                 -- Exclude feeds that already have preferences from the specified users
                 SELECT 1 FROM preferences p WHERE p.feed_id = f.id AND p.user_id = ANY(%s)
             )
             ORDER BY pp.score DESC
-        """, (base_model, user_ids))
+        """, params)
     else:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 f.id as feed_id,
                 f.external_id,
@@ -212,22 +225,37 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids):
             JOIN predicted_preferences pp ON f.id = pp.feed_id
             JOIN embeddings e ON f.id = e.feed_id
             WHERE pp.model_id = %s
+            {age_filter}
             AND NOT EXISTS (
                 -- Exclude feeds that already have preferences
                 SELECT 1 FROM preferences p WHERE p.feed_id = f.id
             )
             ORDER BY pp.score DESC
-        """, (base_model,))
+        """, params)
 
     return cursor.fetchall()
 
 
-def get_feeds_for_distance_mode(cursor, score_threshold, user_ids):
+def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0):
     """Get feeds with distances to interested feeds for distance-based sampling."""
     log.info("Calculating distances to interested feeds...")
 
+    # Build age filter
+    age_filter = ""
+    params = [score_threshold]
+
+    if max_age > 0:
+        cutoff_date = datetime.now() - timedelta(days=max_age)
+        age_filter = "AND f.added >= %s"
+        log.info(f"Filtering to feeds added after {cutoff_date.strftime('%Y-%m-%d')}")
+
     if user_ids:
-        cursor.execute("""
+        base_params = params + [user_ids]
+        if max_age > 0:
+            base_params.append(cutoff_date)
+        base_params.append(user_ids)
+
+        cursor.execute(f"""
             WITH interested_feeds AS (
                 -- Get all feeds labeled as interested by specified users
                 SELECT DISTINCT f.id, e.embedding
@@ -254,6 +282,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids):
                     -- Exclude feeds that already have preferences from the specified users
                     SELECT 1 FROM preferences p WHERE p.feed_id = f.id AND p.user_id = ANY(%s)
                 )
+                {age_filter}
                 GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
             )
             SELECT
@@ -268,9 +297,12 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids):
             FROM feed_distances
             WHERE min_distance IS NOT NULL
             ORDER BY min_distance ASC
-        """, (score_threshold, user_ids, user_ids))
+        """, base_params)
     else:
-        cursor.execute("""
+        if max_age > 0:
+            params.append(cutoff_date)
+
+        cursor.execute(f"""
             WITH interested_feeds AS (
                 -- Get all feeds labeled as interested
                 SELECT DISTINCT f.id, e.embedding
@@ -297,6 +329,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids):
                     -- Exclude feeds that already have preferences
                     SELECT 1 FROM preferences p WHERE p.feed_id = f.id
                 )
+                {age_filter}
                 GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
             )
             SELECT
@@ -311,7 +344,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids):
             FROM feed_distances
             WHERE min_distance IS NOT NULL
             ORDER BY min_distance ASC
-        """, (score_threshold,))
+        """, params)
 
     return cursor.fetchall()
 
@@ -580,8 +613,12 @@ def main(ctx, config, log_file, quiet):
     "--base-model", type=int,
     help="Model ID to use for score-based binning instead of distance-based. When specified, uses predicted scores for sampling."
 )
+@click.option(
+    "--max-age", default=0, type=int,
+    help="Maximum age of feeds in days. Only include feeds registered within this many days. 0 means no limit (default: 0)"
+)
 @click.pass_context
-def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model):
+def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age):
     """Create a new labeling session with balanced sampling.
 
     This command supports two modes:
@@ -646,6 +683,10 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
             user_params = ()
             log.info("Using preferences from all users")
 
+        # Log max_age filter if specified
+        if max_age > 0:
+            log.info(f"Limiting to feeds registered within the last {max_age} days")
+
         # Check if we have any feeds with embeddings first
         cursor.execute("SELECT COUNT(*) as count FROM embeddings")
         total_embeddings = cursor.fetchone()["count"]
@@ -683,9 +724,9 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
 
         # Get feeds for sampling based on mode
         if base_model:
-            all_feeds = get_feeds_for_model_mode(cursor, base_model, user_ids)
+            all_feeds = get_feeds_for_model_mode(cursor, base_model, user_ids, max_age)
         else:
-            all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids)
+            all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age)
 
         if not all_feeds:
             log.error("No unlabeled feeds with embeddings found")
