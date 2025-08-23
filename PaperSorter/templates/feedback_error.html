@@ -1,35 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - PaperSorter</title>
+{% extends "base.html" %}
+
+{% block title %}Error - PaperSorter{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block styles %}
     <style>
+        /* Override base template for centered layout */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            padding: 20px;
         }
 
-        .container {
+        main {
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .feedback-container {
             max-width: 600px;
             width: 100%;
-            background: white;
+            background: var(--feedback-container-bg);
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--feedback-container-shadow);
             padding: 40px;
             text-align: center;
+            margin: 0 auto;
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
         }
 
         h1 {
-            color: #e74c3c;
+            color: var(--feedback-error-title-color);
             margin-bottom: 10px;
+            transition: color var(--transition-base);
         }
 
         .emoji {
@@ -39,8 +46,9 @@
 
         .message {
             font-size: 18px;
-            color: #555;
+            color: var(--feedback-message-color);
             margin-bottom: 30px;
+            transition: color var(--transition-base);
         }
 
         .actions {
@@ -59,12 +67,12 @@
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
         }
 
         .btn-primary {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
         }
 
         .btn-primary:hover {
@@ -74,7 +82,7 @@
         }
 
         @media (max-width: 600px) {
-            .container {
+            .feedback-container {
                 padding: 30px 20px;
             }
 
@@ -87,22 +95,22 @@
             }
         }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="emoji">❌</div>
+{% endblock %}
 
-        <h1>Oops!</h1>
+{% block main_container %}
+<div class="feedback-container">
+    <div class="emoji">❌</div>
 
-        <div class="message">
-            {{ message }}
-        </div>
+    <h1>Oops!</h1>
 
-        <div class="actions">
-            <a href="/" class="btn btn-primary">
-                🏠 Go to Home
-            </a>
-        </div>
+    <div class="message">
+        {{ message }}
     </div>
-</body>
-</html>
+
+    <div class="actions">
+        <a href="/" class="btn btn-primary">
+            🏠 Go to Home
+        </a>
+    </div>
+</div>
+{% endblock %}

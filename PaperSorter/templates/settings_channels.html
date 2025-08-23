@@ -1,103 +1,51 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Channels - Settings - PaperSorter</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
-        }
+{% extends "settings_base.html" %}
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+{% block title %}Channels - Settings - PaperSorter{% endblock %}
+{% block header_title %}📡 Channels{% endblock %}
 
-        .header {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header h1 {
-            margin: 0;
-            color: #2c3e50;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 10px;
-        }
-
-        .nav-link {
-            color: #3498db;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 10px 20px;
-            border: 2px solid #3498db;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link:hover {
-            background: #3498db;
-            color: white;
-        }
-
+{% block page_styles %}
+        /* Channel-specific tag styles */
         .tag {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
             text-transform: uppercase;
+            font-weight: 600;
         }
 
         .tag-active {
-            background-color: #d4edda;
-            color: #155724;
+            background-color: var(--channels-tag-active-bg);
+            color: var(--channels-tag-active-color);
         }
 
         .tag-inactive {
-            background-color: #f8d7da;
-            color: #721c24;
+            background-color: var(--channels-tag-inactive-bg);
+            color: var(--channels-tag-inactive-color);
         }
 
         .tag-discord {
-            background-color: #e7e5ff;
-            color: #5865f2;
+            background-color: var(--channel-discord-bg);
+            color: var(--channel-discord-color);
         }
 
         .tag-slack {
-            background-color: #ffe5f1;
-            color: #e01563;
+            background-color: var(--channel-slack-bg);
+            color: var(--channel-slack-color);
         }
 
         .tag-email {
-            background-color: #e6f7ff;
-            color: #0050b3;
+            background-color: var(--channel-email-bg);
+            color: var(--channel-email-color);
         }
 
         .tag-unknown {
-            background-color: #e2e3e5;
-            color: #383d41;
+            background-color: var(--channel-unknown-bg);
+            color: var(--channel-unknown-color);
         }
 
         .content-card {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
+            transition: background-color var(--transition-base);
         }
 
         .action-bar {
@@ -107,6 +55,11 @@
             margin-bottom: 20px;
         }
 
+        .action-bar h2 {
+            color: var(--text-primary);
+            transition: color var(--transition-base);
+        }
+
         .btn {
             padding: 10px 20px;
             border: none;
@@ -114,23 +67,24 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
             text-decoration: none;
             display: inline-block;
         }
 
         .btn-primary {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
         }
 
         .btn-primary:hover {
             background: #2980b9;
+            transform: translateY(-1px);
         }
 
         .btn-danger {
-            background: #e74c3c;
-            color: white;
+            background: var(--color-danger);
+            color: var(--text-white);
         }
 
         .btn-danger:hover {
@@ -138,8 +92,8 @@
         }
 
         .btn-edit {
-            background: #f39c12;
-            color: white;
+            background: var(--color-warning);
+            color: var(--text-white);
             padding: 5px 15px;
             font-size: 14px;
         }
@@ -149,14 +103,14 @@
         }
 
         .btn-test {
-            background: #9b59b6;
-            color: white;
+            background: var(--channels-btn-test-bg);
+            color: var(--text-white);
             padding: 5px 15px;
             font-size: 14px;
         }
 
         .btn-test:hover {
-            background: #8e44ad;
+            background: var(--channels-btn-test-hover);
         }
 
         .data-table {
@@ -168,17 +122,28 @@
         .data-table td {
             padding: 12px;
             text-align: left;
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .data-table th {
-            background: #f8f9fa;
+            background: var(--bg-table-header);
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
+            transition: background-color var(--transition-base), color var(--transition-base);
         }
 
         .data-table tr:hover {
-            background: #f8f9fa;
+            background: var(--bg-hover);
+        }
+
+        .data-table td {
+            color: var(--text-primary);
+            transition: border-color var(--transition-base), color var(--transition-base);
+        }
+
+        .data-table strong {
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .actions {
@@ -189,7 +154,7 @@
         .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
+            z-index: var(--z-index-modal);
             left: 0;
             top: 0;
             width: 100%;
@@ -199,14 +164,15 @@
         }
 
         .modal-content {
-            background-color: white;
+            background-color: var(--bg-card);
             margin: 30px auto;
             padding: 30px;
             border-radius: 8px;
             width: 80%;
             max-width: 500px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-modal);
             position: relative;
+            transition: background-color var(--transition-base);
         }
 
         .modal-header {
@@ -218,18 +184,20 @@
 
         .modal-header h2 {
             margin: 0;
-            color: #2c3e50;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .close {
             font-size: 28px;
             font-weight: bold;
-            color: #aaa;
+            color: var(--text-meta);
             cursor: pointer;
+            transition: color var(--transition-base);
         }
 
         .close:hover {
-            color: #000;
+            color: var(--text-primary);
         }
 
         .form-group {
@@ -240,7 +208,8 @@
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .form-group input,
@@ -248,14 +217,22 @@
         .form-group select {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-medium);
             border-radius: 4px;
             font-size: 16px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            transition: background-color var(--transition-base), color var(--transition-base), border-color var(--transition-base);
         }
 
         .form-group textarea {
             resize: vertical;
             min-height: 100px;
+        }
+
+        .form-group small {
+            color: var(--channels-help-color);
+            transition: color var(--transition-base);
         }
 
         .form-actions {
@@ -290,8 +267,9 @@
         .hour-number {
             text-align: center;
             font-size: 11px;
-            color: #666;
+            color: var(--channels-hour-number-color);
             font-weight: 500;
+            transition: color var(--transition-base);
         }
 
         .hours-checkboxes {
@@ -305,10 +283,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
+            background: var(--channels-hour-cell-bg);
+            border: 1px solid var(--channels-hour-cell-border);
             border-radius: 2px;
             padding: 0;
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
         .hour-cell input[type="checkbox"] {
@@ -318,7 +297,7 @@
         }
 
         .hour-cell input[type="checkbox"]:checked {
-            accent-color: #3498db;
+            accent-color: var(--channels-checkbox-accent);
         }
 
         .hours-controls {
@@ -331,27 +310,48 @@
         .hours-controls button {
             padding: 4px 10px;
             font-size: 12px;
-            background: #f0f0f0;
-            border: 1px solid #ddd;
+            background: var(--channels-hour-controls-bg);
+            border: 1px solid var(--channels-hour-controls-border);
             border-radius: 4px;
             cursor: pointer;
             white-space: nowrap;
+            color: var(--text-primary);
+            transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base);
         }
 
         .hours-controls button:hover {
-            background: #e0e0e0;
+            background: var(--channels-hour-controls-hover);
         }
 
         .empty-state {
             text-align: center;
             padding: 60px 20px;
-            color: #7f8c8d;
+            color: var(--text-meta);
+            transition: color var(--transition-base);
         }
 
         .empty-state-icon {
             font-size: 64px;
             margin-bottom: 20px;
             opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: var(--text-secondary);
+            transition: color var(--transition-base);
+        }
+
+        /* Color states for endpoint validation */
+        #endpointHelp.success {
+            color: var(--channels-success-color) !important;
+        }
+
+        #endpointError.warning {
+            color: var(--channels-warning-color) !important;
+        }
+
+        #endpointError.error {
+            color: var(--channels-error-color) !important;
         }
 
         @media (max-width: 768px) {
@@ -382,36 +382,30 @@
             .actions {
                 flex-direction: column;
             }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
         }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📡 Channels</h1>
-            <div class="nav-links">
-                <a href="/settings" class="nav-link">← Back to Settings</a>
-                <a href="/" class="nav-link">← Back to Feeds</a>
-            </div>
+{% endblock %}
+
+{% block settings_content %}
+    <div class="action-bar">
+            <h2>Broadcast Channels</h2>
+            <button class="btn btn-primary" onclick="openAddModal()">+ Add Channel</button>
         </div>
 
-        <div class="content-card">
-            <div class="action-bar">
-                <h2>Broadcast Channels</h2>
-                <button class="btn btn-primary" onclick="openAddModal()">+ Add Channel</button>
+        <div id="channels-list">
+            <!-- Channels will be loaded here -->
+            <div class="empty-state">
+                <div class="empty-state-icon">📡</div>
+                <h3>No channels configured</h3>
+                <p>Add a channel to start broadcasting notifications</p>
             </div>
-
-            <div id="channels-list">
-                <!-- Channels will be loaded here -->
-                <div class="empty-state">
-                    <div class="empty-state-icon">📡</div>
-                    <h3>No channels configured</h3>
-                    <p>Add a channel to start broadcasting notifications</p>
-                </div>
-            </div>
-        </div>
     </div>
+{% endblock %}
 
+{% block modals %}
     <!-- Add/Edit Channel Modal -->
     <div id="channelModal" class="modal">
         <div class="modal-content">
@@ -428,8 +422,8 @@
                 <div class="form-group">
                     <label for="channelEndpoint">Endpoint URL</label>
                     <input type="text" id="channelEndpoint" required placeholder="https://hooks.slack.com/... or mailto:user@example.com" onblur="validateEndpointField()">
-                    <small id="endpointHelp" style="color: #666;">Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)</small>
-                    <small id="endpointError" style="color: #e74c3c; display: none;"></small>
+                    <small id="endpointHelp">Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)</small>
+                    <small id="endpointError" style="display: none;"></small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -437,14 +431,14 @@
                         <input type="number" id="channelScoreThreshold" required
                                min="0" max="1" step="0.01" value="0.7"
                                placeholder="0.7">
-                        <small style="color: #666;">Min score to broadcast (0.0-1.0)</small>
+                        <small>Min score to broadcast (0.0-1.0)</small>
                     </div>
                     <div class="form-group">
                         <label for="channelModelId">Model</label>
                         <select id="channelModelId" required>
                             <option value="">Loading models...</option>
                         </select>
-                        <small style="color: #666;">Scoring model to use</small>
+                        <small>Scoring model to use</small>
                     </div>
                 </div>
                 <div class="form-row">
@@ -453,10 +447,10 @@
                         <input type="number" id="channelBroadcastLimit" required
                                min="1" max="100" value="20"
                                placeholder="20">
-                        <small style="color: #666;">Max items per run</small>
+                        <small>Max items per run</small>
                     </div>
                     <div class="form-group">
-                        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #2c3e50;">Status</label>
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Status</label>
                         <label style="display: inline-flex; align-items: center; font-weight: normal; white-space: nowrap;">
                             <input type="checkbox" id="channelIsActive" checked style="margin-right: 8px;">
                             <span>Channel is Active</span>
@@ -481,7 +475,7 @@
                             <button type="button" onclick="selectEveryMorning()">Every morning</button>
                             <button type="button" onclick="selectAfterMeals()">After meals</button>
                         </div>
-                        <small style="color: #666;">Select hours when broadcasting is allowed (server timezone)</small>
+                        <small>Select hours when broadcasting is allowed (server timezone)</small>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -491,7 +485,9 @@
             </form>
         </div>
     </div>
+{% endblock %}
 
+{% block page_scripts %}
     <script>
         let channels = [];
         let models = [];
@@ -723,7 +719,7 @@
             document.getElementById('channelId').value = '';
             // Reset validation messages
             document.getElementById('endpointHelp').style.display = 'block';
-            document.getElementById('endpointHelp').style.color = '#666';
+            document.getElementById('endpointHelp').className = '';
             document.getElementById('endpointHelp').innerHTML = 'Supports Slack/Discord webhooks or email (use mailto:address@example.com for email newsletters)';
             document.getElementById('endpointError').style.display = 'none';
             // Reset hours to all checked (default)
@@ -749,7 +745,7 @@
                 const option = document.createElement('option');
                 option.value = channel.model_id || 1;
                 option.textContent = `Model ${channel.model_id || 1} (Not Found)`;
-                option.style.color = '#e74c3c';
+                option.style.color = 'var(--channels-error-color)';
                 modelSelect.appendChild(option);
                 modelSelect.value = channel.model_id || 1;
             }
@@ -813,6 +809,7 @@
             if (!url) {
                 // Reset to default state if empty
                 helpText.style.display = 'block';
+                helpText.className = '';
                 errorText.style.display = 'none';
                 return;
             }
@@ -822,7 +819,7 @@
             if (validation.valid) {
                 // Show detected type
                 helpText.style.display = 'block';
-                helpText.style.color = '#27ae60';
+                helpText.className = 'success';
                 helpText.innerHTML = `✓ Detected as ${validation.type} endpoint`;
                 errorText.style.display = 'none';
             } else if (validation.warning) {
@@ -830,13 +827,13 @@
                 helpText.style.display = 'none';
                 errorText.style.display = 'block';
                 errorText.innerHTML = `⚠️ ${validation.message}`;
-                errorText.style.color = '#f39c12';
+                errorText.className = 'warning';
             } else {
                 // Show error
                 helpText.style.display = 'none';
                 errorText.style.display = 'block';
                 errorText.innerHTML = `✗ ${validation.message}`;
-                errorText.style.color = '#e74c3c';
+                errorText.className = 'error';
             }
         }
 
@@ -962,5 +959,4 @@
         loadModels();
         loadChannels();
     </script>
-</body>
-</html>
+{% endblock %}

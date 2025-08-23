@@ -43,6 +43,8 @@ old/
 qbio/
 run-update.sh
 run-broadcast.sh
+config.yml
+.activate.sh
 
 # Documentation build output
 docs/_build/

@@ -90,8 +90,8 @@ def index():
     current_min_score = getattr(current_user, 'feedlist_minscore', 0.0)
 
     return render_template(
-        "feeds_list.html", 
-        channels=channels, 
+        "feeds_list.html",
+        channels=channels,
         primary_channel_id=primary_channel_id,
         current_min_score=current_min_score,
         last_updated=last_updated
@@ -231,7 +231,7 @@ def broadcast_queue():
     # Check if user is admin
     if not current_user.is_admin:
         return render_template("error.html", error="Admin access required"), 403
-    return render_template("settings_broadcast_queue.html")
+    return render_template("broadcast_queue.html")
 
 
 @main_bp.route("/events")
@@ -241,7 +241,7 @@ def events():
     # Check if user is admin
     if not current_user.is_admin:
         return render_template("error.html", error="Admin access required"), 403
-    return render_template("settings_events.html")
+    return render_template("events.html")
 
 
 @main_bp.route("/pdf-search")
@@ -257,7 +257,7 @@ def user_settings():
     """Personal settings page for users to manage their preferences."""
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    
+
     # Get user's current settings
     cursor.execute("""
         SELECT id, username, theme, primary_channel_id, timezone
@@ -265,7 +265,7 @@ def user_settings():
         WHERE id = %s
     """, (current_user.id,))
     user_data = cursor.fetchone()
-    
+
     # Get available channels for primary channel selection
     cursor.execute("""
         SELECT id, name
@@ -274,8 +274,8 @@ def user_settings():
         ORDER BY id
     """)
     channels = cursor.fetchall()
-    
+
     cursor.close()
     conn.close()
-    
+
     return render_template("user_settings.html", user_data=user_data, channels=channels)

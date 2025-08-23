@@ -1,16 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Similar Articles - PaperSorter</title>
+{% extends "base.html" %}
+
+{% block title %}Similar Articles - PaperSorter{% endblock %}
+
+{% block styles %}
     <style>
+        /* Override base styles for this page */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
+            background-color: var(--bg-body);
+        }
+
+        main {
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
         }
 
         .container {
@@ -18,122 +20,130 @@
             margin: 0 auto;
         }
 
-        .header {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        /* Hide the base template header on this page */
+        body > .container > .header {
+            display: none;
         }
 
-        .header-top {
+        /* Custom header for this page that combines everything */
+        .combined-header {
+            background: var(--similar-header-bg);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: var(--similar-header-shadow);
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
+        }
+
+        .combined-header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
-        .user-info {
-            display: flex;
-            align-items: center;
-            padding: 8px 16px;
-            background: #e8f5e9;
-            border-radius: 20px;
-            font-weight: 600;
-            color: #2e7d32;
-            font-size: 14px;
-            gap: 8px;
-        }
-
-        .user-icon {
-            width: 24px;
-            height: 24px;
-            background: #4caf50;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .header h1 {
+        .combined-header h1 {
             margin: 0;
-            color: #2c3e50;
+            color: var(--text-primary);
+            font-size: 28px;
+            font-weight: bold;
+            transition: color var(--transition-base);
         }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
 
         .source-article {
-            background: #e8f5e9;
-            border: 1px solid #a5d6a7;
+            background: var(--similar-source-bg);
+            border: 1px solid var(--similar-source-border);
             border-radius: 6px;
             padding: 15px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
         .source-article h3 {
             margin: 0 0 8px 0;
-            color: #388e3c;
+            color: var(--similar-source-title-color);
             font-size: 16px;
+            transition: color var(--transition-base);
         }
 
         .source-article-title {
             font-weight: bold;
-            color: #2e7d32;
+            color: var(--similar-source-text-color);
             margin-bottom: 5px;
+            transition: color var(--transition-base);
         }
 
         .source-article-meta {
             font-size: 14px;
-            color: #558b2f;
+            color: var(--similar-source-meta-color);
+            transition: color var(--transition-base);
         }
 
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
+        /* Match Settings page nav-link style */
         .nav-link {
-            color: #3498db;
+            color: var(--color-primary);
             text-decoration: none;
             font-weight: bold;
             padding: 10px 20px;
-            border: 2px solid #3498db;
+            border: 2px solid var(--color-primary);
             border-radius: 6px;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
             display: inline-block;
         }
 
         .nav-link:hover {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
+        }
+
+        /* Theme toggle button matching base template */
+        .btn-theme-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all var(--transition-base);
+        }
+
+        .btn-theme-toggle:hover {
+            background: var(--bg-hover);
         }
 
         .feeds-container {
-            background: white;
+            background: var(--similar-feeds-bg);
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--similar-feeds-shadow);
             overflow: hidden;
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
         }
 
         .similarity-header {
-            background: #f8f9fa;
+            background: var(--similar-similarity-header-bg);
             padding: 15px 20px;
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid var(--similar-similarity-header-border);
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--similar-similarity-header-color);
             font-size: 16px;
+            transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base);
         }
 
         .feed-item {
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid var(--similar-feed-item-border);
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
         .feed-item:hover {
-            background-color: #f8f9fa;
+            background-color: var(--similar-feed-item-hover-bg);
         }
 
         .feed-item:last-child {
@@ -163,7 +173,7 @@
         }
 
         .similarity-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--similar-similarity-badge-bg);
             color: white;
             min-width: 49px;
         }
@@ -190,12 +200,12 @@
         }
 
         .score-icon.starred {
-            background: #f39c12;
+            background: var(--similar-starred-icon-bg);
             color: white;
         }
 
         .score-icon.broadcasted {
-            background: #3498db;
+            background: var(--similar-broadcasted-icon-bg);
             color: white;
         }
 
@@ -207,17 +217,19 @@
         .feed-title {
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--similar-feed-title-color);
             margin-bottom: 5px;
             line-height: 1.3;
+            transition: color var(--transition-base);
         }
 
         .feed-meta {
             display: flex;
             gap: 15px;
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--similar-feed-meta-color);
             margin-bottom: 5px;
+            transition: color var(--transition-base);
         }
 
         .feed-meta-item {
@@ -254,25 +266,26 @@
         }
 
         .label-starred {
-            background: #f39c12;
+            background: var(--similar-label-starred-bg);
             color: white;
         }
 
         .label-positive {
-            background: #27ae60;
+            background: var(--similar-label-positive-bg);
             color: white;
         }
 
         .label-negative {
-            background: #e74c3c;
+            background: var(--similar-label-negative-bg);
             color: white;
         }
 
         .feed-details {
             display: none;
             padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
+            background: var(--similar-feed-details-bg);
+            border-top: 1px solid var(--similar-feed-details-border);
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
         .feed-details.expanded {
@@ -282,8 +295,9 @@
         .feed-abstract {
             font-size: 15px;
             line-height: 1.6;
-            color: #34495e;
+            color: var(--similar-feed-abstract-color);
             margin-bottom: 15px;
+            transition: color var(--transition-base);
         }
 
         .feed-actions {
@@ -300,92 +314,93 @@
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
         }
 
         .btn-primary {
-            background: #e3f2fd;
-            color: #1976d2;
-            border: 1px solid #90caf9;
+            background: var(--similar-btn-primary-bg);
+            color: var(--similar-btn-primary-color);
+            border: 1px solid var(--similar-btn-primary-border);
         }
 
         .btn-primary:hover {
-            background: #bbdefb;
-            border-color: #64b5f6;
+            background: var(--similar-btn-primary-hover-bg);
+            border-color: var(--similar-btn-primary-hover-border);
         }
 
         .btn-star {
-            background: #fff3e0;
-            color: #f57c00;
-            border: 1px solid #ffcc80;
+            background: var(--similar-btn-star-bg);
+            color: var(--similar-btn-star-color);
+            border: 1px solid var(--similar-btn-star-border);
         }
 
         .btn-star:hover {
-            background: #ffe0b2;
-            border-color: #ffb74d;
+            background: var(--similar-btn-star-hover-bg);
+            border-color: var(--similar-btn-star-hover-border);
         }
 
         .btn-star.starred {
-            background: #ffcc80;
-            border-color: #ff9800;
-            color: #e65100;
+            background: var(--similar-btn-star-starred-bg);
+            border-color: var(--similar-btn-star-starred-border);
+            color: var(--similar-btn-star-starred-color);
         }
 
         .btn-thumbs-up {
-            background: #e8f5e9;
-            color: #388e3c;
-            border: 1px solid #a5d6a7;
+            background: var(--similar-btn-thumbs-up-bg);
+            color: var(--similar-btn-thumbs-up-color);
+            border: 1px solid var(--similar-btn-thumbs-up-border);
         }
 
         .btn-thumbs-up:hover {
-            background: #c8e6c9;
-            border-color: #81c784;
+            background: var(--similar-btn-thumbs-up-hover-bg);
+            border-color: var(--similar-btn-thumbs-up-hover-border);
         }
 
         .btn-thumbs-up.active {
-            background: #a5d6a7;
-            border-color: #66bb6a;
-            color: #2e7d32;
+            background: var(--similar-btn-thumbs-up-active-bg);
+            border-color: var(--similar-btn-thumbs-up-active-border);
+            color: var(--similar-btn-thumbs-up-active-color);
         }
 
         .btn-thumbs-down {
-            background: #ffebee;
-            color: #d32f2f;
-            border: 1px solid #ef9a9a;
+            background: var(--similar-btn-thumbs-down-bg);
+            color: var(--similar-btn-thumbs-down-color);
+            border: 1px solid var(--similar-btn-thumbs-down-border);
         }
 
         .btn-thumbs-down:hover {
-            background: #ffcdd2;
-            border-color: #e57373;
+            background: var(--similar-btn-thumbs-down-hover-bg);
+            border-color: var(--similar-btn-thumbs-down-hover-border);
         }
 
         .btn-thumbs-down.active {
-            background: #ef9a9a;
-            border-color: #ef5350;
-            color: #c62828;
+            background: var(--similar-btn-thumbs-down-active-bg);
+            border-color: var(--similar-btn-thumbs-down-active-border);
+            color: var(--similar-btn-thumbs-down-active-color);
         }
 
         .btn-similar {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            border: 1px solid #ce93d8;
+            background: var(--similar-btn-similar-bg);
+            color: var(--similar-btn-similar-color);
+            border: 1px solid var(--similar-btn-similar-border);
         }
 
         .btn-similar:hover {
-            background: #e1bee7;
-            border-color: #ba68c8;
+            background: var(--similar-btn-similar-hover-bg);
+            border-color: var(--similar-btn-similar-hover-border);
         }
 
         .loading {
             text-align: center;
             padding: 40px;
-            color: #7f8c8d;
+            color: var(--similar-loading-color);
             font-size: 16px;
+            transition: color var(--transition-base);
         }
 
         .loading-spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            border: 3px solid var(--similar-loading-spinner-border);
+            border-top: 3px solid var(--similar-loading-spinner-top);
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -408,15 +423,207 @@
             margin-left: 5px;
         }
 
+        /* Summary Section Styles */
+        .summary-section {
+            background: var(--similar-feeds-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: background-color var(--transition-base);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .summary-header h3 {
+            margin: 0;
+            color: var(--similar-summary-header-color);
+            font-size: 20px;
+            transition: color var(--transition-base);
+        }
+
+        .btn-secondary {
+            background: var(--similar-btn-secondary-bg);
+            color: var(--similar-btn-secondary-color);
+            border: 1px solid var(--similar-btn-secondary-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--similar-btn-secondary-hover-bg);
+            border-color: var(--similar-btn-secondary-hover-border);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .summary-content {
+            position: relative;
+            min-height: 120px;
+        }
+
+        .summary-initial {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 120px;
+            gap: 12px;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
+        }
+
+        .btn-generate {
+            background: var(--similar-btn-generate-bg);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-generate:hover {
+            background: var(--similar-btn-generate-hover-bg);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+
+        .btn-generate:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-loading, .poster-loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
+        }
+
+        .summary-loading p, .poster-loading p {
+            color: var(--text-primary);
+            margin: 10px 0;
+            transition: color var(--transition-base);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 20px;
+            border: 4px solid var(--similar-loading-spinner-border);
+            border-top: 4px solid var(--similar-btn-generate-bg);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .summary-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--similar-summary-text-color);
+            transition: color var(--transition-base);
+        }
+
+        .summary-text h1, .summary-text h2, .summary-text h3 {
+            color: var(--similar-summary-header-color);
+            margin-top: 20px;
+            margin-bottom: 10px;
+            transition: color var(--transition-base);
+        }
+
+        .summary-text ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        .summary-text li {
+            margin: 5px 0;
+        }
+
+        .summary-text strong {
+            color: var(--similar-summary-strong-color);
+            transition: color var(--transition-base);
+        }
+
+        .summary-disclaimer {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background-color: var(--similar-disclaimer-bg);
+            border-left: 3px solid var(--similar-disclaimer-border);
+            border-radius: 4px;
+            transition: background-color var(--transition-base), border-color var(--transition-base);
+        }
+
+        .summary-disclaimer p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--similar-disclaimer-color);
+            line-height: 1.5;
+            transition: color var(--transition-base);
+        }
+
+        .summary-disclaimer strong {
+            color: var(--similar-disclaimer-strong-color);
+            transition: color var(--transition-base);
+        }
+
+        .poster-content {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .poster-iframe {
+            width: 100%;
+            height: 800px;
+            border: 1px solid var(--similar-disclaimer-border);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .poster-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: flex-end;
+        }
+
+        .btn-print {
+            background: var(--similar-btn-generate-bg);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-print:hover {
+            background: var(--similar-btn-generate-hover-bg);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+
+        .btn-print:active {
+            transform: translateY(1px);
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
             }
 
-            .header-top {
-                flex-direction: column;
-                gap: 10px;
-            }
 
             .nav-buttons {
                 flex-wrap: wrap;
@@ -476,236 +683,53 @@
             }
 
             .btn-primary {
-                background: #e3f2fd;
-                color: #1976d2;
-                border-color: #90caf9;
+                background: var(--similar-btn-primary-bg);
+                color: var(--similar-btn-primary-color);
+                border-color: var(--similar-btn-primary-border);
             }
 
             .btn-primary:hover {
-                background: #bbdefb;
-                border-color: #64b5f6;
+                background: var(--similar-btn-primary-hover-bg);
+                border-color: var(--similar-btn-primary-hover-border);
             }
 
             .btn-star.starred {
-                background: #f39c12;
+                background: var(--similar-starred-icon-bg);
                 color: white;
-                border-color: #f39c12;
+                border-color: var(--similar-starred-icon-bg);
             }
 
             .btn-thumbs-up.active {
-                background: #27ae60;
+                background: var(--similar-label-positive-bg);
                 color: white;
-                border-color: #27ae60;
+                border-color: var(--similar-label-positive-bg);
             }
 
             .btn-thumbs-down.active {
-                background: #e74c3c;
+                background: var(--similar-label-negative-bg);
                 color: white;
-                border-color: #e74c3c;
+                border-color: var(--similar-label-negative-bg);
             }
         }
-
-        /* Summary Section Styles */
-        .summary-section {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .summary-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .summary-header h3 {
-            margin: 0;
-            color: #1a73e8;
-            font-size: 20px;
-        }
-
-        .btn-secondary {
-            background: #f1f3f4;
-            color: #3c4043;
-            border: 1px solid #dadce0;
-        }
-
-        .btn-secondary:hover {
-            background: #e8eaed;
-            border-color: #5f6368;
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 13px;
-        }
-
-        .summary-content {
-            position: relative;
-            min-height: 120px;
-        }
-
-        .summary-initial {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 120px;
-            gap: 12px;
-        }
-
-        .btn-generate {
-            background: #1a73e8;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: 500;
-            border-radius: 24px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .btn-generate:hover {
-            background: #1557b0;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-            transform: translateY(-1px);
-        }
-
-        .btn-generate:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .summary-loading, .poster-loading {
-            text-align: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            margin: 0 auto 20px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #1a73e8;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .summary-text {
-            font-size: 15px;
-            line-height: 1.8;
-            color: #202124;
-        }
-
-        .summary-text h1, .summary-text h2, .summary-text h3 {
-            color: #1a73e8;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
-
-        .summary-text ul {
-            margin: 10px 0;
-            padding-left: 25px;
-        }
-
-        .summary-text li {
-            margin: 5px 0;
-        }
-
-        .summary-text strong {
-            color: #3c4043;
-        }
-
-        .summary-disclaimer {
-            margin-top: 20px;
-            padding: 12px 16px;
-            background-color: #f8f9fa;
-            border-left: 3px solid #dadce0;
-            border-radius: 4px;
-        }
-
-        .summary-disclaimer p {
-            margin: 0;
-            font-size: 13px;
-            color: #5f6368;
-            line-height: 1.5;
-        }
-
-        .summary-disclaimer strong {
-            color: #3c4043;
-        }
-
-        .poster-content {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .poster-iframe {
-            width: 100%;
-            height: 800px;
-            border: 1px solid #dadce0;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .poster-actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            justify-content: flex-end;
-        }
-
-        .btn-print {
-            background: #1a73e8;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: 500;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-print:hover {
-            background: #1557b0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-        }
-
-        .btn-print:active {
-            transform: translateY(1px);
-        }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <div class="container">
-        <div class="header">
-            <div class="header-top">
+        <div class="combined-header">
+            <div class="combined-header-top">
                 <h1>Similar Articles</h1>
-                <div class="user-info">
-                    <div class="user-icon">{{ current_user.username[0].upper() }}</div>
-                    <span>{{ current_user.username }}</span>
+                <div class="header-actions">
+                    <a href="/" class="nav-link">← Back to Feeds</a>
+                    <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
+                        <span class="theme-icon">🌙</span>
+                    </button>
                 </div>
             </div>
             <div class="source-article" id="source-article">
                 <h3>Finding articles similar to:</h3>
                 <div class="source-article-title">Loading...</div>
                 <div class="source-article-meta"></div>
-            </div>
-            <div class="nav-buttons">
-                <a href="/" class="nav-link">← Back to Feeds</a>
             </div>
         </div>
 
@@ -726,7 +750,7 @@
                 <div class="poster-loading" id="poster-loading" style="display: none;">
                     <div class="spinner"></div>
                     <p>Generating infographic poster...</p>
-                    <p style="font-size: 13px; color: #5f6368; margin-top: 10px;">
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 10px;">
                         This may take 3-5 minutes. Please wait...
                     </p>
                 </div>
@@ -746,7 +770,9 @@
             </div>
         </div>
     </div>
+{% endblock %}
 
+{% block scripts %}
     <script>
         const sourceFeedId = {{ source_feed_id }};
         const userTimezone = '{{ current_user.timezone }}';
@@ -887,12 +913,12 @@
                         });
                         document.getElementById('loading').style.display = 'none';
                     } else {
-                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No similar articles found</div>';
+                        document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--similar-loading-color);">No similar articles found</div>';
                     }
                 })
                 .catch(error => {
                     console.error('Error loading similar feeds:', error);
-                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: #e74c3c;">Error loading similar articles</div>';
+                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--feedback-error-title-color);">Error loading similar articles</div>';
                 });
         }
 
@@ -913,6 +939,7 @@
                     console.error('Error loading feed content:', error);
                     const abstractElement = detailsElement.querySelector('.feed-abstract');
                     abstractElement.textContent = 'Error loading content';
+                    abstractElement.style.color = 'var(--feedback-error-title-color)';
                 });
         }
 
@@ -1173,14 +1200,14 @@
                         </div>
                     `;
                 } else {
-                    summaryText.innerHTML = `<p style="color: #e74c3c;">Failed to generate summary: ${data.error || 'Unknown error'}</p>`;
+                    summaryText.innerHTML = `<p style="color: var(--feedback-error-title-color);">Failed to generate summary: ${data.error || 'Unknown error'}</p>`;
                     // Show button again on failure
                     summaryInitial.style.display = 'flex';
                 }
             })
             .catch(error => {
                 console.error('Error generating summary:', error);
-                summaryText.innerHTML = '<p style="color: #e74c3c;">An error occurred while generating the summary.</p>';
+                summaryText.innerHTML = '<p style="color: var(--feedback-error-title-color);">An error occurred while generating the summary.</p>';
                 // Show button again on error
                 summaryInitial.style.display = 'flex';
             })
@@ -1260,7 +1287,7 @@
                                     clearInterval(pollInterval);
                                     posterLoading.style.display = 'none';
 
-                                    posterContent.innerHTML = `<p style="color: #e74c3c;">Failed to generate poster: ${statusData.error || 'Unknown error'}</p>`;
+                                    posterContent.innerHTML = `<p style="color: var(--feedback-error-title-color);">Failed to generate poster: ${statusData.error || 'Unknown error'}</p>`;
                                     posterContent.style.display = 'block';
                                     // Show button again on failure
                                     summaryInitial.style.display = 'flex';
@@ -1271,7 +1298,7 @@
                                 clearInterval(pollInterval);
                                 posterLoading.style.display = 'none';
 
-                                posterContent.innerHTML = `<p style="color: #e74c3c;">An error occurred while checking job status: ${error.message}</p>`;
+                                posterContent.innerHTML = `<p style="color: var(--feedback-error-title-color);">An error occurred while checking job status: ${error.message}</p>`;
                                 posterContent.style.display = 'block';
                                 // Show button again on error
                                 summaryInitial.style.display = 'flex';
@@ -1283,7 +1310,7 @@
                         clearInterval(pollInterval);
                         if (posterLoading.style.display !== 'none') {
                             posterLoading.style.display = 'none';
-                            posterContent.innerHTML = `<p style="color: #e74c3c;">Generation timed out. Please try again.</p>`;
+                            posterContent.innerHTML = `<p style="color: var(--feedback-error-title-color);">Generation timed out. Please try again.</p>`;
                             posterContent.style.display = 'block';
                             summaryInitial.style.display = 'flex';
                         }
@@ -1295,7 +1322,7 @@
             })
             .catch(error => {
                 posterLoading.style.display = 'none';
-                posterContent.innerHTML = `<p style="color: #e74c3c;">An error occurred while generating the poster: ${error.message}</p>`;
+                posterContent.innerHTML = `<p style="color: var(--feedback-error-title-color);">An error occurred while generating the poster: ${error.message}</p>`;
                 posterContent.style.display = 'block';
                 // Show button again on error
                 summaryInitial.style.display = 'flex';
@@ -1314,8 +1341,32 @@
             }
         }
 
+        // Override ThemeManager's updateThemeIcon to ensure it works with our custom header
+        if (typeof ThemeManager !== 'undefined') {
+            const originalUpdateThemeIcon = ThemeManager.updateThemeIcon;
+            ThemeManager.updateThemeIcon = function(theme) {
+                // Call original function first
+                originalUpdateThemeIcon.call(this, theme);
+                // Also update our custom header's icon
+                const icon = document.querySelector('.combined-header .theme-icon');
+                if (icon) {
+                    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+                }
+            };
+        }
+
+        // Initialize theme icon on page load
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const currentTheme = document.body.getAttribute('data-theme') || 'light';
+                const icon = document.querySelector('.theme-icon');
+                if (icon) {
+                    icon.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+                }
+            }, 100);
+        });
+
         // Initial load
         loadSimilarFeeds();
     </script>
-</body>
-</html>
+{% endblock %}

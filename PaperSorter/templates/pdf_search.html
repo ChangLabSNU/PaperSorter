@@ -1,10 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paper Connect - PaperSorter</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}Paper Connect - PaperSorter{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block styles %}
     <style>
         * {
             margin: 0;
@@ -13,31 +13,49 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             height: 100vh;
             overflow: hidden;
+            padding: 0;
         }
 
-        /* Header */
-        .header {
-            background: white;
-            border-bottom: 2px solid #e2e8f0;
+        /* Custom header for PDF search */
+        .pdf-header {
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-light);
             padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-card);
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
-        .header h1 {
+        .pdf-header h1 {
             margin: 0;
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 24px;
+            transition: color var(--transition-base);
         }
 
-        .header-actions {
+        .pdf-header-actions {
             display: flex;
             gap: 10px;
+            align-items: center;
+        }
+
+        /* Navigation link style */
+        .nav-link {
+            color: var(--text-meta);
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all var(--transition-base);
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
         }
 
         /* Main Container */
@@ -51,27 +69,28 @@
         .pdf-column {
             width: 50%;
             min-width: 300px;
-            background-color: #f7fafc;
+            background-color: var(--pdf-column-bg);
             overflow-y: auto;
             position: relative;
+            transition: background-color var(--transition-base);
         }
 
         /* Resize Handle */
         .resize-handle {
             width: 8px;
-            background: #e2e8f0;
+            background: var(--border-light);
             cursor: col-resize;
             position: relative;
-            transition: background-color 0.2s;
+            transition: background-color var(--transition-base);
             flex-shrink: 0;
         }
 
         .resize-handle:hover {
-            background: #cbd5e0;
+            background: var(--border-medium);
         }
 
         .resize-handle:active {
-            background: #a0aec0;
+            background: var(--border-dark);
         }
 
         .resize-handle::before {
@@ -82,7 +101,7 @@
             transform: translate(-50%, -50%);
             width: 2px;
             height: 30px;
-            background: #718096;
+            background: var(--text-meta);
             border-radius: 1px;
             opacity: 0.5;
         }
@@ -98,56 +117,61 @@
         }
 
         .upload-box {
-            background: white;
+            background: var(--bg-card);
             padding: 60px;
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
             text-align: center;
             max-width: 500px;
             width: 100%;
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
         }
 
         .upload-box h2 {
             margin-bottom: 30px;
-            color: #333;
+            color: var(--text-primary);
             font-size: 20px;
+            transition: color var(--transition-base);
         }
 
         .pdf-file-input-label {
             display: inline-block;
             padding: 12px 30px;
-            background-color: #667eea;
-            color: white;
+            background-color: var(--pdf-upload-btn-bg);
+            color: var(--text-white);
             border-radius: 6px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color var(--transition-base);
             font-size: 16px;
             font-weight: 500;
         }
 
         .pdf-file-input-label:hover {
-            background-color: #5a67d8;
+            background-color: var(--pdf-upload-btn-hover);
         }
 
         .pdf-file-name {
             margin-top: 20px;
-            color: #666;
+            color: var(--text-meta);
             font-size: 14px;
             min-height: 20px;
+            transition: color var(--transition-base);
         }
 
         /* PDF Viewer */
         .pdf-viewer {
             padding: 20px;
             min-height: 100%;
+            position: relative;
         }
 
         .pdf-page {
             margin: 0 auto 20px;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: var(--bg-card);
+            box-shadow: var(--shadow-card);
             position: relative;
             width: fit-content;
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
         }
 
         .pdf-canvas {
@@ -175,11 +199,11 @@
         }
 
         .pdf-text-layer ::selection {
-            background: rgba(255, 0, 0, 0.4);
+            background: var(--pdf-selection-bg);
         }
 
         .pdf-text-layer ::-moz-selection {
-            background: rgba(255, 0, 0, 0.4);
+            background: var(--pdf-selection-bg);
         }
 
         /* Text Column */
@@ -188,8 +212,9 @@
             min-width: 300px;
             display: flex;
             flex-direction: column;
-            background-color: #ffffff;
+            background-color: var(--bg-card);
             overflow: hidden;
+            transition: background-color var(--transition-base);
         }
 
         .text-panel {
@@ -204,61 +229,52 @@
         }
 
         .text-header h3 {
-            color: #2d3748;
+            color: var(--text-primary);
             font-size: 20px;
             margin: 0;
+            transition: color var(--transition-base);
         }
 
         .instruction-text {
-            color: #718096;
+            color: var(--text-meta);
             font-size: 14px;
             font-style: italic;
             margin-bottom: 15px;
             padding: 8px 12px;
-            background-color: #f7fafc;
-            border-left: 3px solid #667eea;
+            background-color: var(--pdf-instruction-bg);
+            border-left: 3px solid var(--pdf-instruction-border);
             border-radius: 4px;
+            transition: all var(--transition-base);
         }
 
         .search-section {
-            margin-bottom: 20px;
+            display: none;  /* Hidden - contains only internal textarea */
         }
 
         .text-area-small {
-            width: 100%;
-            height: 100px;
-            padding: 10px;
-            font-size: 14px;
-            line-height: 1.5;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            resize: vertical;
-            outline: none;
-            transition: border-color 0.3s;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: none !important;  /* Always hidden - internal use only */
         }
 
-        .text-area-small:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
 
         .text-stats {
             display: flex;
             gap: 30px;
             margin-top: 15px;
             padding: 12px;
-            background-color: #f7fafc;
+            background-color: var(--bg-abstract);
             border-radius: 6px;
             font-size: 14px;
+            transition: background-color var(--transition-base);
         }
 
         .word-count, .char-count {
-            color: #4a5568;
+            color: var(--text-meta);
+            transition: color var(--transition-base);
         }
 
         .word-count strong, .char-count strong {
-            color: #2d3748;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .search-controls {
@@ -280,17 +296,20 @@
             align-items: center;
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #e2e8f0;
+            border-bottom: 2px solid var(--border-light);
+            transition: border-color var(--transition-base);
         }
 
         .results-header h4 {
             margin: 0;
-            color: #2d3748;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .results-count {
-            color: #718096;
+            color: var(--text-meta);
             font-size: 14px;
+            transition: color var(--transition-base);
         }
 
         .results-container {
@@ -301,14 +320,14 @@
 
         /* Feed Item Styles - Matching feeds_list.html exactly */
         .feed-item {
-            background: white;
-            border-bottom: 1px solid #e9ecef;
-            transition: all 0.2s ease;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-light);
+            transition: all var(--transition-base);
             cursor: pointer;
         }
 
         .feed-item:hover {
-            background-color: #f0f4f8;
+            background-color: var(--bg-hover);
         }
 
         .feed-item:last-child {
@@ -346,8 +365,8 @@
         }
 
         .score-icon {
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
+            background: var(--pdf-score-icon-bg);
+            color: var(--text-white);
             border-radius: 50%;
             width: 16px;
             height: 16px;
@@ -355,22 +374,22 @@
             align-items: center;
             justify-content: center;
             font-size: 10px;
-            border: 1px solid white;
+            border: 1px solid var(--bg-card);
         }
 
         .score-icon.starred {
-            background: #f39c12;
-            color: white;
+            background: var(--color-warning);
+            color: var(--text-white);
         }
 
         .score-icon.broadcasted {
-            background: #1f295a;
-            color: white;
+            background: var(--pdf-broadcasted-bg);
+            color: var(--text-white);
         }
 
         .similarity-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--similar-similarity-badge-bg);
+            color: var(--text-white);
             min-width: 49px;
         }
 
@@ -388,17 +407,19 @@
         .feed-title {
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 5px;
             line-height: 1.3;
+            transition: color var(--transition-base);
         }
 
         .feed-meta {
             display: flex;
             gap: 15px;
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--text-meta);
             margin-bottom: 5px;
+            transition: color var(--transition-base);
         }
 
         .feed-meta-item {
@@ -435,25 +456,26 @@
         }
 
         .label-starred {
-            background: #f39c12;
-            color: white;
+            background: var(--color-warning);
+            color: var(--text-white);
         }
 
         .label-positive {
-            background: #27ae60;
-            color: white;
+            background: var(--color-success);
+            color: var(--text-white);
         }
 
         .label-negative {
-            background: #e74c3c;
-            color: white;
+            background: var(--color-danger);
+            color: var(--text-white);
         }
 
         .feed-details {
             display: none;
             padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
+            background: var(--bg-abstract);
+            border-top: 1px solid var(--border-light);
+            transition: all var(--transition-base);
         }
 
         .feed-details.expanded {
@@ -463,8 +485,9 @@
         .feed-abstract {
             font-size: 15px;
             line-height: 1.6;
-            color: #34495e;
+            color: var(--text-secondary);
             margin-bottom: 15px;
+            transition: color var(--transition-base);
         }
 
         .feed-actions {
@@ -475,14 +498,16 @@
         .loading-results {
             text-align: center;
             padding: 40px;
-            color: #718096;
+            color: var(--text-meta);
+            transition: color var(--transition-base);
         }
 
         .no-results {
             text-align: center;
             padding: 40px;
-            color: #a0aec0;
+            color: var(--text-light);
             font-style: italic;
+            transition: color var(--transition-base);
         }
 
         /* Buttons */
@@ -502,98 +527,98 @@
         }
 
         .btn-primary {
-            background: #e3f2fd;
-            color: #1976d2;
-            border: 1px solid #90caf9;
+            background: var(--similar-btn-primary-bg);
+            color: var(--similar-btn-primary-color);
+            border: 1px solid var(--similar-btn-primary-border);
         }
 
         .btn-primary:hover {
-            background: #bbdefb;
-            border-color: #64b5f6;
+            background: var(--similar-btn-primary-hover-bg);
+            border-color: var(--similar-btn-primary-hover-border);
         }
 
         .btn-secondary {
-            background: #ecf0f1;
-            color: #34495e;
-            border: 1px solid #bdc3c7;
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-color);
+            border: 1px solid var(--btn-secondary-border);
         }
 
         .btn-secondary:hover {
-            background: #d5dbdb;
-            border-color: #95a5a6;
+            background: var(--btn-secondary-bg-hover);
+            border-color: var(--btn-secondary-border-hover);
         }
 
         .btn-star {
-            background: #fff3e0;
-            color: #f57c00;
-            border: 1px solid #ffcc80;
+            background: var(--similar-btn-star-bg);
+            color: var(--similar-btn-star-color);
+            border: 1px solid var(--similar-btn-star-border);
         }
 
         .btn-star:hover {
-            background: #ffe0b2;
-            border-color: #ffb74d;
+            background: var(--similar-btn-star-hover-bg);
+            border-color: var(--similar-btn-star-hover-border);
         }
 
         .btn-star.starred {
-            background: #ffcc80;
-            border-color: #ff9800;
-            color: #e65100;
+            background: var(--similar-btn-star-starred-bg);
+            border-color: var(--similar-btn-star-starred-border);
+            color: var(--similar-btn-star-starred-color);
         }
 
         .btn-thumbs-up {
-            background: #e8f5e9;
-            color: #388e3c;
-            border: 1px solid #a5d6a7;
+            background: var(--similar-btn-thumbs-up-bg);
+            color: var(--similar-btn-thumbs-up-color);
+            border: 1px solid var(--similar-btn-thumbs-up-border);
         }
 
         .btn-thumbs-up:hover {
-            background: #c8e6c9;
-            border-color: #81c784;
+            background: var(--similar-btn-thumbs-up-hover-bg);
+            border-color: var(--similar-btn-thumbs-up-hover-border);
         }
 
         .btn-thumbs-up.active {
-            background: #a5d6a7;
-            border-color: #66bb6a;
-            color: #2e7d32;
+            background: var(--similar-btn-thumbs-up-active-bg);
+            border-color: var(--similar-btn-thumbs-up-active-border);
+            color: var(--similar-btn-thumbs-up-active-color);
         }
 
         .btn-thumbs-down {
-            background: #ffebee;
-            color: #d32f2f;
-            border: 1px solid #ef9a9a;
+            background: var(--similar-btn-thumbs-down-bg);
+            color: var(--similar-btn-thumbs-down-color);
+            border: 1px solid var(--similar-btn-thumbs-down-border);
         }
 
         .btn-thumbs-down:hover {
-            background: #ffcdd2;
-            border-color: #e57373;
+            background: var(--similar-btn-thumbs-down-hover-bg);
+            border-color: var(--similar-btn-thumbs-down-hover-border);
         }
 
         .btn-thumbs-down.active {
-            background: #ef9a9a;
-            border-color: #ef5350;
-            color: #c62828;
+            background: var(--similar-btn-thumbs-down-active-bg);
+            border-color: var(--similar-btn-thumbs-down-active-border);
+            color: var(--similar-btn-thumbs-down-active-color);
         }
 
         .btn-similar {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            border: 1px solid #ce93d8;
+            background: var(--similar-btn-similar-bg);
+            color: var(--similar-btn-similar-color);
+            border: 1px solid var(--similar-btn-similar-border);
         }
 
         .btn-similar:hover {
-            background: #e1bee7;
-            border-color: #ba68c8;
+            background: var(--similar-btn-similar-hover-bg);
+            border-color: var(--similar-btn-similar-hover-border);
         }
 
         .btn-danger {
-            background: #fc8181;
-            color: white;
-            border: 1px solid #f56565;
+            background: var(--btn-danger-bg);
+            color: var(--text-white);
+            border: 1px solid var(--btn-danger-bg);
         }
 
         .btn-danger:hover {
-            background: #f56565;
-            border-color: #e53e3e;
+            background: var(--btn-danger-hover);
+            border-color: var(--btn-danger-hover);
         }
 
         .search-button {
@@ -607,7 +632,20 @@
             left: 50%;
             transform: translate(-50%, -50%);
             font-size: 18px;
-            color: #718096;
+            color: var(--text-meta);
+            transition: color var(--transition-base);
+        }
+
+        /* Error message */
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: var(--color-danger);
+            text-align: center;
+            padding: 20px;
         }
 
         .loading-spinner {
@@ -615,8 +653,8 @@
             width: 20px;
             height: 20px;
             margin-right: 10px;
-            border: 3px solid #e2e8f0;
-            border-top-color: #667eea;
+            border: 3px solid var(--border-light);
+            border-top-color: var(--color-primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -640,7 +678,7 @@
 
             .pdf-column {
                 border-right: none;
-                border-bottom: 2px solid #e2e8f0;
+                border-bottom: 2px solid var(--border-light);
             }
 
             .resize-handle {
@@ -648,12 +686,16 @@
             }
         }
     </style>
-</head>
-<body>
-    <div class="header">
+{% endblock %}
+
+{% block main_container %}
+    <div class="pdf-header">
         <h1>🌌 Paper Connect</h1>
-        <div class="header-actions">
-            <a href="/" class="btn btn-secondary">← Back to Feeds</a>
+        <div class="pdf-header-actions">
+            <a href="/" class="nav-link">← Back to Feeds</a>
+            <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
+                <span class="theme-icon">🌙</span>
+            </button>
         </div>
     </div>
 
@@ -689,7 +731,6 @@
                         id="textArea"
                         class="text-area-small"
                         placeholder="Selected text from the PDF will appear here."
-                        style="display: none;"
                     ></textarea>
                 </div>
                 <div class="search-results" id="searchResults">
@@ -702,10 +743,26 @@
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block scripts %}
+    <!-- Load PDF.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <script>
-        // Configure PDF.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        // Wait for PDF.js to load
+        function waitForPdfJs(callback) {
+            if (typeof pdfjsLib !== 'undefined') {
+                callback();
+            } else {
+                setTimeout(() => waitForPdfJs(callback), 100);
+            }
+        }
+
+        // Configure PDF.js when ready
+        waitForPdfJs(() => {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        });
 
         // Global variables
         let pdfDoc = null;
@@ -715,61 +772,79 @@
         let startWidthPdf = 0;
         let currentSearchResults = [];
 
-        // DOM Elements
-        const fileInput = document.getElementById('pdfFileInput');
-        const fileName = document.getElementById('pdfFileName');
-        const pdfUploadArea = document.getElementById('pdfUploadArea');
-        const pdfViewerContainer = document.getElementById('pdfViewerContainer');
-        const pdfLoadingIndicator = document.getElementById('pdfLoadingIndicator');
-        const textArea = document.getElementById('textArea');
-        const searchResults = document.getElementById('searchResults');
-        const resultsContainer = document.getElementById('resultsContainer');
-        const resultsCount = document.getElementById('resultsCount');
+        // Initialize after DOM is ready
+        window.addEventListener('load', function() {
+            // Override main styles to remove padding for full-height layout
+            const mainElement = document.querySelector('main');
+            if (mainElement) {
+                mainElement.style.padding = '0';
+                mainElement.style.background = 'transparent';
+                mainElement.style.boxShadow = 'none';
+            }
 
-        // Event Listeners
-        fileInput.addEventListener('change', handleFileSelect);
+            // Event Listeners
+            const fileInput = document.getElementById('pdfFileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileSelect);
+            }
 
-        // Initialize resize functionality
-        initializeResize();
+            // Initialize resize functionality
+            initializeResize();
+        });
 
         // File selection handler
         function handleFileSelect(event) {
             const file = event.target.files[0];
+            const fileName = document.getElementById('pdfFileName');
+
             if (file && file.type === 'application/pdf') {
                 selectedFile = file;
-                fileName.textContent = `Selected: ${file.name}`;
+                if (fileName) fileName.textContent = `Selected: ${file.name}`;
                 loadPDFFromFile(file);
             } else {
                 selectedFile = null;
-                fileName.textContent = 'Please select a valid PDF file';
+                if (fileName) fileName.textContent = 'Please select a valid PDF file';
             }
         }
 
         // Load PDF from File object
         async function loadPDFFromFile(file) {
+            const pdfUploadArea = document.getElementById('pdfUploadArea');
+            const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+            const pdfLoadingIndicator = document.getElementById('pdfLoadingIndicator');
+
             try {
-                pdfUploadArea.style.display = 'none';
-                pdfViewerContainer.style.display = 'block';
-                pdfLoadingIndicator.style.display = 'block';
-                pdfViewerContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading PDF...</div>';
+                if (pdfUploadArea) pdfUploadArea.style.display = 'none';
+                if (pdfViewerContainer) {
+                    pdfViewerContainer.style.display = 'block';
+                    pdfViewerContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading PDF...</div>';
+                }
+                if (pdfLoadingIndicator) pdfLoadingIndicator.style.display = 'block';
 
                 const arrayBuffer = await file.arrayBuffer();
                 const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
                 pdfDoc = await loadingTask.promise;
 
                 // Clear viewer and render all pages
-                pdfViewerContainer.innerHTML = '';
-                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                    await renderPage(pageNum);
+                if (pdfViewerContainer) {
+                    pdfViewerContainer.innerHTML = '';
+                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                        await renderPage(pageNum);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading PDF:', error);
-                pdfViewerContainer.innerHTML = '<div class="error">Error loading PDF. Please try again.</div>';
+                if (pdfViewerContainer) {
+                    pdfViewerContainer.innerHTML = '<div class="error">Error loading PDF. Please try again.</div>';
+                }
             }
         }
 
         // Render a single page
         async function renderPage(pageNumber) {
+            const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+            if (!pdfViewerContainer) return;
+
             try {
                 const page = await pdfDoc.getPage(pageNumber);
                 const scale = 1.5;
@@ -839,10 +914,21 @@
         // Handle text selection
         function handleTextSelect() {
             const selection = window.getSelection();
-            const selectedText = selection.toString().trim();
+            let selectedText = selection.toString().trim();
+
+            // Limit to 4000 characters if text is too long
+            const MAX_TEXT_LENGTH = 4000;
+            if (selectedText.length > MAX_TEXT_LENGTH) {
+                selectedText = selectedText.substring(0, MAX_TEXT_LENGTH);
+                console.log(`Text truncated from ${selection.toString().trim().length} to ${MAX_TEXT_LENGTH} characters`);
+            }
+
+            const textArea = document.getElementById('textArea');
 
             if (selectedText && selectedText.length >= 10) {
-                textArea.value = selectedText;
+                if (textArea) {
+                    textArea.value = selectedText; // Store text for internal use (max 4000 chars)
+                }
                 // Automatically perform search when text is selected
                 performSearch();
             }
@@ -930,7 +1016,18 @@
 
         // Perform semantic search
         async function performSearch() {
-            const query = textArea.value.trim();
+            const textArea = document.getElementById('textArea');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            if (!textArea || !resultsContainer) return;
+
+            let query = textArea.value.trim();
+
+            // Ensure query doesn't exceed 4000 characters (should already be limited, but double-check)
+            const MAX_TEXT_LENGTH = 4000;
+            if (query.length > MAX_TEXT_LENGTH) {
+                query = query.substring(0, MAX_TEXT_LENGTH);
+            }
 
             if (query.length < 10) {
                 return;
@@ -938,7 +1035,8 @@
 
             // Show loading
             resultsContainer.innerHTML = '<div class="loading-results">Searching for similar papers...</div>';
-            document.querySelector('.results-header').style.display = 'flex';
+            const resultsHeader = document.querySelector('.results-header');
+            if (resultsHeader) resultsHeader.style.display = 'flex';
 
             try {
                 // Use POST method to handle long text
@@ -1089,9 +1187,14 @@
 
         // Display search results
         function displaySearchResults(feeds) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsCount = document.getElementById('resultsCount');
+
+            if (!resultsContainer) return;
+
             if (!feeds || feeds.length === 0) {
                 resultsContainer.innerHTML = '<div class="no-results">No similar papers found.</div>';
-                resultsCount.textContent = '0 papers';
+                if (resultsCount) resultsCount.textContent = '0 papers';
                 currentSearchResults = [];
                 return;
             }
@@ -1099,7 +1202,7 @@
             // Store results globally for access in event handlers
             currentSearchResults = feeds;
 
-            resultsCount.textContent = `${feeds.length} papers`;
+            if (resultsCount) resultsCount.textContent = `${feeds.length} papers`;
             resultsContainer.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
 
             // Add click handlers to expand/collapse feed details
@@ -1176,7 +1279,7 @@
                 document.body.style.cursor = 'col-resize';
 
                 // Add active state to handle
-                resizeHandle.style.background = '#a0aec0';
+                resizeHandle.style.background = getComputedStyle(document.documentElement).getPropertyValue('--border-dark');
 
                 // Add event listeners for move and end
                 if (e.type.includes('touch')) {
@@ -1244,5 +1347,4 @@
             }
         }
     </script>
-</body>
-</html>
+{% endblock %}

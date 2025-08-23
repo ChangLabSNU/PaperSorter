@@ -9,7 +9,7 @@
 
     <!-- CSS Variables for theming -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
-    
+
     <!-- Base styles matching feeds_list.html -->
     <style>
         body {
@@ -25,7 +25,7 @@
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         /* Narrower container for settings/form pages */
         .container-narrow {
             max-width: 800px;
@@ -56,31 +56,6 @@
             display: flex;
             align-items: center;
             gap: 15px;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            padding: 8px 16px;
-            background: var(--bg-user-info);
-            border-radius: 20px;
-            font-weight: 600;
-            color: var(--color-success);
-            font-size: 14px;
-            gap: 8px;
-        }
-
-        .user-avatar {
-            width: 24px;
-            height: 24px;
-            background: var(--color-success);
-            color: var(--text-white);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
         }
 
         /* Skip link for accessibility */
@@ -155,7 +130,7 @@
             font-size: 20px;
             transition: all var(--transition-base);
         }
-        
+
         .btn-theme-toggle:hover {
             background: var(--bg-hover);
         }
@@ -228,10 +203,6 @@
             <div class="header-actions">
                 {% block header_actions %}
                 {% if current_user.is_authenticated %}
-                    <div class="user-info">
-                        <div class="user-avatar">{{ current_user.username[0].upper() if current_user.username else 'U' }}</div>
-                        <span>{{ current_user.username or 'User' }}</span>
-                    </div>
                     <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
                         <span class="theme-icon">🌙</span>
                     </button>
@@ -270,31 +241,31 @@
             init: function() {
                 const savedTheme = '{{ current_user.theme if current_user.is_authenticated else "light" }}';
                 this.applyTheme(savedTheme);
-                
+
                 if (savedTheme === 'auto') {
                     this.watchSystemTheme();
                 }
             },
-            
+
             applyTheme: function(theme) {
                 let effectiveTheme = theme;
-                
+
                 if (theme === 'auto') {
                     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                 }
-                
+
                 document.body.setAttribute('data-theme', effectiveTheme);
                 this.updateThemeIcon(effectiveTheme);
                 localStorage.setItem('theme', theme);
             },
-            
+
             toggleTheme: function() {
                 const current = document.body.getAttribute('data-theme');
                 const next = current === 'light' ? 'dark' : 'light';
                 this.applyTheme(next);
                 this.savePreference(next);
             },
-            
+
             savePreference: function(theme) {
                 {% if current_user.is_authenticated %}
                 fetch('/api/user/preferences', {
@@ -304,14 +275,14 @@
                 });
                 {% endif %}
             },
-            
+
             updateThemeIcon: function(theme) {
                 const icon = document.querySelector('.theme-icon');
                 if (icon) {
                     icon.textContent = theme === 'dark' ? '☀️' : '🌙';
                 }
             },
-            
+
             watchSystemTheme: function() {
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
                     if (localStorage.getItem('theme') === 'auto') {
