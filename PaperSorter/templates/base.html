@@ -181,6 +181,118 @@
         }
     </style>
 
+    <!-- Hamburger menu styles -->
+    <style>
+        /* Hamburger menu styles */
+        .hamburger-menu {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            z-index: 1001;
+        }
+
+        /* Adjust for smaller screens */
+        @media (max-width: 768px) {
+            .hamburger-menu {
+                top: 15px;
+                right: 15px;
+            }
+        }
+
+        .hamburger-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-card);
+        }
+
+        .hamburger-btn:hover {
+            background: var(--bg-hover);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .hamburger-line {
+            width: 25px;
+            height: 3px;
+            background: var(--text-primary);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: fixed;
+            top: 85px;
+            right: 30px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            box-shadow: var(--shadow-modal);
+            min-width: 220px;
+            z-index: 1000;
+            overflow: hidden;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            .dropdown-menu {
+                top: 60px;
+                right: 15px;
+                min-width: 200px;
+            }
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            text-decoration: none;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+        }
+
+        .dropdown-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--bg-hover);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .dropdown-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--border-light);
+            margin: 5px 0;
+        }
+    </style>
+
     <!-- Page-specific CSS -->
     {% block styles %}{% endblock %}
 
@@ -190,6 +302,59 @@
 <body data-theme="{{ current_user.theme | default('light') if current_user.is_authenticated else 'light' }}">
     <!-- Skip to main content for accessibility -->
     <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
+    {% if current_user.is_authenticated and not hide_hamburger_menu %}
+    <!-- Fixed hamburger menu -->
+    <div class="hamburger-menu">
+        <button class="hamburger-btn" onclick="toggleHamburgerMenu(event)">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+        <div class="dropdown-menu" id="hamburgerDropdown">
+            <!-- Display current user -->
+            <div class="dropdown-user">
+                <span>👤 {{ current_user.username }}</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            {% if current_user.is_admin %}
+            <button class="dropdown-item" onclick="if(typeof toggleSemanticSearch !== 'undefined') { toggleSemanticSearch(); closeHamburgerMenu(); }">
+                <span>➕ Add a Paper</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <a href="/broadcast-queue" class="dropdown-item">
+                <span>📤 Broadcast Queue</span>
+            </a>
+            <a href="/events" class="dropdown-item">
+                <span>📋 Event Logs</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="/settings" class="dropdown-item">
+                <span>⚙️ Settings</span>
+            </a>
+            <a href="/labeling" class="dropdown-item">
+                <span>🏷️ Labeling</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            {% else %}
+            <!-- Non-admin user menu items -->
+            <button class="dropdown-item" onclick="if(typeof toggleGeneralSearch !== 'undefined') { toggleGeneralSearch(); closeHamburgerMenu(); }">
+                <span>🔍 Search Papers</span>
+            </button>
+            <a href="/pdf-search" class="dropdown-item">
+                <span>📄 Paper Connect</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            {% endif %}
+            <a href="/user-settings" class="dropdown-item">
+                <span>👤 Personal Settings</span>
+            </a>
+            <a href="/logout" class="dropdown-item">
+                <span>🚪 Logout</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Header Section -->
     {% block header %}
@@ -325,6 +490,26 @@
             tooltips.forEach(tooltip => {
                 tooltip.setAttribute('title', tooltip.dataset.tooltip);
             });
+        });
+
+        // Hamburger menu functions
+        function toggleHamburgerMenu(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('hamburgerDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function closeHamburgerMenu() {
+            const dropdown = document.getElementById('hamburgerDropdown');
+            dropdown.classList.remove('show');
+        }
+
+        // Close hamburger menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const hamburgerMenu = document.querySelector('.hamburger-menu');
+            if (hamburgerMenu && !hamburgerMenu.contains(event.target)) {
+                closeHamburgerMenu();
+            }
         });
 
         // Utility functions available to all pages
