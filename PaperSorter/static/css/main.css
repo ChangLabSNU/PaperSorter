@@ -1,0 +1,198 @@
+/* PaperSorter Main CSS - Import all stylesheets */
+
+/*
+ * CSS Architecture:
+ * 1. Variables - Design tokens and CSS custom properties
+ * 2. Base - Reset, typography, and fundamental styles
+ * 3. Components - Reusable UI components
+ * 4. Layout - Application-specific layouts
+ */
+
+/* Import CSS Variables (must be first) */
+@import url('variables.css');
+
+/* Import Base Styles */
+@import url('base.css');
+
+/* Import Component Styles */
+@import url('components.css');
+
+/* Import Layout Styles */
+@import url('layout.css');
+
+/* =================================== */
+/* Additional Global Overrides */
+/* =================================== */
+
+/* Ensure smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus visible only for keyboard navigation */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Better text rendering */
+body {
+  text-rendering: optimizeLegibility;
+}
+
+/* Prevent text selection on UI elements */
+button,
+.btn,
+.nav-link,
+.badge,
+.tag {
+  user-select: none;
+}
+
+/* Ensure images are responsive by default */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* =================================== */
+/* Print Styles */
+/* =================================== */
+
+@media print {
+  /* Hide navigation and action elements */
+  .header,
+  .nav-links,
+  .action-bar,
+  .feed-actions,
+  .hamburger-menu,
+  .modal,
+  .btn,
+  .pagination {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for print */
+  body {
+    background: white;
+    color: black;
+    padding: 0;
+  }
+
+  .card,
+  .feed-item {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure links are visible */
+  a {
+    color: black;
+    text-decoration: underline;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+  }
+}
+
+/* =================================== */
+/* Accessibility Improvements */
+/* =================================== */
+
+/* Skip to main content link */
+.skip-to-main {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary);
+  color: var(--text-white);
+  padding: var(--spacing-sm) var(--spacing-base);
+  text-decoration: none;
+  z-index: var(--z-index-tooltip);
+  border-radius: var(--radius-base);
+}
+
+.skip-to-main:focus {
+  top: var(--spacing-sm);
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card,
+  .feed-item,
+  .btn,
+  .form-control {
+    border: 2px solid;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =================================== */
+/* Dark Mode Preparation */
+/* =================================== */
+
+/*
+ * Dark mode styles are prepared but not active.
+ * They will be activated when data-theme="dark" is set on body element.
+ * This structure allows for easy dark mode implementation in the future.
+ */
+
+[data-theme="dark"] {
+  /* Dark mode overrides will be added here */
+}
+
+/* =================================== */
+/* Browser-Specific Fixes */
+/* =================================== */
+
+/* Firefox */
+@-moz-document url-prefix() {
+  select.form-control {
+    text-indent: 0.01px;
+    text-overflow: '';
+  }
+}
+
+/* Edge and IE */
+@supports (-ms-ime-align: auto) {
+  select.form-control {
+    padding-right: var(--spacing-xl);
+  }
+}
+
+/* Safari */
+@supports (-webkit-appearance: none) {
+  input[type="search"]::-webkit-search-decoration,
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-results-button,
+  input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+  }
+}
