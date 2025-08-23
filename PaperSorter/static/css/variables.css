@@ -1,0 +1,226 @@
+/* PaperSorter CSS Variables - Color System and Design Tokens */
+
+:root {
+  /* =================================== */
+  /* Primary Color Palette */
+  /* =================================== */
+
+  /* Brand Colors */
+  --color-primary: #3498db;        /* Primary blue - navigation, links */
+  --color-success: #27ae60;        /* Green - positive actions */
+  --color-danger: #e74c3c;         /* Red - negative actions, errors */
+  --color-warning: #f39c12;        /* Orange - edit, starred items */
+  --color-info: #9b59b6;           /* Purple - special actions */
+  --color-secondary: #95a5a6;      /* Gray - secondary actions */
+
+  /* =================================== */
+  /* Text Colors */
+  /* =================================== */
+
+  --text-primary: #2c3e50;         /* Dark blue-gray - headings */
+  --text-secondary: #34495e;       /* Medium blue-gray - body text */
+  --text-meta: #7f8c8d;            /* Light gray - metadata, descriptions */
+  --text-light: #95a5a6;           /* Lighter gray - disabled text */
+  --text-white: #ffffff;           /* White text on dark backgrounds */
+
+  /* =================================== */
+  /* Background Colors */
+  /* =================================== */
+
+  --bg-body: #f5f5f5;              /* Main page background */
+  --bg-card: #ffffff;              /* Card/container backgrounds */
+  --bg-hover: #f8f9fa;             /* Hover state background */
+  --bg-abstract: #f8f9fa;          /* Abstract/content background */
+  --bg-table-header: #f8f9fa;      /* Table header background */
+  --bg-user-info: #e8f5e9;         /* User info background */
+
+  /* Status Backgrounds */
+  --bg-active: #d4edda;            /* Active status background */
+  --bg-inactive: #f8d7da;          /* Inactive status background */
+
+  /* =================================== */
+  /* Border Colors */
+  /* =================================== */
+
+  --border-light: #e9ecef;         /* Light borders for tables */
+  --border-medium: #ddd;           /* Medium borders for inputs */
+  --border-dark: #bdc3c7;          /* Darker borders */
+  --border-primary: #3498db;       /* Primary color borders */
+
+  /* =================================== */
+  /* Shadow System */
+  /* =================================== */
+
+  --shadow-xs: rgba(0, 0, 0, 0.02);
+  --shadow-sm: rgba(0, 0, 0, 0.05);
+  --shadow-md: rgba(0, 0, 0, 0.1);
+  --shadow-lg: rgba(0, 0, 0, 0.15);
+  --shadow-xl: rgba(0, 0, 0, 0.2);
+  --shadow-xxl: rgba(0, 0, 0, 0.3);
+
+  /* Shadow Definitions */
+  --shadow-card: 0 2px 10px var(--shadow-md);
+  --shadow-hover: 0 4px 12px var(--shadow-lg);
+  --shadow-modal: 0 5px 20px var(--shadow-xxl);
+  --shadow-subtle: 0 1px 3px var(--shadow-sm);
+
+  /* =================================== */
+  /* Typography */
+  /* =================================== */
+
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: 'Monaco', 'Courier New', monospace;
+
+  /* Font Sizes */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-xxl: 24px;
+  --font-size-title: 28px;
+
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+  --line-height-loose: 1.8;
+
+  /* =================================== */
+  /* Spacing System */
+  /* =================================== */
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-base: 16px;
+  --spacing-lg: 20px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 48px;
+
+  /* =================================== */
+  /* Border Radius */
+  /* =================================== */
+
+  --radius-sm: 4px;
+  --radius-base: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 20px;
+  --radius-round: 50%;
+
+  /* =================================== */
+  /* Z-Index Scale */
+  /* =================================== */
+
+  --z-index-dropdown: 100;
+  --z-index-sticky: 200;
+  --z-index-fixed: 300;
+  --z-index-modal-backdrop: 400;
+  --z-index-modal: 500;
+  --z-index-popover: 600;
+  --z-index-tooltip: 700;
+
+  /* =================================== */
+  /* Transitions */
+  /* =================================== */
+
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  --transition-slower: 0.4s ease;
+
+  /* =================================== */
+  /* Layout */
+  /* =================================== */
+
+  --container-max-width: 1200px;
+  --container-padding: 20px;
+  --container-padding-mobile: 10px;
+
+  /* =================================== */
+  /* Component-Specific Variables */
+  /* =================================== */
+
+  /* Buttons */
+  --btn-padding-y: 8px;
+  --btn-padding-x: 16px;
+  --btn-padding-y-lg: 10px;
+  --btn-padding-x-lg: 20px;
+  --btn-padding-y-sm: 5px;
+  --btn-padding-x-sm: 12px;
+
+  /* Forms */
+  --input-padding-y: 10px;
+  --input-padding-x: 12px;
+  --input-border-width: 1px;
+
+  /* Cards */
+  --card-padding: 20px;
+  --card-padding-sm: 15px;
+  --card-padding-lg: 30px;
+
+  /* Modals */
+  --modal-backdrop-opacity: 0.5;
+  --modal-max-width: 500px;
+  --modal-max-width-lg: 800px;
+
+  /* Tables */
+  --table-cell-padding: 12px;
+  --table-cell-padding-sm: 8px;
+
+  /* Badges */
+  --badge-padding-y: 4px;
+  --badge-padding-x: 12px;
+  --badge-min-width: 50px;
+
+  /* Score Colors (gradient from gray to red) */
+  --score-0: rgb(149, 165, 166);
+  --score-10: rgb(159, 153, 150);
+  --score-20: rgb(169, 141, 134);
+  --score-30: rgb(179, 129, 118);
+  --score-40: rgb(189, 117, 102);
+  --score-50: rgb(199, 105, 86);
+  --score-60: rgb(209, 93, 70);
+  --score-70: rgb(219, 81, 54);
+  --score-80: rgb(229, 69, 38);
+  --score-90: rgb(239, 57, 22);
+  --score-100: rgb(231, 116, 60);
+}
+
+/* =================================== */
+/* Dark Mode Variables (prepare for future) */
+/* =================================== */
+
+[data-theme="dark"] {
+  /* Dark mode color overrides will go here */
+  /* Preparing structure for future dark mode implementation */
+}
+
+/* =================================== */
+/* Utility Classes for Direct Use */
+/* =================================== */
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-meta { color: var(--text-meta); }
+.text-success { color: var(--color-success); }
+.text-danger { color: var(--color-danger); }
+.text-warning { color: var(--color-warning); }
+.text-info { color: var(--color-info); }
+
+.bg-primary { background-color: var(--color-primary); }
+.bg-success { background-color: var(--color-success); }
+.bg-danger { background-color: var(--color-danger); }
+.bg-warning { background-color: var(--color-warning); }
+.bg-info { background-color: var(--color-info); }
+.bg-secondary { background-color: var(--color-secondary); }

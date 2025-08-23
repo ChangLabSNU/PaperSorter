@@ -42,7 +42,10 @@ from .api import feeds_bp, settings_bp, search_bp, user_bp
 
 def create_app(config_path, skip_authentication=None):
     """Create and configure the Flask application."""
-    app = Flask(__name__, template_folder="../templates")
+    app = Flask(__name__, 
+                template_folder="../templates",
+                static_folder="../static",
+                static_url_path="/static")
 
     # Configure for reverse proxy (fixes HTTPS redirect URIs)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
