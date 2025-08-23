@@ -1,35 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feedback Recorded - PaperSorter</title>
+{% extends "base.html" %}
+
+{% block title %}Feedback Recorded - PaperSorter{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block styles %}
     <style>
+        /* Override base template for centered layout */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            padding: 20px;
         }
 
-        .container {
+        main {
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .feedback-container {
             max-width: 600px;
             width: 100%;
-            background: white;
+            background: var(--feedback-container-bg);
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--feedback-container-shadow);
             padding: 40px;
             text-align: center;
+            margin: 0 auto;
+            transition: background-color var(--transition-base), box-shadow var(--transition-base);
         }
 
         h1 {
-            color: #2c3e50;
+            color: var(--feedback-title-color);
             margin-bottom: 10px;
+            transition: color var(--transition-base);
         }
 
         .emoji {
@@ -38,26 +45,28 @@
         }
 
         .emoji.interested {
-            color: #27ae60;
+            color: var(--feedback-emoji-interested);
         }
 
         .emoji.not-interested {
-            color: #e74c3c;
+            color: var(--feedback-emoji-not-interested);
         }
 
         .message {
             font-size: 18px;
-            color: #555;
+            color: var(--feedback-message-color);
             margin-bottom: 30px;
+            transition: color var(--transition-base);
         }
 
         .article-title {
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--feedback-article-title-color);
             font-style: italic;
             display: block;
             margin: 10px 0;
             padding: 0 20px;
+            transition: color var(--transition-base);
         }
 
         .actions {
@@ -76,12 +85,12 @@
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
         }
 
         .btn-primary {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
         }
 
         .btn-primary:hover {
@@ -91,13 +100,13 @@
         }
 
         .btn-secondary {
-            background: #ecf0f1;
-            color: #2c3e50;
-            border: 1px solid #bdc3c7;
+            background: var(--feedback-btn-secondary-bg);
+            color: var(--feedback-btn-secondary-color);
+            border: 1px solid var(--feedback-btn-secondary-border);
         }
 
         .btn-secondary:hover {
-            background: #d5dbdb;
+            background: var(--feedback-btn-secondary-bg-hover);
             transform: translateY(-1px);
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
@@ -105,11 +114,12 @@
         .footer-note {
             margin-top: 30px;
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--feedback-footer-note-color);
+            transition: color var(--transition-base);
         }
 
         @media (max-width: 600px) {
-            .container {
+            .feedback-container {
                 padding: 30px 20px;
             }
 
@@ -122,33 +132,33 @@
             }
         }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="emoji {% if feedback_type == 'interested' %}interested{% else %}not-interested{% endif %}">
-            {% if feedback_type == 'interested' %}👍{% else %}👎{% endif %}
-        </div>
+{% endblock %}
 
-        <h1>Thank You!</h1>
-
-        <div class="message">
-            Your feedback has been recorded. You marked
-            <span class="article-title">"{{ feed_title }}"</span>
-            as <strong>{{ feedback_type }}</strong>.
-        </div>
-
-        <div class="actions">
-            <a href="/similar/{{ feed_id }}" class="btn btn-primary">
-                🔍 View Similar Articles
-            </a>
-            <a href="/" class="btn btn-secondary">
-                📚 Browse All Articles
-            </a>
-        </div>
-
-        <div class="footer-note">
-            Your feedback helps improve our recommendations.
-        </div>
+{% block main_container %}
+<div class="feedback-container">
+    <div class="emoji {% if feedback_type == 'interested' %}interested{% else %}not-interested{% endif %}">
+        {% if feedback_type == 'interested' %}👍{% else %}👎{% endif %}
     </div>
-</body>
-</html>
+
+    <h1>Thank You!</h1>
+
+    <div class="message">
+        Your feedback has been recorded. You marked
+        <span class="article-title">"{{ feed_title }}"</span>
+        as <strong>{{ feedback_type }}</strong>.
+    </div>
+
+    <div class="actions">
+        <a href="/similar/{{ feed_id }}" class="btn btn-primary">
+            🔍 View Similar Articles
+        </a>
+        <a href="/" class="btn btn-secondary">
+            📚 Browse All Articles
+        </a>
+    </div>
+
+    <div class="footer-note">
+        Your feedback helps improve our recommendations.
+    </div>
+</div>
+{% endblock %}

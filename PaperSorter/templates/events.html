@@ -1,69 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event Logs - PaperSorter</title>
+{% extends "base.html" %}
+
+{% block title %}Event Logs - PaperSorter{% endblock %}
+{% block header_title %}Event Logs{% endblock %}
+
+{% block header_actions %}
+    <a href="/" class="nav-link">← Back to Feeds</a>
+    {{ super() }}
+{% endblock %}
+
+{% block styles %}
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header h1 {
-            margin: 0;
-            color: #2c3e50;
+        /* Override base template container for this page */
+        main {
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
         }
 
         .nav-link {
-            color: #3498db;
+            color: var(--color-primary);
             text-decoration: none;
             font-weight: bold;
             padding: 10px 20px;
-            border: 2px solid #3498db;
+            border: 2px solid var(--color-primary);
             border-radius: 6px;
-            transition: all 0.2s ease;
+            transition: all var(--transition-base);
         }
 
         .nav-link:hover {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
         }
 
         .events-container {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
+            transition: background-color var(--transition-base);
         }
 
         .event-item {
             padding: 15px;
-            border-bottom: 1px solid #ecf0f1;
-            transition: background-color 0.2s ease;
+            border-bottom: 1px solid var(--event-border);
+            transition: background-color var(--transition-base);
         }
 
         .event-item:hover {
-            background-color: #f8f9fa;
+            background-color: var(--event-hover-bg);
         }
 
         .event-item:last-child {
@@ -85,7 +69,7 @@
         }
 
         .event-time {
-            color: #7f8c8d;
+            color: var(--event-time-color);
             font-size: 14px;
         }
 
@@ -96,13 +80,13 @@
             font-size: 11px;
             font-weight: 600;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            box-shadow: var(--event-badge-shadow);
             white-space: nowrap;
         }
 
         .event-type-source {
             padding: 4px 8px;
-            color: white;
+            color: var(--text-white);
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -112,59 +96,59 @@
 
         .event-type-action {
             padding: 4px 10px;
-            color: white;
+            color: var(--text-white);
             text-transform: capitalize;
-            border-left: 1px solid rgba(255,255,255,0.3);
+            border-left: 1px solid var(--event-badge-separator);
             display: flex;
             align-items: center;
         }
 
         /* Source colors */
         .source-slack {
-            background: #4A154B;
+            background: var(--event-source-slack);
         }
 
         .source-web {
-            background: #0066CC;
+            background: var(--event-source-web);
         }
 
         /* Action colors for Slack events */
         .action-interested {
-            background: #2ecc71;
+            background: var(--event-action-interested);
         }
 
         .action-not-interested,
         .action-not_interested {
-            background: #e74c3c;
+            background: var(--event-action-not-interested);
         }
 
         .action-bookmarked {
-            background: #f39c12;
+            background: var(--event-action-bookmarked);
         }
 
         .action-unbookmarked {
-            background: #95a5a6;
+            background: var(--event-action-unbookmarked);
         }
 
         .action-read {
-            background: #34495e;
+            background: var(--event-action-read);
         }
 
         .action-similar {
-            background: #e67e22;
+            background: var(--event-action-similar);
         }
 
         /* Action colors for Web events */
         .action-text-search {
-            background: #3498db;
+            background: var(--event-action-text-search);
         }
 
         .action-ai-summary-text {
-            background: #8B4513;
+            background: var(--event-action-ai-summary);
         }
 
         .action-ai-poster-infographic {
-            background: #C71585;
+            background: var(--event-action-ai-poster);
         }
 
         .event-details {
@@ -175,21 +159,21 @@
 
         .event-user {
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--event-user-color);
         }
 
         /* Special styling for search queries */
         .search-query {
-            color: #27ae60;
+            color: var(--event-search-query-color);
             font-style: italic;
         }
 
         .event-feed {
-            color: #34495e;
+            color: var(--event-feed-color);
         }
 
         .event-feed a {
-            color: #3498db;
+            color: var(--color-primary);
             text-decoration: none;
         }
 
@@ -200,25 +184,25 @@
         .loading {
             text-align: center;
             padding: 20px;
-            color: #7f8c8d;
+            color: var(--text-meta);
         }
 
         .no-events {
             text-align: center;
             padding: 40px;
-            color: #7f8c8d;
+            color: var(--text-meta);
         }
 
         #loading-indicator {
             display: none;
             text-align: center;
             padding: 20px;
-            color: #7f8c8d;
+            color: var(--text-meta);
         }
 
         .error-message {
-            background: #fee;
-            color: #c00;
+            background: var(--error-bg);
+            color: var(--error-text);
             padding: 15px;
             border-radius: 4px;
             margin: 10px 0;
@@ -241,20 +225,16 @@
             }
         }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Event Logs</h1>
-            <a href="/" class="nav-link">← Back to Feeds</a>
-        </div>
+{% endblock %}
 
-        <div class="events-container">
-            <div id="events-list"></div>
-            <div id="loading-indicator" class="loading">Loading more events...</div>
-        </div>
+{% block content %}
+    <div class="events-container">
+        <div id="events-list"></div>
+        <div id="loading-indicator" class="loading">Loading more events...</div>
     </div>
+{% endblock %}
 
+{% block scripts %}
     <script>
         let currentPage = 1;
         let isLoading = false;
@@ -430,5 +410,4 @@
         window.addEventListener('scroll', debounceScroll);
         loadEvents(1);
     </script>
-</body>
-</html>
+{% endblock %}

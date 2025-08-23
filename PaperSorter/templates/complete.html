@@ -1,118 +1,163 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Labeling Complete</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
+{% extends "base.html" %}
 
-        .container {
-            max-width: 600px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 40px;
-            text-align: center;
-        }
+{% block title %}Labeling Complete{% endblock %}
 
-        .success-icon {
-            font-size: 64px;
-            color: #27ae60;
-            margin-bottom: 20px;
-        }
+{% block header %}
+<!-- No header for this page -->
+{% endblock %}
 
-        .title {
-            font-size: 28px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 20px;
-        }
+{% block styles %}
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
 
-        .message {
-            font-size: 18px;
-            color: #7f8c8d;
-            margin-bottom: 30px;
-        }
+    .container-complete {
+        max-width: 600px;
+        margin: 0 auto;
+    }
 
-        .stats {
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
+    .complete-card {
+        background: var(--bg-card);
+        border-radius: 8px;
+        box-shadow: var(--shadow-card);
+        padding: 40px;
+        text-align: center;
+        transition: background-color var(--transition-base);
+    }
 
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
+    .success-icon {
+        font-size: 64px;
+        color: var(--color-success);
+        margin-bottom: 20px;
+    }
 
-        .stat-label {
-            font-weight: bold;
-            color: #34495e;
-        }
+    .warning-icon {
+        font-size: 64px;
+        color: var(--color-warning);
+        margin-bottom: 20px;
+    }
 
-        .stat-value {
-            color: #2c3e50;
-        }
+    .title {
+        font-size: 28px;
+        font-weight: bold;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+        transition: color var(--transition-base);
+    }
 
-        .btn {
-            padding: 15px 30px;
-            font-size: 16px;
-            font-weight: bold;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            background: #3498db;
-            color: white;
-            text-decoration: none;
-            display: inline-block;
-            transition: background 0.2s ease;
-        }
+    .message {
+        font-size: 18px;
+        color: var(--text-meta);
+        margin-bottom: 30px;
+        transition: color var(--transition-base);
+    }
 
-        .btn:hover {
-            background: #2980b9;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
+    .stats {
+        background: var(--bg-hover);
+        border-radius: 6px;
+        padding: 20px;
+        margin-bottom: 30px;
+        transition: background-color var(--transition-base);
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-size: 16px;
+    }
+
+    .stat-label {
+        font-weight: bold;
+        color: var(--text-secondary);
+        transition: color var(--transition-base);
+    }
+
+    .stat-value {
+        color: var(--text-primary);
+        transition: color var(--transition-base);
+    }
+
+    .command-box {
+        text-align: left;
+        font-family: monospace;
+    }
+
+    .command-label {
+        margin-bottom: 15px;
+        color: var(--text-primary);
+        font-weight: bold;
+        transition: color var(--transition-base);
+    }
+
+    .command-code {
+        background: var(--text-primary);
+        color: var(--bg-card);
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        transition: background-color var(--transition-base), color var(--transition-base);
+    }
+
+    .small-message {
+        font-size: 14px;
+        margin-top: 20px;
+        color: var(--text-meta);
+        transition: color var(--transition-base);
+    }
+
+    .btn {
+        padding: 15px 30px;
+        font-size: 16px;
+        font-weight: bold;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        background: var(--color-primary);
+        color: var(--text-white);
+        text-decoration: none;
+        display: inline-block;
+        transition: all var(--transition-base);
+    }
+
+    .btn:hover {
+        background: var(--btn-primary-bg-hover);
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}
+
+{% block main_container %}
+<div class="container-complete">
+    <div class="complete-card">
         {% if stats.total == 0 %}
-        <div class="success-icon" style="color: #e67e22;">📋</div>
+        <div class="warning-icon">📋</div>
         <div class="title">No Labeling Session</div>
         <div class="message">
             There are no items in the labeling session. To create a new labeling session, run the following command:
         </div>
-        
-        <div class="stats" style="text-align: left; font-family: monospace;">
-            <div style="margin-bottom: 15px; color: #2c3e50;">
-                <strong>For similarity-based sampling (initial training):</strong>
+
+        <div class="stats command-box">
+            <div class="command-label">
+                For similarity-based sampling (initial training):
             </div>
-            <div style="background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+            <div class="command-code">
                 papersorter labeling create --sample-size 200
             </div>
-            
-            <div style="margin-bottom: 15px; color: #2c3e50;">
-                <strong>For model-based sampling (refinement):</strong>
+
+            <div class="command-label">
+                For model-based sampling (refinement):
             </div>
-            <div style="background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px;">
+            <div class="command-code">
                 papersorter labeling create --base-model 1 --sample-size 1000
             </div>
         </div>
-        
-        <div class="message" style="font-size: 14px; margin-top: 20px;">
+
+        <div class="message small-message">
             After creating a labeling session, return here to start labeling papers.
         </div>
         {% else %}
@@ -140,5 +185,5 @@
 
         <a href="/" class="btn">Back to Feed List</a>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

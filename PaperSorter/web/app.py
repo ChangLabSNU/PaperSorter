@@ -42,7 +42,7 @@ from .api import feeds_bp, settings_bp, search_bp, user_bp
 
 def create_app(config_path, skip_authentication=None):
     """Create and configure the Flask application."""
-    app = Flask(__name__, 
+    app = Flask(__name__,
                 template_folder="../templates",
                 static_folder="../static",
                 static_url_path="/static")

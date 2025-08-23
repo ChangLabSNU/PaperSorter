@@ -1,255 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PaperSorter Labeling</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            line-height: 1.6;
-        }
+{% extends "base.html" %}
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
+{% block title %}PaperSorter Labeling{% endblock %}
 
-        .header {
-            background: #2c3e50;
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
-        
-        .back-button {
-            position: fixed;
-            right: 30px;
-            bottom: 140px;  /* Position above the control panel with extra padding */
-            padding: 12px 20px;
-            background: #34495e;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 100;
-        }
-        
-        .back-button:hover {
-            background: #3498db;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        .progress {
-            background: #34495e;
-            height: 6px;
-            border-radius: 3px;
-            margin-top: 10px;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            background: #3498db;
-            height: 100%;
-            transition: width 0.3s ease;
-        }
-
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 10px;
-            font-size: 14px;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .paper-item {
-            margin-bottom: 30px;
-        }
-
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            line-height: 1.3;
-        }
-
-        .score-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
-            min-width: 60px;
-            justify-content: center;
-            margin-bottom: 10px;
-        }
-
-        .meta {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #7f8c8d;
-        }
-
-        .meta-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .meta-label {
-            font-weight: bold;
-            color: #34495e;
-            margin-bottom: 2px;
-        }
-
-        .abstract {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 6px;
-            border-left: 4px solid #3498db;
-            margin-bottom: 30px;
-            font-size: 16px;
-            line-height: 1.7;
-        }
-
-        .controls {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-top: 2px solid #e9ecef;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-
-        .buttons {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 15px;
-        }
-
-        .btn {
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-width: 120px;
-        }
-
-        .btn-positive {
-            background: #27ae60;
-            color: white;
-        }
-
-        .btn-positive:hover {
-            background: #229954;
-        }
-
-        .btn-negative {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .btn-negative:hover {
-            background: #c0392b;
-        }
-
-        .btn-skip {
-            background: #95a5a6;
-            color: white;
-        }
-
-        .btn-skip:hover {
-            background: #7f8c8d;
-        }
-
-        .btn-visit {
-            background: #3498db;
-            color: white;
-        }
-
-        .btn-visit:hover {
-            background: #2980b9;
-        }
-
-        .keyboard-help {
-            font-size: 14px;
-            color: #7f8c8d;
-            margin-top: 10px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #7f8c8d;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .content {
-                padding: 20px;
-            }
-
-            .title {
-                font-size: 20px;
-            }
-
-            .meta {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .buttons {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .btn {
-                width: 100%;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="progress">
-                <div class="progress-bar" style="width: {{ stats.progress }}%"></div>
-            </div>
-            <div class="stats">
-                <span>Labeled: {{ stats.labeled }}</span>
-                <span>Remaining: {{ stats.unlabeled }}</span>
-                <span>Total: {{ stats.total }}</span>
-                <span>Progress: {{ "%.1f"|format(stats.progress) }}%</span>
-            </div>
+{% block header %}
+<!-- Custom header for labeling page -->
+<div class="container-labeling">
+    <div class="header-labeling">
+        <div class="progress">
+            <div class="progress-bar" style="width: {{ stats.progress }}%"></div>
         </div>
+        <div class="stats">
+            <span>Labeled: {{ stats.labeled }}</span>
+            <span>Remaining: {{ stats.unlabeled }}</span>
+            <span>Total: {{ stats.total }}</span>
+            <span>Progress: {{ "%.1f"|format(stats.progress) }}%</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
+{% block main_container %}
+<div class="container-labeling">
+    <div class="labeling-container">
         <div class="content">
             <div class="paper-item" id="current-item" data-id="{{ item.id }}" data-url="{{ item.link or '' }}">
                 {% if item.predicted_score is not none %}
@@ -281,29 +53,279 @@
             </div>
         </div>
     </div>
+</div>
 
-    <div class="controls">
-        <div class="buttons">
-            <button class="btn btn-positive" onclick="labelItem(1)">
-                Interesting (Z or .)
-            </button>
-            <button class="btn btn-negative" onclick="labelItem(0)">
-                Not Interesting (X or /)
-            </button>
-            <button class="btn btn-skip" onclick="skipItem()">
-                Skip (Space)
-            </button>
-            <button class="btn btn-visit" onclick="visitArticle()">
-                Visit Article (V)
-            </button>
-        </div>
-        <div class="keyboard-help">
-            Use keyboard shortcuts: Z/. = Interesting, X// = Not Interesting, Space = Skip, V = Visit, Backspace = Previous
-        </div>
+<!-- Controls moved outside container for fixed positioning -->
+<div class="controls">
+    <div class="buttons">
+        <button class="btn btn-positive" onclick="labelItem(1)">
+            Interesting (Z or .)
+        </button>
+        <button class="btn btn-negative" onclick="labelItem(0)">
+            Not Interesting (X or /)
+        </button>
+        <button class="btn btn-skip" onclick="skipItem()">
+            Skip (Space)
+        </button>
+        <button class="btn btn-visit" onclick="visitArticle()">
+            Visit Article (V)
+        </button>
     </div>
+    <div class="keyboard-help">
+        Use keyboard shortcuts: Z/. = Interesting, X// = Not Interesting, Space = Skip, V = Visit, Backspace = Previous
+    </div>
+</div>
 
-    <a href="/" class="back-button">← Back to Feed List</a>
+<a href="/" class="back-button">← Back to Feed List</a>
+{% endblock %}
 
+{% block styles %}
+    <style>
+        /* Override base styles for labeling page */
+        body {
+            padding: 0;
+        }
+
+        .container-labeling {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .labeling-container {
+            background: var(--bg-card);
+            border-radius: 8px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            margin: 20px;
+            transition: background-color var(--transition-base);
+        }
+
+        .header-labeling {
+            background: var(--labeling-header-bg);
+            color: var(--text-white);
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+            transition: background-color var(--transition-base);
+        }
+
+        .back-button {
+            position: fixed;
+            right: 30px;
+            bottom: 140px;  /* Position above the control panel with extra padding */
+            padding: 12px 20px;
+            background: var(--labeling-back-btn-bg);
+            color: var(--text-white);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all var(--transition-base);
+            box-shadow: var(--shadow-card);
+            z-index: 100;
+        }
+
+        .back-button:hover {
+            background: var(--labeling-back-btn-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .progress {
+            background: var(--labeling-progress-bg);
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+            transition: background-color var(--transition-base);
+        }
+
+        .progress-bar {
+            background: var(--labeling-progress-bar);
+            height: 100%;
+            transition: width var(--transition-slow);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .paper-item {
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--labeling-title-color);
+            margin-bottom: 15px;
+            line-height: 1.3;
+            transition: color var(--transition-base);
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--text-white);
+            min-width: 60px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: var(--labeling-meta-color);
+            transition: color var(--transition-base);
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meta-label {
+            font-weight: bold;
+            color: var(--labeling-meta-label);
+            margin-bottom: 2px;
+            transition: color var(--transition-base);
+        }
+
+        .abstract {
+            background: var(--labeling-abstract-bg);
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid var(--labeling-abstract-border);
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.7;
+            transition: background-color var(--transition-base), border-color var(--transition-base);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--labeling-controls-bg);
+            border-top: 2px solid var(--labeling-controls-border);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 -2px 10px var(--shadow-md);
+            transition: background-color var(--transition-base), border-color var(--transition-base);
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            min-width: 120px;
+        }
+
+        .btn-positive {
+            background: var(--labeling-btn-positive);
+            color: var(--text-white);
+        }
+
+        .btn-positive:hover {
+            background: var(--labeling-btn-positive-hover);
+        }
+
+        .btn-negative {
+            background: var(--labeling-btn-negative);
+            color: var(--text-white);
+        }
+
+        .btn-negative:hover {
+            background: var(--labeling-btn-negative-hover);
+        }
+
+        .btn-skip {
+            background: var(--labeling-btn-skip);
+            color: var(--text-white);
+        }
+
+        .btn-skip:hover {
+            background: var(--labeling-btn-skip-hover);
+        }
+
+        .btn-visit {
+            background: var(--labeling-btn-visit);
+            color: var(--text-white);
+        }
+
+        .btn-visit:hover {
+            background: var(--labeling-btn-visit-hover);
+        }
+
+        .keyboard-help {
+            font-size: 14px;
+            color: var(--labeling-keyboard-help);
+            margin-top: 10px;
+            transition: color var(--transition-base);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-meta);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .title {
+                font-size: 20px;
+            }
+
+            .meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+{% endblock %}
+
+
+{% block scripts %}
     <script>
         let currentItemId = null;
         let currentItemUrl = null;
@@ -470,5 +492,4 @@
         // Initialize
         updateCurrentItem();
     </script>
-</body>
-</html>
+{% endblock %}

@@ -11,11 +11,8 @@
             <h1>Personal Settings</h1>
         </div>
         <div class="header-actions">
+            <a href="/" class="nav-link">← Back to Feeds</a>
             {% if current_user.is_authenticated %}
-                <div class="user-info">
-                    <div class="user-avatar">{{ current_user.username[0].upper() if current_user.username else 'U' }}</div>
-                    <span>{{ current_user.username or 'User' }}</span>
-                </div>
                 <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
                     <span class="theme-icon">🌙</span>
                 </button>
@@ -27,21 +24,19 @@
 
 {% block styles %}
 <style>
-    .back-link {
-        display: inline-block;
-        margin-bottom: 20px;
+    .nav-link {
         color: var(--color-primary);
         text-decoration: none;
         font-weight: bold;
         padding: 10px 20px;
         border: 2px solid var(--color-primary);
         border-radius: 6px;
-        transition: all 0.2s ease;
+        transition: all var(--transition-base);
     }
 
-    .back-link:hover {
+    .nav-link:hover {
         background: var(--color-primary);
-        color: white;
+        color: var(--text-white);
     }
 
     .settings-section {
@@ -88,7 +83,7 @@
         transition: all var(--transition-base);
         box-sizing: border-box;
     }
-    
+
     [data-theme="dark"] .form-group input,
     [data-theme="dark"] .form-group select {
         background: var(--bg-card);
@@ -175,7 +170,6 @@
 <div class="container-narrow">
     <main id="main-content">
         {% block content %}
-<a href="/" class="back-link">← Back to Feeds</a>
 
 <div class="success-message" id="successMessage">
     <span>✅</span>
@@ -191,7 +185,7 @@
     <!-- Account Information -->
     <div class="settings-section">
         <h2>Account Information</h2>
-        
+
         <div class="form-group">
             <label for="username">Username</label>
             <input type="text" id="username" name="username" value="{{ user_data.username }}" readonly>
@@ -208,17 +202,17 @@
             <label>Theme</label>
             <div class="theme-selector">
                 <div class="theme-option">
-                    <input type="radio" id="theme-light" name="theme" value="light" 
+                    <input type="radio" id="theme-light" name="theme" value="light"
                         {% if user_data.theme == 'light' %}checked{% endif %}>
                     <label for="theme-light">☀️ Light</label>
                 </div>
                 <div class="theme-option">
-                    <input type="radio" id="theme-dark" name="theme" value="dark" 
+                    <input type="radio" id="theme-dark" name="theme" value="dark"
                         {% if user_data.theme == 'dark' %}checked{% endif %}>
                     <label for="theme-dark">🌙 Dark</label>
                 </div>
                 <div class="theme-option">
-                    <input type="radio" id="theme-auto" name="theme" value="auto" 
+                    <input type="radio" id="theme-auto" name="theme" value="auto"
                         {% if user_data.theme == 'auto' %}checked{% endif %}>
                     <label for="theme-auto">🔄 Auto (System)</label>
                 </div>
@@ -252,7 +246,7 @@
             <select id="primaryChannel" name="primary_channel_id">
                 <option value="">None</option>
                 {% for channel in channels %}
-                <option value="{{ channel.id }}" 
+                <option value="{{ channel.id }}"
                     {% if channel.id == user_data.primary_channel_id %}selected{% endif %}>
                     {{ channel.name }}
                 </option>
@@ -288,7 +282,7 @@
     // Handle form submission
     document.getElementById('settingsForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const formData = {
             theme: document.querySelector('input[name="theme"]:checked').value,
             timezone: document.getElementById('timezone').value,
@@ -308,7 +302,7 @@
                 // Show success message
                 document.getElementById('successMessage').classList.add('show');
                 document.getElementById('errorMessage').classList.remove('show');
-                
+
                 // Hide success message after 3 seconds
                 setTimeout(() => {
                     document.getElementById('successMessage').classList.remove('show');
@@ -325,7 +319,7 @@
             document.getElementById('errorText').textContent = error.message;
             document.getElementById('errorMessage').classList.add('show');
             document.getElementById('successMessage').classList.remove('show');
-            
+
             // Hide error message after 5 seconds
             setTimeout(() => {
                 document.getElementById('errorMessage').classList.remove('show');
