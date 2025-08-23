@@ -780,3 +780,71 @@ select.form-control {
     font-size: var(--font-size-sm);
   }
 }
+
+/* =================================== */
+/* Dark Mode Component Adjustments */
+/* =================================== */
+
+/* Dark mode button adjustments */
+[data-theme="dark"] .btn-ghost:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-outline:hover {
+    filter: brightness(1.2);
+}
+
+/* Dark mode modal adjustments */
+[data-theme="dark"] .modal-content {
+    background-color: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+/* Dark mode table adjustments */
+[data-theme="dark"] .table tbody tr:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Dark mode form adjustments */
+[data-theme="dark"] .form-control {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+    border-color: var(--border-medium);
+}
+
+[data-theme="dark"] .form-control:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+    color: var(--text-light);
+}
+
+/* Dark mode dropdown adjustments */
+[data-theme="dark"] .dropdown-menu {
+    background-color: var(--bg-card);
+    border-color: var(--border-medium);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Dark mode card adjustments */
+[data-theme="dark"] .card {
+    background-color: var(--bg-card);
+    border-color: var(--border-medium);
+}
+
+/* Dark mode badge adjustments */
+[data-theme="dark"] .badge {
+    filter: brightness(0.9);
+}
+
+/* Dark mode pagination adjustments */
+[data-theme="dark"] .pagination-item:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--color-primary);
+}

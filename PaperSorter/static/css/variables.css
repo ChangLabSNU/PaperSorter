@@ -158,6 +158,49 @@
   --btn-padding-x-lg: 20px;
   --btn-padding-y-sm: 5px;
   --btn-padding-x-sm: 12px;
+  
+  /* Button Colors - Light Theme */
+  --btn-primary-bg: #e3f2fd;
+  --btn-primary-color: #1976d2;
+  --btn-primary-border: #90caf9;
+  --btn-primary-bg-hover: #bbdefb;
+  --btn-primary-border-hover: #64b5f6;
+  
+  --btn-star-bg: #fff3e0;
+  --btn-star-color: #f57c00;
+  --btn-star-border: #ffcc80;
+  --btn-star-bg-hover: #ffe0b2;
+  --btn-star-border-hover: #ffb74d;
+  --btn-star-bg-active: #ffcc80;
+  --btn-star-color-active: #e65100;
+  
+  --btn-thumbs-up-bg: #e8f5e9;
+  --btn-thumbs-up-color: #388e3c;
+  --btn-thumbs-up-border: #a5d6a7;
+  --btn-thumbs-up-bg-hover: #c8e6c9;
+  --btn-thumbs-up-border-hover: #81c784;
+  --btn-thumbs-up-bg-active: #a5d6a7;
+  --btn-thumbs-up-color-active: #2e7d32;
+  
+  --btn-thumbs-down-bg: #ffebee;
+  --btn-thumbs-down-color: #d32f2f;
+  --btn-thumbs-down-border: #ef9a9a;
+  --btn-thumbs-down-bg-hover: #ffcdd2;
+  --btn-thumbs-down-border-hover: #e57373;
+  --btn-thumbs-down-bg-active: #ef9a9a;
+  --btn-thumbs-down-color-active: #c62828;
+  
+  --btn-similar-bg: #f3e5f5;
+  --btn-similar-color: #7b1fa2;
+  --btn-similar-border: #ce93d8;
+  --btn-similar-bg-hover: #e1bee7;
+  --btn-similar-border-hover: #ba68c8;
+  
+  --btn-secondary-bg: #ecf0f1;
+  --btn-secondary-color: #34495e;
+  --btn-secondary-border: #bdc3c7;
+  --btn-secondary-bg-hover: #d5dbdb;
+  --btn-secondary-border-hover: #95a5a6;
 
   /* Forms */
   --input-padding-y: 10px;
@@ -195,15 +238,149 @@
   --score-80: rgb(229, 69, 38);
   --score-90: rgb(239, 57, 22);
   --score-100: rgb(231, 116, 60);
+
+  /* Toast Notifications */
+  --toast-bg: #333333;
+  --toast-color: #ffffff;
+  --toast-success-bg: #4caf50;
+  --toast-error-bg: #f44336;
+  --toast-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  /* Search Interface */
+  --search-bg: #ffffff;
+  --search-border: #e9ecef;
+  --search-border-focus: #3498db;
+  --search-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --search-result-bg: #ffffff;
+  --search-result-border: #e9ecef;
+  --search-result-border-hover: #3498db;
+  --search-result-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  --search-result-shadow-hover: 0 4px 15px rgba(0, 0, 0, 0.1);
+
+  /* Summary Section */
+  --summary-bg: #ffffff;
+  --summary-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --summary-title-color: #1a73e8;
+  --summary-btn-bg: #1a73e8;
+  --summary-btn-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* =================================== */
-/* Dark Mode Variables (prepare for future) */
+/* Dark Mode Variables */
 /* =================================== */
 
 [data-theme="dark"] {
-  /* Dark mode color overrides will go here */
-  /* Preparing structure for future dark mode implementation */
+  /* Background Colors */
+  --bg-body: #1a1a1a;
+  --bg-card: #2d2d2d;
+  --bg-hover: #3a3a3a;
+  --bg-abstract: #3a3a3a;
+  --bg-table-header: #3a3a3a;
+  --bg-user-info: #2e4e32;
+
+  /* Text Colors */
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-meta: #888888;
+  --text-light: #606060;
+
+  /* Border Colors */
+  --border-light: #404040;
+  --border-medium: #505050;
+  --border-dark: #606060;
+
+  /* Shadow System - Stronger shadows for dark mode */
+  --shadow-xs: rgba(0, 0, 0, 0.1);
+  --shadow-sm: rgba(0, 0, 0, 0.2);
+  --shadow-md: rgba(0, 0, 0, 0.3);
+  --shadow-lg: rgba(0, 0, 0, 0.4);
+  --shadow-xl: rgba(0, 0, 0, 0.5);
+  --shadow-xxl: rgba(0, 0, 0, 0.6);
+
+  /* Status Backgrounds */
+  --bg-active: #1d3a24;
+  --bg-inactive: #3a1d1d;
+
+  /* Score Colors (adjusted for dark mode) */
+  --score-0: rgb(80, 80, 80);
+  --score-10: rgb(90, 85, 80);
+  --score-20: rgb(100, 90, 80);
+  --score-30: rgb(110, 95, 80);
+  --score-40: rgb(120, 100, 80);
+  --score-50: rgb(140, 105, 80);
+  --score-60: rgb(160, 110, 80);
+  --score-70: rgb(180, 115, 80);
+  --score-80: rgb(200, 120, 80);
+  --score-90: rgb(220, 125, 80);
+  --score-100: rgb(240, 130, 80);
+  
+  /* Button Colors - Dark Theme */
+  --btn-primary-bg: #1e3a5f;
+  --btn-primary-color: #64b5f6;
+  --btn-primary-border: #2196f3;
+  --btn-primary-bg-hover: #2c5282;
+  --btn-primary-border-hover: #42a5f5;
+  
+  --btn-star-bg: #5d4037;
+  --btn-star-color: #ffb74d;
+  --btn-star-border: #ff9800;
+  --btn-star-bg-hover: #6d4c41;
+  --btn-star-border-hover: #ffa726;
+  --btn-star-bg-active: #ff9800;
+  --btn-star-color-active: #ffffff;
+  
+  --btn-thumbs-up-bg: #2d4a3d;
+  --btn-thumbs-up-color: #81c784;
+  --btn-thumbs-up-border: #4a7c59;
+  --btn-thumbs-up-bg-hover: #3a5f4d;
+  --btn-thumbs-up-border-hover: #5a8d69;
+  --btn-thumbs-up-bg-active: #4a7c59;
+  --btn-thumbs-up-color-active: #ffffff;
+  
+  --btn-thumbs-down-bg: #4a2c2c;
+  --btn-thumbs-down-color: #e57373;
+  --btn-thumbs-down-border: #6d4c4c;
+  --btn-thumbs-down-bg-hover: #5d3a3a;
+  --btn-thumbs-down-border-hover: #7d5c5c;
+  --btn-thumbs-down-bg-active: #6d4c4c;
+  --btn-thumbs-down-color-active: #ffffff;
+  
+  --btn-similar-bg: #3d3a5f;
+  --btn-similar-color: #9c8fb8;
+  --btn-similar-border: #5d5a7f;
+  --btn-similar-bg-hover: #4d4a6f;
+  --btn-similar-border-hover: #6d6a8f;
+  
+  --btn-secondary-bg: #424242;
+  --btn-secondary-color: #bdbdbd;
+  --btn-secondary-border: #616161;
+  --btn-secondary-bg-hover: #616161;
+  --btn-secondary-border-hover: #757575;
+
+  /* Toast Notifications - Dark Mode */
+  --toast-bg: #424242;
+  --toast-color: #e0e0e0;
+  --toast-success-bg: #2e7d32;
+  --toast-error-bg: #c62828;
+  --toast-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+
+  /* Search Interface - Dark Mode */
+  --search-bg: #2d2d2d;
+  --search-border: #404040;
+  --search-border-focus: #64b5f6;
+  --search-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  --search-result-bg: #2d2d2d;
+  --search-result-border: #404040;
+  --search-result-border-hover: #64b5f6;
+  --search-result-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  --search-result-shadow-hover: 0 4px 15px rgba(0, 0, 0, 0.3);
+
+  /* Summary Section - Dark Mode */
+  --summary-bg: #2d2d2d;
+  --summary-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --summary-title-color: #64b5f6;
+  --summary-btn-bg: #2196f3;
+  --summary-btn-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* =================================== */

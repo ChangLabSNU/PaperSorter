@@ -75,11 +75,26 @@ def index():
         # Update the current user object
         current_user.primary_channel_id = primary_channel_id
 
+    # Get last update time
+    cursor.execute("""
+        SELECT MAX(COALESCE(published, added)) as last_updated
+        FROM feeds
+    """)
+    result = cursor.fetchone()
+    last_updated = result['last_updated'].strftime('%Y-%m-%d %H:%M') if result and result['last_updated'] else 'Never'
+
     cursor.close()
     conn.close()
 
+    # Get user's minimum score preference
+    current_min_score = getattr(current_user, 'feedlist_minscore', 0.0)
+
     return render_template(
-        "feeds_list.html", channels=channels, primary_channel_id=primary_channel_id
+        "feeds_list.html", 
+        channels=channels, 
+        primary_channel_id=primary_channel_id,
+        current_min_score=current_min_score,
+        last_updated=last_updated
     )
 
 
@@ -234,3 +249,33 @@ def events():
 def pdf_search():
     """PDF search page for selecting text from PDFs to search for similar papers."""
     return render_template("pdf_search.html")
+
+
+@main_bp.route("/user-settings")
+@login_required
+def user_settings():
+    """Personal settings page for users to manage their preferences."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Get user's current settings
+    cursor.execute("""
+        SELECT id, username, theme, primary_channel_id, timezone
+        FROM users
+        WHERE id = %s
+    """, (current_user.id,))
+    user_data = cursor.fetchone()
+    
+    # Get available channels for primary channel selection
+    cursor.execute("""
+        SELECT id, name
+        FROM channels
+        WHERE is_active = TRUE
+        ORDER BY id
+    """)
+    channels = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template("user_settings.html", user_data=user_data, channels=channels)

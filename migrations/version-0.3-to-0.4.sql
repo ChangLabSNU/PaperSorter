@@ -122,7 +122,31 @@ COMMENT ON FUNCTION papersorter.propagate_feed_source_name_update() IS 'Propagat
 DROP TABLE IF EXISTS papersorter.migrtmp_rss_dup_check;
 
 -- =====================================================================
--- 6. Verify migration success
+-- 6. Add theme and timezone columns to users table
+-- =====================================================================
+
+-- Add theme column to users table with default value 'light'
+ALTER TABLE papersorter.users ADD COLUMN IF NOT EXISTS theme VARCHAR(10) DEFAULT 'light';
+
+-- Valid values: 'light', 'dark', 'auto'
+-- 'auto' follows system preference
+-- Default to 'light' for backward compatibility
+
+-- Add check constraint to ensure valid theme values
+ALTER TABLE papersorter.users ADD CONSTRAINT check_theme_valid
+    CHECK (theme IN ('light', 'dark', 'auto'));
+
+-- Update existing users to have 'light' theme (if needed)
+UPDATE papersorter.users SET theme = 'light' WHERE theme IS NULL;
+
+-- Add timezone column to users table
+ALTER TABLE papersorter.users ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'UTC';
+
+COMMENT ON COLUMN papersorter.users.theme IS 'User interface theme preference: light, dark, or auto';
+COMMENT ON COLUMN papersorter.users.timezone IS 'User timezone for date/time display';
+
+-- =====================================================================
+-- 7. Verify migration success
 -- =====================================================================
 
 -- Check that all expected columns exist
@@ -149,6 +173,20 @@ BEGIN
                    AND table_name = 'users'
                    AND column_name = 'primary_channel_id') THEN
         RAISE EXCEPTION 'Migration failed: users.primary_channel_id column not found';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'papersorter'
+                   AND table_name = 'users'
+                   AND column_name = 'theme') THEN
+        RAISE EXCEPTION 'Migration failed: users.theme column not found';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'papersorter'
+                   AND table_name = 'users'
+                   AND column_name = 'timezone') THEN
+        RAISE EXCEPTION 'Migration failed: users.timezone column not found';
     END IF;
 
     -- Check models table
@@ -178,4 +216,5 @@ COMMIT;
 -- 2. The broadcast_hours field stores a JSON array of 24 boolean values
 -- 3. Models no longer have user associations; they are system-wide
 -- 4. The notes field in models table can store any descriptive information
+-- 5. Users can now set theme preference (light/dark/auto) and timezone
 -- =====================================================================

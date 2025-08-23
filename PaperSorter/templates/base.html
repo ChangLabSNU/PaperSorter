@@ -7,8 +7,204 @@
 
     <title>{% block title %}PaperSorter{% endblock %}</title>
 
-    <!-- Main CSS Bundle -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <!-- CSS Variables for theming -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+    
+    <!-- Base styles matching feeds_list.html -->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-body);
+            line-height: 1.6;
+            transition: background-color var(--transition-base), color var(--transition-base);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        /* Narrower container for settings/form pages */
+        .container-narrow {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color var(--transition-base);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 28px;
+            font-weight: bold;
+            transition: color var(--transition-base);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: var(--bg-user-info);
+            border-radius: 20px;
+            font-weight: 600;
+            color: var(--color-success);
+            font-size: 14px;
+            gap: 8px;
+        }
+
+        .user-avatar {
+            width: 24px;
+            height: 24px;
+            background: var(--color-success);
+            color: var(--text-white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Skip link for accessibility */
+        .skip-to-main {
+            position: absolute;
+            left: -9999px;
+            z-index: 999;
+            padding: 1em;
+            background-color: var(--bg-card);
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        .skip-to-main:focus {
+            left: 50%;
+            transform: translateX(-50%);
+            top: 10px;
+        }
+
+        /* Main content area */
+        main {
+            background: var(--bg-card);
+            border-radius: 8px;
+            box-shadow: var(--shadow-card);
+            padding: 20px;
+            transition: background-color var(--transition-base);
+        }
+
+        /* Common button styles */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+            vertical-align: middle;
+            line-height: 1.5;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #90caf9;
+        }
+
+        .btn-primary:hover {
+            background: #bbdefb;
+            border-color: #64b5f6;
+        }
+
+        .btn-secondary {
+            background: var(--color-secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        /* Theme toggle button */
+        .btn-theme-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all var(--transition-base);
+        }
+        
+        .btn-theme-toggle:hover {
+            background: var(--bg-hover);
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: var(--z-index-modal);
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-modal);
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid var(--border-light);
+            border-top: 3px solid var(--color-primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 
     <!-- Page-specific CSS -->
     {% block styles %}{% endblock %}
@@ -25,7 +221,7 @@
     <div class="container">
         <header class="header">
             <div>
-                <h1 class="header-title">{% block header_title %}PaperSorter{% endblock %}</h1>
+                <h1>{% block header_title %}PaperSorter{% endblock %}</h1>
                 {% block header_subtitle %}{% endblock %}
             </div>
 
@@ -33,9 +229,12 @@
                 {% block header_actions %}
                 {% if current_user.is_authenticated %}
                     <div class="user-info">
-                        <div class="user-avatar">{{ current_user.name[0].upper() if current_user.name else 'U' }}</div>
-                        <span>{{ current_user.name or current_user.email }}</span>
+                        <div class="user-avatar">{{ current_user.username[0].upper() if current_user.username else 'U' }}</div>
+                        <span>{{ current_user.username or 'User' }}</span>
                     </div>
+                    <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
+                        <span class="theme-icon">🌙</span>
+                    </button>
                 {% endif %}
                 {% endblock %}
             </div>
@@ -47,9 +246,13 @@
     {% block navigation %}{% endblock %}
 
     <!-- Main Content -->
-    <main id="main-content" class="container">
-        {% block content %}{% endblock %}
-    </main>
+    {% block main_container %}
+    <div class="container">
+        <main id="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% endblock %}
 
     <!-- Footer -->
     {% block footer %}{% endblock %}
@@ -62,10 +265,66 @@
 
     <!-- Common JavaScript -->
     <script>
+        // Theme Manager for dark mode support
+        const ThemeManager = {
+            init: function() {
+                const savedTheme = '{{ current_user.theme if current_user.is_authenticated else "light" }}';
+                this.applyTheme(savedTheme);
+                
+                if (savedTheme === 'auto') {
+                    this.watchSystemTheme();
+                }
+            },
+            
+            applyTheme: function(theme) {
+                let effectiveTheme = theme;
+                
+                if (theme === 'auto') {
+                    effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                }
+                
+                document.body.setAttribute('data-theme', effectiveTheme);
+                this.updateThemeIcon(effectiveTheme);
+                localStorage.setItem('theme', theme);
+            },
+            
+            toggleTheme: function() {
+                const current = document.body.getAttribute('data-theme');
+                const next = current === 'light' ? 'dark' : 'light';
+                this.applyTheme(next);
+                this.savePreference(next);
+            },
+            
+            savePreference: function(theme) {
+                {% if current_user.is_authenticated %}
+                fetch('/api/user/preferences', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({theme: theme})
+                });
+                {% endif %}
+            },
+            
+            updateThemeIcon: function(theme) {
+                const icon = document.querySelector('.theme-icon');
+                if (icon) {
+                    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+                }
+            },
+            
+            watchSystemTheme: function() {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                    if (localStorage.getItem('theme') === 'auto') {
+                        this.applyTheme('auto');
+                    }
+                });
+            }
+        };
+
         // Base JavaScript for all pages
         document.addEventListener('DOMContentLoaded', function() {
-            // Theme initialization (prepare for dark mode)
-            const theme = document.body.dataset.theme || 'light';
+            // Initialize theme manager
+            ThemeManager.init();
 
             // Focus management for accessibility
             const skipLink = document.querySelector('.skip-to-main');

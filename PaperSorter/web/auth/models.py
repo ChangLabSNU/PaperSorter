@@ -38,6 +38,7 @@ class User(UserMixin):
         timezone="Asia/Seoul",
         feedlist_minscore=None,
         primary_channel_id=None,
+        theme="light",
     ):
         self.id = id
         self.username = username
@@ -52,3 +53,4 @@ class User(UserMixin):
             self.feedlist_minscore_int / 100.0
         )  # Convert to decimal (e.g., 25 -> 0.25)
         self.primary_channel_id = primary_channel_id
+        self.theme = theme if theme in ["light", "dark", "auto"] else "light"

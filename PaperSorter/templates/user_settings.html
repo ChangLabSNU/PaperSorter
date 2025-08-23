@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Personal Settings - PaperSorter{% endblock %}
+
+{% block header_title %}Personal Settings{% endblock %}
+
+{% block header %}
+<div class="container-narrow">
+    <header class="header">
+        <div>
+            <h1>Personal Settings</h1>
+        </div>
+        <div class="header-actions">
+            {% if current_user.is_authenticated %}
+                <div class="user-info">
+                    <div class="user-avatar">{{ current_user.username[0].upper() if current_user.username else 'U' }}</div>
+                    <span>{{ current_user.username or 'User' }}</span>
+                </div>
+                <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            {% endif %}
+        </div>
+    </header>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: var(--color-primary);
+        text-decoration: none;
+        font-weight: bold;
+        padding: 10px 20px;
+        border: 2px solid var(--color-primary);
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+
+    .back-link:hover {
+        background: var(--color-primary);
+        color: white;
+    }
+
+    .settings-section {
+        padding: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border-light);
+    }
+
+    .settings-section:last-child {
+        border-bottom: none;
+    }
+
+    .settings-section h2 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        color: var(--text-primary);
+        font-size: 18px;
+        font-weight: bold;
+        transition: color var(--transition-base);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+        font-weight: bold;
+        font-size: 14px;
+        transition: color var(--transition-base);
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-medium);
+        border-radius: 4px;
+        font-size: 14px;
+        background: white;
+        color: var(--text-primary);
+        transition: all var(--transition-base);
+        box-sizing: border-box;
+    }
+    
+    [data-theme="dark"] .form-group input,
+    [data-theme="dark"] .form-group select {
+        background: var(--bg-card);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+
+    .form-group input[readonly] {
+        background: var(--bg-hover);
+        color: var(--text-meta);
+        cursor: not-allowed;
+    }
+
+    .form-group .help-text {
+        margin-top: 5px;
+        font-size: 12px;
+        color: var(--text-meta);
+        transition: color var(--transition-base);
+    }
+
+    .theme-selector {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .theme-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+
+    .theme-option input[type="radio"] {
+        width: auto;
+        margin: 0;
+    }
+
+    .theme-option label {
+        margin: 0;
+        cursor: pointer;
+        font-weight: normal;
+    }
+
+
+    /* Button margin adjustment */
+    .btn-secondary {
+        margin-left: 10px;
+    }
+
+    .success-message,
+    .error-message {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        display: none;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .success-message {
+        background: var(--bg-active);
+        color: var(--color-success);
+    }
+
+    .error-message {
+        background: var(--bg-inactive);
+        color: var(--color-danger);
+    }
+
+    .success-message.show,
+    .error-message.show {
+        display: flex;
+    }
+</style>
+{% endblock %}
+
+{% block main_container %}
+<div class="container-narrow">
+    <main id="main-content">
+        {% block content %}
+<a href="/" class="back-link">← Back to Feeds</a>
+
+<div class="success-message" id="successMessage">
+    <span>✅</span>
+    <span>Settings saved successfully!</span>
+</div>
+
+<div class="error-message" id="errorMessage">
+    <span>❌</span>
+    <span id="errorText">Failed to save settings</span>
+</div>
+
+<form id="settingsForm">
+    <!-- Account Information -->
+    <div class="settings-section">
+        <h2>Account Information</h2>
+        
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" value="{{ user_data.username }}" readonly>
+            <div class="help-text">Your username cannot be changed</div>
+        </div>
+
+    </div>
+
+    <!-- Display Preferences -->
+    <div class="settings-section">
+        <h2>Display Preferences</h2>
+
+        <div class="form-group">
+            <label>Theme</label>
+            <div class="theme-selector">
+                <div class="theme-option">
+                    <input type="radio" id="theme-light" name="theme" value="light" 
+                        {% if user_data.theme == 'light' %}checked{% endif %}>
+                    <label for="theme-light">☀️ Light</label>
+                </div>
+                <div class="theme-option">
+                    <input type="radio" id="theme-dark" name="theme" value="dark" 
+                        {% if user_data.theme == 'dark' %}checked{% endif %}>
+                    <label for="theme-dark">🌙 Dark</label>
+                </div>
+                <div class="theme-option">
+                    <input type="radio" id="theme-auto" name="theme" value="auto" 
+                        {% if user_data.theme == 'auto' %}checked{% endif %}>
+                    <label for="theme-auto">🔄 Auto (System)</label>
+                </div>
+            </div>
+            <div class="help-text">Choose your preferred color theme</div>
+        </div>
+
+
+        <div class="form-group">
+            <label for="timezone">Timezone</label>
+            <select id="timezone" name="timezone">
+                <option value="America/New_York" {% if user_data.timezone == 'America/New_York' %}selected{% endif %}>America/New York</option>
+                <option value="America/Chicago" {% if user_data.timezone == 'America/Chicago' %}selected{% endif %}>America/Chicago</option>
+                <option value="America/Denver" {% if user_data.timezone == 'America/Denver' %}selected{% endif %}>America/Denver</option>
+                <option value="America/Los_Angeles" {% if user_data.timezone == 'America/Los_Angeles' %}selected{% endif %}>America/Los Angeles</option>
+                <option value="Europe/London" {% if user_data.timezone == 'Europe/London' %}selected{% endif %}>Europe/London</option>
+                <option value="Europe/Paris" {% if user_data.timezone == 'Europe/Paris' %}selected{% endif %}>Europe/Paris</option>
+                <option value="Europe/Berlin" {% if user_data.timezone == 'Europe/Berlin' %}selected{% endif %}>Europe/Berlin</option>
+                <option value="Asia/Tokyo" {% if user_data.timezone == 'Asia/Tokyo' %}selected{% endif %}>Asia/Tokyo</option>
+                <option value="Asia/Seoul" {% if user_data.timezone == 'Asia/Seoul' %}selected{% endif %}>Asia/Seoul</option>
+                <option value="Asia/Shanghai" {% if user_data.timezone == 'Asia/Shanghai' %}selected{% endif %}>Asia/Shanghai</option>
+                <option value="Asia/Singapore" {% if user_data.timezone == 'Asia/Singapore' %}selected{% endif %}>Asia/Singapore</option>
+                <option value="Australia/Sydney" {% if user_data.timezone == 'Australia/Sydney' %}selected{% endif %}>Australia/Sydney</option>
+                <option value="UTC" {% if user_data.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+            </select>
+            <div class="help-text">Your timezone for date and time display</div>
+        </div>
+
+        <div class="form-group">
+            <label for="primaryChannel">Primary Channel</label>
+            <select id="primaryChannel" name="primary_channel_id">
+                <option value="">None</option>
+                {% for channel in channels %}
+                <option value="{{ channel.id }}" 
+                    {% if channel.id == user_data.primary_channel_id %}selected{% endif %}>
+                    {{ channel.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="help-text">Your default channel for viewing feeds</div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <a href="/" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+        {% endblock %}
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+    // Handle theme changes immediately (override base template's ThemeManager)
+    const themeRadios = document.querySelectorAll('input[name="theme"]');
+    themeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                ThemeManager.applyTheme(this.value);
+            }
+        });
+    });
+
+    // Handle form submission
+    document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            theme: document.querySelector('input[name="theme"]:checked').value,
+            timezone: document.getElementById('timezone').value,
+            primary_channel_id: document.getElementById('primaryChannel').value || null
+        };
+
+        try {
+            const response = await fetch('/api/user/preferences', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (response.ok) {
+                // Show success message
+                document.getElementById('successMessage').classList.add('show');
+                document.getElementById('errorMessage').classList.remove('show');
+                
+                // Hide success message after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('successMessage').classList.remove('show');
+                }, 3000);
+
+                // Save theme preference (handled by ThemeManager)
+                ThemeManager.savePreference(formData.theme);
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to save settings');
+            }
+        } catch (error) {
+            // Show error message
+            document.getElementById('errorText').textContent = error.message;
+            document.getElementById('errorMessage').classList.add('show');
+            document.getElementById('successMessage').classList.remove('show');
+            
+            // Hide error message after 5 seconds
+            setTimeout(() => {
+                document.getElementById('errorMessage').classList.remove('show');
+            }, 5000);
+        }
+    });
+</script>
+{% endblock %}

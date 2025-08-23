@@ -263,6 +263,7 @@ def google_callback():
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
+                theme=user_data.get("theme", "light"),
             )
             login_user(user)
 
@@ -354,6 +355,7 @@ def github_callback():
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
+                theme=user_data.get("theme", "light"),
             )
             login_user(user)
 
@@ -453,6 +455,7 @@ def orcid_callback():
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
+                theme=user_data.get("theme", "light"),
             )
             login_user(user)
 
