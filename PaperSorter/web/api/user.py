@@ -84,6 +84,40 @@ def api_update_user_preferences():
             # Update the current user object
             current_user.primary_channel_id = channel_id
 
+        # Handle theme update
+        if "theme" in data:
+            theme = data["theme"]
+            if theme not in ["light", "dark", "auto"]:
+                theme = "light"
+            
+            cursor.execute(
+                """
+                UPDATE users
+                SET theme = %s
+                WHERE id = %s
+                """,
+                (theme, current_user.id),
+            )
+            
+            # Update the current user object
+            current_user.theme = theme
+
+        # Handle timezone update
+        if "timezone" in data:
+            timezone = data["timezone"]
+            
+            cursor.execute(
+                """
+                UPDATE users
+                SET timezone = %s
+                WHERE id = %s
+                """,
+                (timezone, current_user.id),
+            )
+            
+            # Update the current user object
+            current_user.timezone = timezone
+
         conn.commit()
         cursor.close()
         conn.close()

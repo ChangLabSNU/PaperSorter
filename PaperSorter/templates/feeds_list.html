@@ -4,13 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QBio Feeds - PaperSorter</title>
+    <!-- CSS Variables for Dark Mode -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
     <style>
+        /* Theme toggle button */
+        .btn-theme-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 20px;
+            margin-left: 10px;
+            transition: all var(--transition-base);
+        }
+        
+        .btn-theme-toggle:hover {
+            background: var(--bg-hover);
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: var(--font-family-base);
             margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: var(--bg-body);
             line-height: 1.6;
+            transition: background-color var(--transition-base), color var(--transition-base);
         }
 
         .container {
@@ -19,14 +37,15 @@
         }
 
         .header {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: background-color var(--transition-base);
         }
 
         .filter-controls {
@@ -44,7 +63,7 @@
 
         .score-filter-label {
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--text-meta);
             font-weight: bold;
         }
 
@@ -52,7 +71,7 @@
             width: 200px;
             height: 6px;
             border-radius: 3px;
-            background: #e9ecef;
+            background: var(--border-light);
             outline: none;
             -webkit-appearance: none;
             appearance: none;
@@ -64,89 +83,140 @@
             width: 18px;
             height: 18px;
             border-radius: 50%;
-            background: #3498db;
+            background: var(--color-primary);
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px var(--shadow-md);
         }
 
         .score-slider::-moz-range-thumb {
             width: 18px;
             height: 18px;
             border-radius: 50%;
-            background: #3498db;
+            background: var(--color-primary);
             cursor: pointer;
             border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px var(--shadow-md);
         }
 
         .score-value {
             font-size: 12px;
-            color: #2c3e50;
+            color: var(--text-primary);
             font-weight: bold;
             min-width: 60px;
             text-align: center;
         }
 
+        .channel-selector {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-medium);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-base);
+        }
+
+        .channel-selector:hover {
+            border-color: var(--color-primary);
+        }
+
+        .channel-selector:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .channel-selector option {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
         .header h1 {
             margin: 0;
-            color: #2c3e50;
+            color: var(--text-primary);
+            transition: color var(--transition-base);
         }
 
         .nav-link {
-            color: #3498db;
+            color: var(--color-primary);
             text-decoration: none;
             font-weight: bold;
             padding: 10px 20px;
-            border: 2px solid #3498db;
+            border: 2px solid var(--color-primary);
             border-radius: 6px;
             transition: all 0.2s ease;
         }
 
         .nav-link:hover {
-            background: #3498db;
-            color: white;
+            background: var(--color-primary);
+            color: var(--text-white);
         }
 
         /* Hamburger menu styles */
         .hamburger-menu {
-            position: relative;
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            z-index: 1001;
+        }
+        
+        /* Adjust for smaller screens */
+        @media (max-width: 768px) {
+            .hamburger-menu {
+                top: 15px;
+                right: 15px;
+            }
         }
 
         .hamburger-btn {
-            background: none;
-            border: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
             cursor: pointer;
-            padding: 8px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             gap: 4px;
             transition: all 0.3s ease;
+            box-shadow: var(--shadow-card);
         }
 
         .hamburger-btn:hover {
-            opacity: 0.7;
+            background: var(--bg-hover);
+            box-shadow: var(--shadow-hover);
         }
 
         .hamburger-line {
             width: 25px;
             height: 3px;
-            background: #000000;
+            background: var(--text-primary);
             border-radius: 2px;
             transition: all 0.3s ease;
         }
 
         .dropdown-menu {
             display: none;
-            position: absolute;
-            top: 100%;
-            right: 0;
-            background: white;
+            position: fixed;
+            top: 85px;
+            right: 30px;
+            background: var(--bg-card);
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            min-width: 200px;
-            margin-top: 10px;
+            box-shadow: var(--shadow-modal);
+            min-width: 220px;
             z-index: 1000;
             overflow: hidden;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+        
+        @media (max-width: 768px) {
+            .dropdown-menu {
+                top: 60px;
+                right: 15px;
+                min-width: 200px;
+            }
         }
 
         .dropdown-menu.show {
@@ -158,7 +228,7 @@
             align-items: center;
             gap: 10px;
             padding: 12px 20px;
-            color: #2c3e50;
+            color: var(--text-primary);
             text-decoration: none;
             border: none;
             background: none;
@@ -170,14 +240,26 @@
             font-weight: 500;
             font-family: inherit;
         }
+        
+        .dropdown-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--bg-hover);
+            border-bottom: 1px solid var(--border-light);
+        }
 
         .dropdown-item:hover {
-            background: #f8f9fa;
+            background: var(--bg-hover);
         }
 
         .dropdown-divider {
             height: 1px;
-            background: #e9ecef;
+            background: var(--border-light);
             margin: 5px 0;
         }
 
@@ -185,10 +267,10 @@
             display: flex;
             align-items: center;
             padding: 8px 16px;
-            background: #e8f5e9;
+            background: var(--bg-user-info);
             border-radius: 20px;
             font-weight: 600;
-            color: #2e7d32;
+            color: var(--color-success);
             font-size: 14px;
             gap: 8px;
         }
@@ -196,8 +278,8 @@
         .user-icon {
             width: 24px;
             height: 24px;
-            background: #4caf50;
-            color: white;
+            background: var(--color-success);
+            color: var(--text-white);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -215,58 +297,60 @@
         }
 
         button.user-info.btn-search {
-            background: #e3f2fd;
-            color: #1976d2;
+            background: var(--btn-primary-bg);
+            color: var(--btn-primary-color);
         }
 
         button.user-info.btn-search:hover {
-            background: #bbdefb;
+            background: var(--btn-primary-bg-hover);
         }
 
         button.user-info.btn-pdf {
-            background: #ede7f6;
-            color: #5e35b1;
+            background: var(--btn-similar-bg);
+            color: var(--btn-similar-color);
         }
 
         button.user-info.btn-pdf:hover {
-            background: #d1c4e9;
+            background: var(--btn-similar-bg-hover);
         }
 
         button.user-info.btn-logout {
-            background: #eeeeee;
-            color: #616161;
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-color);
         }
 
         button.user-info.btn-logout:hover {
-            background: #e0e0e0;
+            background: var(--btn-secondary-bg-hover);
         }
 
 
         .feeds-container {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
             overflow: hidden;
+            transition: background-color var(--transition-base);
         }
 
         .date-header {
-            background: #f8f9fa;
+            background: var(--bg-table-header);
             padding: 15px 20px;
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid var(--border-light);
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 16px;
             position: sticky;
             top: 0;
             z-index: 10;
+            transition: background-color var(--transition-base);
         }
 
         .bookmark-divider {
-            border-top: 3px solid #3498db;
+            border-top: 3px solid var(--color-primary);
             margin: 0;
             padding: 10px 20px;
-            background: #e3f2fd;
-            color: #1976d2;
+            background: var(--bg-hover);
+            color: var(--color-primary);
             font-weight: bold;
             font-size: 14px;
             text-align: center;
@@ -279,17 +363,17 @@
         }
 
         .feed-item {
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid var(--border-light);
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
 
         .feed-item:hover {
-            background-color: #f8f9fa;
+            background-color: var(--bg-hover);
         }
 
         .feed-item.expanded {
-            background-color: #f0f4f8;
+            background-color: var(--bg-hover);
         }
 
         .feed-item:last-child {
@@ -311,7 +395,7 @@
             border-radius: 12px;
             font-size: 12px;
             font-weight: bold;
-            color: white;
+            color: var(--text-white);
             min-width: 50px;
             justify-content: center;
             flex-shrink: 0;
@@ -328,7 +412,7 @@
 
         .score-icon {
             background: rgba(0, 0, 0, 0.8);
-            color: white;
+            color: var(--text-white);
             border-radius: 50%;
             width: 16px;
             height: 16px;
@@ -336,22 +420,22 @@
             align-items: center;
             justify-content: center;
             font-size: 10px;
-            border: 1px solid white;
+            border: 1px solid var(--text-white);
         }
 
         .score-icon.starred {
-            background: #f39c12;
-            color: white;
+            background: var(--color-warning);
+            color: var(--text-white);
         }
 
         .score-icon.broadcasted {
-            background: #1f295a;
-            color: white;
+            background: var(--color-info);
+            color: var(--text-white);
         }
 
         .similarity-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, var(--color-info) 0%, var(--color-info) 100%);
+            color: var(--text-white);
             min-width: 49px;
         }
 
@@ -369,17 +453,19 @@
         .feed-title {
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 5px;
             line-height: 1.3;
+            transition: color var(--transition-base);
         }
 
         .feed-meta {
             display: flex;
             gap: 15px;
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--text-meta);
             margin-bottom: 5px;
+            transition: color var(--transition-base);
         }
 
         .feed-meta-item {
@@ -416,25 +502,26 @@
         }
 
         .label-starred {
-            background: #f39c12;
-            color: white;
+            background: var(--color-warning);
+            color: var(--text-white);
         }
 
         .label-positive {
-            background: #27ae60;
-            color: white;
+            background: var(--color-success);
+            color: var(--text-white);
         }
 
         .label-negative {
-            background: #e74c3c;
-            color: white;
+            background: var(--color-danger);
+            color: var(--text-white);
         }
 
         .feed-details {
             display: none;
             padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
+            background: var(--bg-abstract);
+            border-top: 1px solid var(--border-light);
+            transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
         .feed-details.expanded {
@@ -444,8 +531,9 @@
         .feed-abstract {
             font-size: 15px;
             line-height: 1.6;
-            color: #34495e;
+            color: var(--text-secondary);
             margin-bottom: 15px;
+            transition: color var(--transition-base);
         }
 
         .feed-actions {
@@ -469,82 +557,82 @@
         }
 
         .btn-primary {
-            background: #e3f2fd;
-            color: #1976d2;
-            border: 1px solid #90caf9;
+            background: var(--btn-primary-bg);
+            color: var(--btn-primary-color);
+            border: 1px solid var(--btn-primary-border);
         }
 
         .btn-primary:hover {
-            background: #bbdefb;
-            border-color: #64b5f6;
+            background: var(--btn-primary-bg-hover);
+            border-color: var(--btn-primary-border-hover);
         }
 
         .btn-star {
-            background: #fff3e0;
-            color: #f57c00;
-            border: 1px solid #ffcc80;
+            background: var(--btn-star-bg);
+            color: var(--btn-star-color);
+            border: 1px solid var(--btn-star-border);
         }
 
         .btn-star:hover {
-            background: #ffe0b2;
-            border-color: #ffb74d;
+            background: var(--btn-star-bg-hover);
+            border-color: var(--btn-star-border-hover);
         }
 
         .btn-star.starred {
-            background: #ffcc80;
-            border-color: #ff9800;
-            color: #e65100;
+            background: var(--btn-star-bg-active);
+            border-color: var(--btn-star-border);
+            color: var(--btn-star-color-active);
         }
 
         .btn-thumbs-up {
-            background: #e8f5e9;
-            color: #388e3c;
-            border: 1px solid #a5d6a7;
+            background: var(--btn-thumbs-up-bg);
+            color: var(--btn-thumbs-up-color);
+            border: 1px solid var(--btn-thumbs-up-border);
         }
 
         .btn-thumbs-up:hover {
-            background: #c8e6c9;
-            border-color: #81c784;
+            background: var(--btn-thumbs-up-bg-hover);
+            border-color: var(--btn-thumbs-up-border-hover);
         }
 
         .btn-thumbs-up.active {
-            background: #a5d6a7;
-            border-color: #66bb6a;
-            color: #2e7d32;
+            background: var(--btn-thumbs-up-bg-active);
+            border-color: var(--btn-thumbs-up-border);
+            color: var(--btn-thumbs-up-color-active);
         }
 
         .btn-thumbs-down {
-            background: #ffebee;
-            color: #d32f2f;
-            border: 1px solid #ef9a9a;
+            background: var(--btn-thumbs-down-bg);
+            color: var(--btn-thumbs-down-color);
+            border: 1px solid var(--btn-thumbs-down-border);
         }
 
         .btn-thumbs-down:hover {
-            background: #ffcdd2;
-            border-color: #e57373;
+            background: var(--btn-thumbs-down-bg-hover);
+            border-color: var(--btn-thumbs-down-border-hover);
         }
 
         .btn-thumbs-down.active {
-            background: #ef9a9a;
-            border-color: #ef5350;
-            color: #c62828;
+            background: var(--btn-thumbs-down-bg-active);
+            border-color: var(--btn-thumbs-down-border);
+            color: var(--btn-thumbs-down-color-active);
         }
 
         .btn-similar {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            border: 1px solid #ce93d8;
+            background: var(--btn-similar-bg);
+            color: var(--btn-similar-color);
+            border: 1px solid var(--btn-similar-border);
         }
 
         .btn-similar:hover {
-            background: #e1bee7;
-            border-color: #ba68c8;
+            background: var(--btn-similar-bg-hover);
+            border-color: var(--btn-similar-border-hover);
         }
 
         .btn-secondary {
-            background: #ecf0f1;
-            color: #34495e;
-            border: 1px solid #bdc3c7;
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-color);
+            border: 1px solid var(--btn-secondary-border);
         }
 
         /* Toast notification styles */
@@ -552,11 +640,11 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #333;
-            color: white;
+            background: var(--toast-bg);
+            color: var(--toast-color);
             padding: 12px 20px;
             border-radius: 4px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: var(--toast-shadow);
             z-index: 10000;
             opacity: 0;
             transform: translateY(-20px);
@@ -570,24 +658,24 @@
         }
 
         .toast.success {
-            background: #4caf50;
+            background: var(--toast-success-bg);
         }
 
         .toast.error {
-            background: #f44336;
+            background: var(--toast-error-bg);
         }
 
         .btn-secondary:hover {
-            background: #d5dbdb;
-            border-color: #95a5a6;
+            background: var(--btn-secondary-bg-hover);
+            border-color: var(--btn-secondary-border-hover);
         }
 
         .search-interface {
-            background: white;
+            background: var(--search-bg);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--search-shadow);
             display: flex;
             gap: 10px;
             align-items: flex-start;
@@ -596,21 +684,23 @@
         .search-input {
             flex: 1;
             padding: 10px 15px;
-            border: 2px solid #e9ecef;
+            border: 2px solid var(--search-border);
             border-radius: 6px;
             font-size: 16px;
             outline: none;
             transition: border-color 0.2s ease;
+            background: var(--search-bg);
+            color: var(--text-primary);
         }
 
         .search-input:focus {
-            border-color: #3498db;
+            border-color: var(--search-border-focus);
         }
 
         .search-textarea {
             flex: 1;
             padding: 10px 15px;
-            border: 2px solid #e9ecef;
+            border: 2px solid var(--search-border);
             border-radius: 6px;
             font-size: 16px;
             outline: none;
@@ -620,10 +710,12 @@
             resize: vertical;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.5;
+            background: var(--search-bg);
+            color: var(--text-primary);
         }
 
         .search-textarea:focus {
-            border-color: #3498db;
+            border-color: var(--search-border-focus);
         }
 
         .search-btn {
@@ -631,11 +723,11 @@
         }
 
         .search-results-header {
-            background: white;
+            background: var(--search-bg);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--search-shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -643,41 +735,41 @@
 
         .search-results-header h2 {
             margin: 0;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
 
         .search-result-item {
-            background: white;
+            background: var(--search-result-bg);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            border: 1px solid #e9ecef;
+            box-shadow: var(--search-result-shadow);
+            border: 1px solid var(--search-result-border);
             transition: all 0.2s ease;
         }
 
         .search-result-item:hover {
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            border-color: #3498db;
+            box-shadow: var(--search-result-shadow-hover);
+            border-color: var(--search-result-border-hover);
         }
 
         .search-result-title {
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 10px;
         }
 
         .search-result-meta {
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--text-meta);
             margin-bottom: 10px;
         }
 
         .search-result-abstract {
             font-size: 14px;
             line-height: 1.6;
-            color: #34495e;
+            color: var(--text-secondary);
             margin-bottom: 15px;
             max-height: 100px;
             overflow: hidden;
@@ -856,42 +948,42 @@
             }
 
             .btn-primary {
-                background: #e3f2fd;
-                color: #1976d2;
-                border-color: #90caf9;
+                background: var(--btn-primary-bg);
+                color: var(--btn-primary-color);
+                border-color: var(--btn-primary-border);
             }
 
             .btn-primary:hover {
-                background: #bbdefb;
-                border-color: #64b5f6;
+                background: var(--btn-primary-bg-hover);
+                border-color: var(--btn-primary-border-hover);
             }
 
             .btn-star.starred {
-                background: #f39c12;
-                color: white;
-                border-color: #f39c12;
+                background: var(--btn-star-bg-active);
+                color: var(--btn-star-color-active);
+                border-color: var(--btn-star-border);
             }
 
             .btn-thumbs-up.active {
-                background: #27ae60;
-                color: white;
-                border-color: #27ae60;
+                background: var(--btn-thumbs-up-bg-active);
+                color: var(--btn-thumbs-up-color-active);
+                border-color: var(--btn-thumbs-up-border);
             }
 
             .btn-thumbs-down.active {
-                background: #e74c3c;
-                color: white;
-                border-color: #e74c3c;
+                background: var(--btn-thumbs-down-bg-active);
+                color: var(--btn-thumbs-down-color-active);
+                border-color: var(--btn-thumbs-down-border);
             }
         }
 
         /* Summary Section Styles */
         .summary-section {
-            background: white;
+            background: var(--summary-bg);
             border-radius: 8px;
             padding: 20px;
             margin: 20px 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: var(--summary-shadow);
         }
 
         .summary-header {
@@ -903,7 +995,7 @@
 
         .summary-header h3 {
             margin: 0;
-            color: #1a73e8;
+            color: var(--summary-title-color);
             font-size: 20px;
         }
 
@@ -921,7 +1013,7 @@
         }
 
         .btn-generate {
-            background: #1a73e8;
+            background: var(--summary-btn-bg);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -930,18 +1022,18 @@
             border-radius: 24px;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--summary-btn-shadow);
         }
 
         .btn-generate:hover {
-            background: #1557b0;
+            filter: brightness(0.9);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
             transform: translateY(-1px);
         }
 
         .btn-generate:active {
             transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--summary-btn-shadow);
         }
 
         .summary-loading, .poster-loading {
@@ -953,8 +1045,8 @@
             width: 40px;
             height: 40px;
             margin: 0 auto 20px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #1a73e8;
+            border: 4px solid var(--border-light);
+            border-top: 4px solid var(--summary-btn-bg);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -967,11 +1059,11 @@
         .summary-text {
             font-size: 15px;
             line-height: 1.8;
-            color: #202124;
+            color: var(--text-primary);
         }
 
         .summary-text h1, .summary-text h2, .summary-text h3 {
-            color: #1a73e8;
+            color: var(--summary-title-color);
             margin-top: 20px;
             margin-bottom: 10px;
         }
@@ -986,26 +1078,26 @@
         }
 
         .summary-text strong {
-            color: #3c4043;
+            color: var(--text-primary);
         }
 
         .summary-disclaimer {
             margin-top: 20px;
             padding: 12px 16px;
-            background-color: #f8f9fa;
-            border-left: 3px solid #dadce0;
+            background-color: var(--bg-hover);
+            border-left: 3px solid var(--border-medium);
             border-radius: 4px;
         }
 
         .summary-disclaimer p {
             margin: 0;
             font-size: 13px;
-            color: #5f6368;
+            color: var(--text-meta);
             line-height: 1.5;
         }
 
         .summary-disclaimer strong {
-            color: #3c4043;
+            color: var(--text-primary);
         }
 
         .poster-content {
@@ -1022,11 +1114,63 @@
         }
     </style>
 </head>
-<body>
+<body data-theme="{{ current_user.theme | default('light') if current_user.is_authenticated else 'light' }}">
+    <!-- Fixed hamburger menu -->
+    <div class="hamburger-menu">
+        <button class="hamburger-btn" onclick="toggleHamburgerMenu(event)">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+        <div class="dropdown-menu" id="hamburgerDropdown">
+            <!-- Display current user -->
+            <div class="dropdown-user">
+                <span>👤 {{ current_user.username }}</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            {% if current_user.is_admin %}
+            <button class="dropdown-item" onclick="toggleSemanticSearch(); closeHamburgerMenu();">
+                <span>➕ Add a Paper</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <a href="/broadcast-queue" class="dropdown-item">
+                <span>📤 Broadcast Queue</span>
+            </a>
+            <a href="/events" class="dropdown-item">
+                <span>📋 Event Logs</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="/labeling" class="dropdown-item">
+                <span>🏷️ Labeling Session</span>
+            </a>
+            <a href="/settings" class="dropdown-item">
+                <span>⚙️ System Settings</span>
+            </a>
+            <a href="/user-settings" class="dropdown-item">
+                <span>🛠️ Personal Settings</span>
+            </a>
+            {% else %}
+            <a href="/user-settings" class="dropdown-item">
+                <span>⚙️️ Settings</span>
+            </a>
+            {% endif %}
+            <div class="dropdown-divider"></div>
+            <a href="/logout" class="dropdown-item">
+                <span>🚪 Logout</span>
+            </a>
+        </div>
+    </div>
     <div class="container">
         <div class="header">
             <h1>QBio Feeds</h1>
             <div class="filter-controls">
+                <!-- Control buttons for all users -->
+                <button id="generalSearchToggleBtn" class="user-info btn-search" onclick="toggleGeneralSearch()">
+                    <span style="margin-left: 0;">🔍 Search</span>
+                </button>
+                <button class="user-info btn-pdf" onclick="window.location.href='/pdf-search'">
+                    <span style="margin-left: 0;">🌌 PDF</span>
+                </button>
                 <div class="score-filter">
                     <div class="score-filter-label">Min Score</div>
                     <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1">
@@ -1034,7 +1178,7 @@
                 </div>
                 <div class="score-filter">
                     <div class="score-filter-label">Channel</div>
-                    <select id="primaryChannelSelect" class="channel-selector" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;">
+                    <select id="primaryChannelSelect" class="channel-selector">
                         {% if not channels %}
                         <option value="">None</option>
                         {% endif %}
@@ -1045,56 +1189,10 @@
                         {% endfor %}
                     </select>
                 </div>
-                {% if current_user.is_admin %}
-                <!-- Hamburger menu for admins -->
-                <div class="hamburger-menu">
-                    <button class="hamburger-btn" onclick="toggleHamburgerMenu(event)">
-                        <span class="hamburger-line"></span>
-                        <span class="hamburger-line"></span>
-                        <span class="hamburger-line"></span>
-                    </button>
-                    <div class="dropdown-menu" id="hamburgerDropdown">
-                        <button class="dropdown-item" onclick="toggleGeneralSearch(); closeHamburgerMenu();">
-                            <span>🔍 Search from Text</span>
-                        </button>
-                        <a href="/pdf-search" class="dropdown-item">
-                            <span>🌌 Search from PDF</span>
-                        </a>
-                        <button class="dropdown-item" onclick="toggleSemanticSearch(); closeHamburgerMenu();">
-                            <span>🔬 Add a Paper</span>
-                        </button>
-                        <div class="dropdown-divider"></div>
-                        <a href="/broadcast-queue" class="dropdown-item">
-                            <span>📤 Broadcast Queue</span>
-                        </a>
-                        <a href="/events" class="dropdown-item">
-                            <span>📋 Event Logs</span>
-                        </a>
-                        <div class="dropdown-divider"></div>
-                        <a href="/labeling" class="dropdown-item">
-                            <span>🏷️ Labeling Session</span>
-                        </a>
-                        <a href="/settings" class="dropdown-item">
-                            <span>⚙️ Settings</span>
-                        </a>
-                        <div class="dropdown-divider"></div>
-                        <a href="/logout" class="dropdown-item">
-                            <span>🚪 Logout</span>
-                        </a>
-                    </div>
-                </div>
-                {% else %}
-                <!-- Non-admin users see buttons directly -->
-                <button id="generalSearchToggleBtn" class="user-info btn-search" onclick="toggleGeneralSearch()">
-                    <span style="margin-left: 0;">🔍 Search</span>
+                <!-- Theme Toggle Button -->
+                <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
+                    <span class="theme-icon">🌙</span>
                 </button>
-                <button class="user-info btn-pdf" onclick="window.location.href='/pdf-search'">
-                    <span style="margin-left: 0;">🌌 PDF</span>
-                </button>
-                <button class="user-info btn-logout" onclick="window.location.href='/logout'">
-                    <span style="margin-left: 0;">🚪 Logout</span>
-                </button>
-                {% endif %}
             </div>
         </div>
 
@@ -1186,6 +1284,47 @@
     </div>
 
     <script>
+        // Theme Manager for dark mode
+        const ThemeManager = {
+            init: function() {
+                const savedTheme = '{{ current_user.theme if current_user.is_authenticated else "light" }}';
+                this.applyTheme(savedTheme);
+            },
+            
+            applyTheme: function(theme) {
+                document.body.setAttribute('data-theme', theme);
+                this.updateThemeIcon(theme);
+                localStorage.setItem('theme', theme);
+            },
+            
+            toggleTheme: function() {
+                const current = document.body.getAttribute('data-theme');
+                const next = current === 'light' ? 'dark' : 'light';
+                this.applyTheme(next);
+                this.savePreference(next);
+            },
+            
+            savePreference: function(theme) {
+                {% if current_user.is_authenticated %}
+                fetch('/api/user/preferences', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({theme: theme})
+                });
+                {% endif %}
+            },
+            
+            updateThemeIcon: function(theme) {
+                const icon = document.querySelector('.theme-icon');
+                if (icon) {
+                    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+                }
+            }
+        };
+        
+        // Initialize theme on load
+        ThemeManager.init();
+        
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;

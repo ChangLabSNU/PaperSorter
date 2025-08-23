@@ -168,7 +168,7 @@ def create_app(config_path, skip_authentication=None):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             """SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id,
-                      lastlogin,
+                      theme, lastlogin,
                       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(lastlogin, TIMESTAMP '1970-01-01'))) as seconds_since_login
                FROM users WHERE id = %s""",
             (int(user_id),),
@@ -196,6 +196,7 @@ def create_app(config_path, skip_authentication=None):
                 timezone=user_data.get("timezone", "Asia/Seoul"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
+                theme=user_data.get("theme", "light"),
             )
         return None
 

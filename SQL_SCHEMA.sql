@@ -343,6 +343,7 @@ CREATE TABLE papersorter.users (
     created timestamp with time zone,
     lastlogin timestamp with time zone,
     is_admin boolean DEFAULT false NOT NULL,
+    theme varchar(10) DEFAULT 'light' CHECK (theme IN ('light', 'dark', 'auto')),
     timezone text DEFAULT 'Asia/Seoul'::text,
     bookmark bigint,
     feedlist_minscore integer DEFAULT 25,
