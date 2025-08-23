@@ -540,8 +540,8 @@
   /* Background Colors */
   --bg-body: #1a1a1a;
   --bg-card: #2d2d2d;
-  --bg-hover: #3a3a3a;
-  --bg-abstract: #3a3a3a;
+  --bg-hover: #363030;
+  --bg-abstract: #363030;
   --bg-table-header: #3a3a3a;
   --bg-user-info: #2e4e32;
 
@@ -654,8 +654,8 @@
   --summary-bg: #2d2d2d;
   --summary-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   --summary-title-color: #64b5f6;
-  --summary-btn-bg: #2196f3;
-  --summary-btn-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --summary-btn-bg: #1565c0;
+  --summary-btn-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 
   /* Event Logs Page - Dark Mode */
   --event-border: #404040;

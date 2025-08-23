@@ -777,16 +777,9 @@
         const sourceFeedId = {{ source_feed_id }};
         const userTimezone = '{{ current_user.timezone }}';
 
+        // Use the common gradient color function
         function calculateScoreColor(score) {
-            if (score === null) return 'rgb(149, 165, 166)';
-
-            // Apply gamma transformation (square root) to weight towards red
-            const gamma = Math.pow(Math.max(0, Math.min(1, score)), 0.5);
-            // Interpolate between gray (149,165,166) and red (231,116,60)
-            const r = Math.round(149 + (231 - 149) * gamma);
-            const g = Math.round(165 + (116 - 165) * gamma);
-            const b = Math.round(166 + (60 - 166) * gamma);
-            return `rgb(${r}, ${g}, ${b})`;
+            return getScoreGradientColor(score);
         }
 
         function formatDate(timestamp) {

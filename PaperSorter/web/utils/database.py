@@ -86,7 +86,7 @@ def get_unlabeled_item(conn, user=None):
     cursor.execute(
         """
         SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
-               pp.score as predicted_score
+               pp.score as predicted_score, f.published
         FROM labeling_sessions ls
         JOIN feeds f ON ls.feed_id = f.id
         LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s

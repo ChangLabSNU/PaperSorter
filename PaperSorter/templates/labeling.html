@@ -26,23 +26,27 @@
             <div class="paper-item" id="current-item" data-id="{{ item.id }}" data-url="{{ item.link or '' }}">
                 {% if item.predicted_score is not none %}
                 <div>
-                    <span class="score-badge" style="background-color: rgb({{ (149 + (231 - 149) * (item.predicted_score ** 0.5))|int }}, {{ (165 + (116 - 165) * (item.predicted_score ** 0.5))|int }}, {{ (166 + (60 - 166) * (item.predicted_score ** 0.5))|int }});">{{ "%.3f"|format(item.predicted_score) }}</span>
+                    <span class="score-badge" id="predictedScoreBadge">{{ "%.3f"|format(item.predicted_score) }}</span>
+                <script>
+                    // Apply the gradient color using the common function
+                    document.getElementById('predictedScoreBadge').style.backgroundColor = getScoreGradientColor({{ item.predicted_score }});
+                </script>
                 </div>
                 {% endif %}
                 <div class="title">{{ item.title }}</div>
 
                 <div class="meta">
-                    {% if item.author %}
-                    <div class="meta-item">
-                        <div class="meta-label">Authors</div>
-                        <div>{{ item.author }}</div>
+                    <div class="meta-row">
+                        {% if item.origin %}
+                        <span style="font-weight: bold;">{{ item.origin }}</span>
+                        {% endif %}
+                        {% if item.published %}
+                        <span style="margin-left: 10px;">{{ item.published.strftime('%m/%d/%Y') if item.published else '' }}</span>
+                        {% endif %}
                     </div>
-                    {% endif %}
-
-                    {% if item.origin %}
-                    <div class="meta-item">
-                        <div class="meta-label">Origin</div>
-                        <div>{{ item.origin }}</div>
+                    {% if item.author %}
+                    <div class="meta-row">
+                        {{ item.author }}
                     </div>
                     {% endif %}
                 </div>
@@ -75,8 +79,6 @@
         Use keyboard shortcuts: Z/. = Interesting, X// = Not Interesting, Space = Skip, V = Visit, Backspace = Previous
     </div>
 </div>
-
-<a href="/" class="back-button">← Back to Feed List</a>
 {% endblock %}
 
 {% block styles %}
@@ -109,26 +111,6 @@
             transition: background-color var(--transition-base);
         }
 
-        .back-button {
-            position: fixed;
-            right: 30px;
-            bottom: 140px;  /* Position above the control panel with extra padding */
-            padding: 12px 20px;
-            background: var(--labeling-back-btn-bg);
-            color: var(--text-white);
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
-            transition: all var(--transition-base);
-            box-shadow: var(--shadow-card);
-            z-index: 100;
-        }
-
-        .back-button:hover {
-            background: var(--labeling-back-btn-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-hover);
-        }
 
         .progress {
             background: var(--labeling-progress-bg);
@@ -184,11 +166,17 @@
 
         .meta {
             display: flex;
-            gap: 20px;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 20px;
             font-size: 14px;
             color: var(--labeling-meta-color);
             transition: color var(--transition-base);
+        }
+
+        .meta-row {
+            display: flex;
+            align-items: center;
         }
 
         .meta-item {
@@ -211,7 +199,8 @@
             margin-bottom: 30px;
             font-size: 16px;
             line-height: 1.7;
-            transition: background-color var(--transition-base), border-color var(--transition-base);
+            color: var(--text-primary);
+            transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base);
         }
 
         .controls {

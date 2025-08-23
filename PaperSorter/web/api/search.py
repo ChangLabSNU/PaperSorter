@@ -444,18 +444,67 @@ def api_scholarly_database_add():
         if not provider:
             return jsonify({"error": f"Failed to create {provider_name} provider"}), 500
 
-        # Create ScholarlyArticle from raw data
-        # This assumes the data is in the provider's format
-        if provider_name == "semantic_scholar" or provider_name == "semanticscholar":
-            from ...providers.semantic_scholar import SemanticScholarProvider
-            temp_provider = SemanticScholarProvider({})
-            article = temp_provider._parse_article(article_data)
-        elif provider_name == "openalex":
-            from ...providers.openalex import OpenAlexProvider
-            temp_provider = OpenAlexProvider({})
-            article = temp_provider._parse_article(article_data)
-        else:
-            return jsonify({"error": f"Unknown provider: {provider_name}"}), 500
+        # Create ScholarlyArticle from the paper data
+        # The data is already parsed from the search endpoint, so we need to reconstruct it
+        from ...providers.scholarly_database import ScholarlyArticle
+        from datetime import datetime
+        
+        # Extract authors - handle both string array and object array formats
+        authors = []
+        if article_data.get("authors"):
+            for author in article_data["authors"]:
+                if isinstance(author, str):
+                    authors.append(author)
+                elif isinstance(author, dict) and author.get("name"):
+                    authors.append(author["name"])
+        
+        # Extract publication date
+        pub_date = None
+        if article_data.get("publicationDate"):
+            try:
+                pub_date = datetime.fromisoformat(article_data["publicationDate"])
+            except:
+                pass
+        elif article_data.get("year"):
+            try:
+                pub_date = datetime(int(article_data["year"]), 1, 1)
+            except:
+                pass
+        
+        # Extract venue/journal
+        venue = article_data.get("venue")
+        if not venue and article_data.get("journal"):
+            journal = article_data["journal"]
+            if isinstance(journal, dict):
+                venue = journal.get("name")
+            else:
+                venue = journal
+        
+        # Extract tldr
+        tldr = None
+        if article_data.get("tldr"):
+            tldr_data = article_data["tldr"]
+            if isinstance(tldr_data, dict):
+                tldr = tldr_data.get("text")
+            else:
+                tldr = tldr_data
+        
+        # Create ScholarlyArticle object
+        article = ScholarlyArticle(
+            title=article_data.get("title", ""),
+            authors=authors,
+            abstract=article_data.get("abstract", ""),
+            venue=venue,
+            url=article_data.get("url", ""),
+            doi=article_data.get("doi"),
+            publication_date=pub_date,
+            tldr=tldr,
+            external_ids=article_data.get("external_ids", {})
+        )
+        
+        # Override the auto-generated unique_id if we have a specific one
+        if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
+            article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
         # Create FeedItem from ScholarlyArticle
         item = ScholarlyArticleItem(article)

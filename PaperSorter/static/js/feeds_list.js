@@ -76,32 +76,16 @@ document.addEventListener('click', function(event) {
     }
 });
 
-function formatDateForHeader(dateStr) {
+function formatDateForHeader(dateInput) {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const date = new Date(dateStr);
+    // dateInput is already converted to milliseconds when called
+    const date = new Date(dateInput);
     return date.toLocaleDateString('en-US', options);
 }
 
+// Use the common gradient color function
 function getGradientColor(score) {
-    // Score is between 0 and 1
-    // Map to gradient from red (0) -> yellow (0.5) -> green (1)
-    let r, g, b;
-
-    if (score < 0.5) {
-        // Red to Yellow
-        const ratio = score * 2;
-        r = 220;
-        g = Math.round(50 + (180 * ratio));
-        b = 50;
-    } else {
-        // Yellow to Green
-        const ratio = (score - 0.5) * 2;
-        r = Math.round(220 - (140 * ratio));
-        g = Math.round(230 - (80 * ratio));
-        b = 50;
-    }
-
-    return `rgb(${r}, ${g}, ${b})`;
+    return getScoreGradientColor(score);
 }
 
 function calculateSimilarity(scoreDiff) {
@@ -116,21 +100,21 @@ function calculateSimilarity(scoreDiff) {
 function createFeedElement(feed) {
     const feedDiv = document.createElement('div');
     feedDiv.className = 'feed-item';
-    feedDiv.dataset.feedId = feed.id;
+    feedDiv.dataset.feedId = feed.rowid;
     feedDiv.dataset.published = feed.published;
 
     const isStarred = feed.starred === true;
-    const hasPositiveFeedback = feed.user_feedback === 1;
-    const hasNegativeFeedback = feed.user_feedback === -1;
+    const hasPositiveFeedback = feed.label === 1;
+    const hasNegativeFeedback = feed.label === 0;
     const isBroadcasted = feed.broadcasted === true;
 
-    const hasLabels = isStarred || hasPositiveFeedback || hasNegativeFeedback;
+    const hasLabels = isStarred;  // Only show starred label now
 
     let headerHTML = `
         <div class="feed-header">
             <div class="badges-container">
                 <span class="score-badge" style="background: ${getGradientColor(feed.score)}">
-                    ${(feed.score * 100).toFixed(0)}%`;
+                    ${(feed.score * 100).toFixed(0)}`;
 
     // Add icons container if needed
     if (isStarred || isBroadcasted) {
@@ -151,7 +135,7 @@ function createFeedElement(feed) {
         const similarity = calculateSimilarity(Math.abs(feed.score - feed.similarity_score));
         headerHTML += `
             <span class="similarity-badge score-badge" title="Similarity to selected paper">
-                ${similarity}%
+                ${similarity}
             </span>`;
     }
 
@@ -161,22 +145,32 @@ function createFeedElement(feed) {
             <div class="feed-content">
                 <h3 class="feed-title">${feed.title}</h3>
                 <div class="feed-meta">
-                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
-                    <span class="feed-meta-item feed-date">${new Date(feed.published).toLocaleDateString()}</span>
+                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
+                    <span class="feed-meta-item feed-date">${new Date(feed.published * 1000).toLocaleDateString()}</span>
                 </div>
             </div>`;
+    
+    // Add vote count badges on the far right
+    headerHTML += '<div class="vote-badges-container">';
+    if (feed.positive_votes > 0) {
+        headerHTML += `
+            <span class="vote-badge vote-positive" title="${feed.positive_votes} interested">
+                +${feed.positive_votes}
+            </span>`;
+    }
+    if (feed.negative_votes > 0) {
+        headerHTML += `
+            <span class="vote-badge vote-negative" title="${feed.negative_votes} not interested">
+                −${feed.negative_votes}
+            </span>`;
+    }
+    headerHTML += '</div>';
 
     if (hasLabels) {
         headerHTML += '<div class="feed-labels">';
         if (isStarred) {
-            headerHTML += '<span class="label-badge label-starred">⭐ Starred</span>';
-        }
-        if (hasPositiveFeedback) {
-            headerHTML += '<span class="label-badge label-positive">👍 Interested</span>';
-        }
-        if (hasNegativeFeedback) {
-            headerHTML += '<span class="label-badge label-negative">👎 Not Interested</span>';
+            headerHTML += '<span class="label-badge label-starred" title="Starred">⭐</span>';
         }
         headerHTML += '</div>';
     }
@@ -185,23 +179,23 @@ function createFeedElement(feed) {
 
     const detailsHTML = `
         <div class="feed-details">
-            <div class="feed-abstract">${feed.content || 'No abstract available.'}</div>
+            <div class="feed-abstract">Click to load abstract...</div>
             <div class="feed-actions">
                 <a href="${feed.link}" target="_blank" class="btn btn-primary">
                     🔗<span class="btn-text">Open Article</span>
                 </a>
-                <button class="btn btn-star ${isStarred ? 'starred' : ''}" onclick="toggleStar(${feed.id}, this)">
+                <button class="btn btn-star ${isStarred ? 'starred' : ''}" onclick="toggleStar(${feed.rowid}, this)">
                     ${isStarred ? '⭐' : '☆'}<span class="btn-text">${isStarred ? 'Starred' : 'Star'}</span>
                 </button>
                 <button class="btn btn-thumbs-up ${hasPositiveFeedback ? 'active' : ''}"
-                        onclick="sendFeedback(${feed.id}, 1, this)">
+                        onclick="sendFeedback(${feed.rowid}, 1, this)">
                     👍<span class="btn-text">Interested</span>
                 </button>
                 <button class="btn btn-thumbs-down ${hasNegativeFeedback ? 'active' : ''}"
-                        onclick="sendFeedback(${feed.id}, -1, this)">
+                        onclick="sendFeedback(${feed.rowid}, 0, this)">
                     👎<span class="btn-text">Not Interested</span>
                 </button>
-                <button class="btn btn-similar" onclick="findSimilar(${feed.id})">
+                <button class="btn btn-similar" onclick="findSimilar(${feed.rowid})">
                     🔍<span class="btn-text">More Like This</span>
                 </button>
             </div>
@@ -211,14 +205,34 @@ function createFeedElement(feed) {
 
     // Add click handler for expansion
     const header = feedDiv.querySelector('.feed-header');
-    header.addEventListener('click', function(e) {
+    header.addEventListener('click', async function(e) {
         // Don't expand if clicking on a link or button
         if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') {
             return;
         }
         const details = feedDiv.querySelector('.feed-details');
+        const abstract = details.querySelector('.feed-abstract');
+
+        // Toggle expansion
         details.classList.toggle('expanded');
         feedDiv.classList.toggle('expanded');
+
+        // Load content if expanding and not already loaded
+        if (details.classList.contains('expanded') && !abstract.dataset.loaded) {
+            abstract.innerHTML = '<div class="loading">Loading abstract...</div>';
+            try {
+                const response = await fetch(`/api/feeds/${feed.rowid}/content`);
+                if (response.ok) {
+                    const data = await response.json();
+                    abstract.innerHTML = data.content || data.tldr || 'No abstract available.';
+                    abstract.dataset.loaded = 'true';
+                } else {
+                    abstract.innerHTML = 'Failed to load abstract.';
+                }
+            } catch (error) {
+                abstract.innerHTML = 'Error loading abstract.';
+            }
+        }
     });
 
     return feedDiv;
@@ -298,32 +312,26 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
         }
 
         const feedsToDisplay = [];
-        const bookmarkDate = data.bookmark_date ? new Date(data.bookmark_date).toDateString() : null;
 
         data.feeds.forEach(feed => {
-            const feedDate = new Date(feed.published).toDateString();
+            const feedDate = new Date(feed.published * 1000).toDateString();
 
             // Check if we need to insert bookmark divider
-            if (!bookmarkInserted && bookmarkDate && bookmarkId) {
-                const currentFeedDate = new Date(feed.published);
-                const bookmarkDateObj = new Date(data.bookmark_date);
-
-                if (currentFeedDate < bookmarkDateObj) {
-                    // Insert bookmark divider before this feed
-                    const divider = document.createElement('div');
-                    divider.className = 'bookmark-divider';
-                    divider.id = 'bookmarkDivider';
-                    divider.innerHTML = 'Last Read Position';
-                    container.appendChild(divider);
-                    bookmarkInserted = true;
-                }
+            if (!bookmarkInserted && bookmarkId && feed.rowid === bookmarkId) {
+                // Insert bookmark divider before this feed (this is where user was)
+                const divider = document.createElement('div');
+                divider.className = 'bookmark-divider';
+                divider.id = 'bookmarkDivider';
+                divider.innerHTML = 'You were here';
+                container.appendChild(divider);
+                bookmarkInserted = true;
             }
 
             // Add date header if needed
             if (feedDate !== lastDateShown) {
                 const dateHeader = document.createElement('div');
                 dateHeader.className = 'date-header';
-                dateHeader.textContent = formatDateForHeader(feed.published);
+                dateHeader.textContent = formatDateForHeader(feed.published * 1000);
                 container.appendChild(dateHeader);
                 lastDateShown = feedDate;
             }
@@ -333,15 +341,7 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
             container.appendChild(feedElement);
         });
 
-        // Insert bookmark at the end if not yet inserted and we have no more feeds
-        if (!bookmarkInserted && bookmarkId && data.feeds.length === 0) {
-            const divider = document.createElement('div');
-            divider.className = 'bookmark-divider';
-            divider.id = 'bookmarkDivider';
-            divider.innerHTML = 'Last Read Position';
-            container.appendChild(divider);
-            bookmarkInserted = true;
-        }
+        // Don't insert bookmark at the end - it should only appear at the actual position
 
         hasMore = data.has_more;
         currentPage = page;
@@ -376,8 +376,13 @@ window.addEventListener('scroll', () => {
 
 // Score filter
 function updateScoreFilter(value) {
-    currentMinScore = parseFloat(value);
-    document.getElementById('scoreValue').textContent = (currentMinScore * 100).toFixed(0) + '%';
+    // Convert slider value (0-4) to actual score threshold
+    const sliderIndex = parseInt(value);
+    currentMinScore = window.feedsConfig.scoreThresholds[sliderIndex];
+
+    // Update display with score label
+    const scoreLabel = window.feedsConfig.scoreLabels[sliderIndex];
+    document.getElementById('scoreValue').textContent = scoreLabel;
 
     // Debounce the reload
     clearTimeout(window.scoreFilterTimeout);
@@ -401,10 +406,13 @@ async function toggleStar(feedId, button) {
 
     try {
         const response = await fetch(`/api/feeds/${feedId}/star`, {
-            method: isStarred ? 'DELETE' : 'POST',
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({
+                starred: !isStarred
+            })
         });
 
         if (response.ok) {
@@ -447,11 +455,9 @@ async function toggleStar(feedId, button) {
                 }
             }
 
-            showToast(isStarred ? 'Removed star' : 'Added star', 'success');
         }
     } catch (error) {
         console.error('Failed to toggle star:', error);
-        showToast('Failed to update star', 'error');
     }
 }
 
@@ -467,7 +473,7 @@ async function sendFeedback(feedId, score, button) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                score: isActive ? 0 : score
+                score: isActive ? null : score
             })
         });
 
@@ -475,30 +481,85 @@ async function sendFeedback(feedId, score, button) {
             // Update button states
             const thumbsUp = feedItem.querySelector('.btn-thumbs-up');
             const thumbsDown = feedItem.querySelector('.btn-thumbs-down');
-
+            
+            // Update vote count badges
+            let voteBadgesContainer = feedItem.querySelector('.vote-badges-container');
+            if (!voteBadgesContainer) {
+                // Create container if it doesn't exist
+                voteBadgesContainer = document.createElement('div');
+                voteBadgesContainer.className = 'vote-badges-container';
+                feedItem.querySelector('.feed-header').appendChild(voteBadgesContainer);
+            }
+            
+            // Get current vote badges
+            let positiveBadge = voteBadgesContainer.querySelector('.vote-positive');
+            let negativeBadge = voteBadgesContainer.querySelector('.vote-negative');
+            
+            // Parse current counts
+            let positiveCount = positiveBadge ? parseInt(positiveBadge.textContent.substring(1)) : 0;
+            let negativeCount = negativeBadge ? parseInt(negativeBadge.textContent.substring(1)) : 0;
+            
             if (isActive) {
-                // Remove feedback
+                // Remove feedback - decrement the appropriate counter
                 button.classList.remove('active');
-                updateFeedLabels(feedItem, score > 0 ? 'positive' : 'negative', false);
+                if (score === 1) {
+                    positiveCount = Math.max(0, positiveCount - 1);
+                } else if (score === 0) {
+                    negativeCount = Math.max(0, negativeCount - 1);
+                }
             } else {
-                // Add/change feedback
-                thumbsUp.classList.toggle('active', score > 0);
-                thumbsDown.classList.toggle('active', score < 0);
-
-                // Update labels
-                updateFeedLabels(feedItem, 'positive', score > 0);
-                updateFeedLabels(feedItem, 'negative', score < 0);
+                // Check if switching from one to another
+                if (thumbsUp.classList.contains('active') && score === 0) {
+                    // Switching from positive to negative
+                    positiveCount = Math.max(0, positiveCount - 1);
+                    negativeCount++;
+                } else if (thumbsDown.classList.contains('active') && score === 1) {
+                    // Switching from negative to positive
+                    negativeCount = Math.max(0, negativeCount - 1);
+                    positiveCount++;
+                } else {
+                    // New vote
+                    if (score === 1) {
+                        positiveCount++;
+                    } else if (score === 0) {
+                        negativeCount++;
+                    }
+                }
+                
+                // Update button states
+                thumbsUp.classList.toggle('active', score === 1);
+                thumbsDown.classList.toggle('active', score === 0);
+            }
+            
+            // Update or remove positive badge
+            if (positiveCount > 0) {
+                if (!positiveBadge) {
+                    positiveBadge = document.createElement('span');
+                    positiveBadge.className = 'vote-badge vote-positive';
+                    voteBadgesContainer.appendChild(positiveBadge);
+                }
+                positiveBadge.textContent = `+${positiveCount}`;
+                positiveBadge.title = `${positiveCount} interested`;
+            } else if (positiveBadge) {
+                positiveBadge.remove();
+            }
+            
+            // Update or remove negative badge
+            if (negativeCount > 0) {
+                if (!negativeBadge) {
+                    negativeBadge = document.createElement('span');
+                    negativeBadge.className = 'vote-badge vote-negative';
+                    voteBadgesContainer.appendChild(negativeBadge);
+                }
+                negativeBadge.textContent = `−${negativeCount}`;
+                negativeBadge.title = `${negativeCount} not interested`;
+            } else if (negativeBadge) {
+                negativeBadge.remove();
             }
 
-            showToast(
-                isActive ? 'Feedback removed' :
-                    (score > 0 ? 'Marked as interested' : 'Marked as not interested'),
-                'success'
-            );
         }
     } catch (error) {
         console.error('Failed to send feedback:', error);
-        showToast('Failed to update feedback', 'error');
     }
 }
 
@@ -527,11 +588,14 @@ function updateFeedLabels(feedItem, type, add) {
             const label = document.createElement('span');
             label.className = `label-badge label-${type}`;
             if (type === 'starred') {
-                label.textContent = '⭐ Starred';
+                label.textContent = '⭐';
+                label.title = 'Starred';
             } else if (type === 'positive') {
-                label.textContent = '👍 Interested';
+                // No longer used - we use vote badges instead
+                return;
             } else if (type === 'negative') {
-                label.textContent = '👎 Not Interested';
+                // No longer used - we use vote badges instead
+                return;
             }
             labelsContainer.appendChild(label);
         }
@@ -582,7 +646,7 @@ let searchMode = 'semantic';
 let isSearching = false;
 
 function toggleGeneralSearch() {
-    const searchDiv = document.getElementById('generalSearchInterface');
+    const searchDiv = document.getElementById('generalSearchContainer');
     if (searchDiv.style.display === 'none') {
         searchDiv.style.display = 'block';
         document.getElementById('generalSearchInput').focus();
@@ -592,7 +656,7 @@ function toggleGeneralSearch() {
 }
 
 function toggleSemanticSearch() {
-    const searchDiv = document.getElementById('semanticSearchInterface');
+    const searchDiv = document.getElementById('semanticSearchContainer');
     if (searchDiv.style.display === 'none') {
         searchDiv.style.display = 'block';
         const textarea = document.getElementById('semanticSearchInput');
@@ -606,10 +670,10 @@ async function performGeneralSearch() {
     const query = document.getElementById('generalSearchInput').value.trim();
     if (!query) return;
 
-    const searchInterface = document.getElementById('generalSearchInterface');
-    const feedsSection = document.getElementById('feedsSection');
-    const resultsSection = document.getElementById('searchResultsSection');
-    const resultsContainer = document.getElementById('searchResultsContainer');
+    const searchInterface = document.getElementById('generalSearchContainer');
+    const feedsSection = document.getElementById('feedsContainer');
+    const resultsSection = document.getElementById('generalSearchResultsContainer');
+    const resultsContainer = document.getElementById('generalSearchResults');
 
     // Update URL
     const newUrl = new URL(window.location);
@@ -629,69 +693,35 @@ async function performGeneralSearch() {
             body: JSON.stringify({ query: query, type: 'text' })
         });
 
-        const data = await response.json();
-        displaySearchResults(data.results, query);
-    } catch (error) {
-        resultsContainer.innerHTML = '<div class="error">Search failed. Please try again.</div>';
-    }
-}
-
-async function performSemanticSearch() {
-    const input = document.getElementById('semanticSearchInput');
-    const query = input.value.trim();
-    if (!query) return;
-
-    const searchInterface = document.getElementById('semanticSearchInterface');
-    const feedsSection = document.getElementById('feedsSection');
-    const resultsSection = document.getElementById('searchResultsSection');
-    const resultsContainer = document.getElementById('searchResultsContainer');
-
-    // Update URL
-    const newUrl = new URL(window.location);
-    newUrl.searchParams.set('q', query);
-    window.history.pushState({}, '', newUrl);
-
-    // Show loading
-    resultsContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Processing semantic search...</div>';
-    searchInterface.style.display = 'none';
-    feedsSection.style.display = 'none';
-    resultsSection.style.display = 'block';
-
-    try {
-        const response = await fetch('/api/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: query, type: 'semantic' })
-        });
-
-        const data = await response.json();
-        displaySearchResults(data.results, 'Semantic Search');
-
-        // Generate summary and poster if admin
-        if (window.feedsConfig.isAdmin && data.results.length > 0) {
-            generateSummary(data.results);
-            generatePoster(data.results);
+        if (!response.ok) {
+            throw new Error(`Search failed: ${response.status}`);
         }
+
+        const data = await response.json();
+        currentSearchShortName = data.short_name;
+        displaySearchResults(data.feeds, query);
     } catch (error) {
+        console.error('Search error:', error);
         resultsContainer.innerHTML = '<div class="error">Search failed. Please try again.</div>';
     }
 }
 
-async function searchSemanticScholar() {
+
+async function searchSemanticScholar(event) {
     const input = document.getElementById('semanticSearchInput');
     const query = input.value.trim();
     if (!query || isSearching) return;
 
     isSearching = true;
-    const searchBtn = event.target;
+    const searchBtn = event ? event.target : document.querySelector('#semanticSearchContainer .btn-primary');
     const originalText = searchBtn.innerHTML;
     searchBtn.innerHTML = '<span class="loading-spinner" style="display:inline-block;width:16px;height:16px;margin-right:5px;"></span>Searching...';
     searchBtn.disabled = true;
 
-    const searchInterface = document.getElementById('semanticSearchInterface');
-    const feedsSection = document.getElementById('feedsSection');
-    const resultsSection = document.getElementById('searchResultsSection');
-    const resultsContainer = document.getElementById('searchResultsContainer');
+    const searchInterface = document.getElementById('semanticSearchContainer');
+    const feedsSection = document.getElementById('feedsContainer');
+    const resultsSection = document.getElementById('searchResultsContainer');
+    const resultsContainer = document.getElementById('searchResults');
 
     resultsContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching academic databases...</div>';
     searchInterface.style.display = 'none';
@@ -699,7 +729,7 @@ async function searchSemanticScholar() {
     resultsSection.style.display = 'block';
 
     try {
-        const response = await fetch('/api/search/semantic-scholar', {
+        const response = await fetch('/api/scholarly-database/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: query })
@@ -708,7 +738,7 @@ async function searchSemanticScholar() {
         if (!response.ok) throw new Error('Search failed');
 
         const data = await response.json();
-        displayAcademicResults(data.results);
+        displayAcademicResults(data.papers || data.results || []);
     } catch (error) {
         console.error('Search error:', error);
         resultsContainer.innerHTML = '<div class="error">Failed to search academic databases. Please try again.</div>';
@@ -720,11 +750,34 @@ async function searchSemanticScholar() {
 }
 
 function displaySearchResults(results, searchQuery) {
-    const container = document.getElementById('searchResultsContainer');
-    const queryDisplay = document.getElementById('searchQuery');
-
+    // Store results for AI Summary generation
+    currentSearchResults = results || [];
+    
+    // Determine which container to use based on what's visible
+    let container = document.getElementById('generalSearchResults');
+    if (!container || container.parentElement.style.display === 'none') {
+        container = document.getElementById('searchResults');
+    }
+    
+    const queryDisplay = document.getElementById('searchQueryDisplay');
     if (queryDisplay) {
-        queryDisplay.textContent = searchQuery;
+        queryDisplay.textContent = `Search: "${searchQuery}"`;
+    }
+    
+    // Show AI Summary section if admin and has results
+    const summarySection = document.getElementById('searchSummarySection');
+    if (summarySection) {
+        if (window.feedsConfig.isAdmin && results && results.length > 0) {
+            summarySection.style.display = 'block';
+            // Reset to initial state
+            document.getElementById('searchSummaryInitial').style.display = 'flex';
+            document.getElementById('searchSummaryLoading').style.display = 'none';
+            document.getElementById('searchPosterLoading').style.display = 'none';
+            document.getElementById('searchSummaryText').style.display = 'none';
+            document.getElementById('searchPosterContent').style.display = 'none';
+        } else {
+            summarySection.style.display = 'none';
+        }
     }
 
     if (!results || results.length === 0) {
@@ -732,40 +785,89 @@ function displaySearchResults(results, searchQuery) {
         return;
     }
 
+    // First, create the HTML
     container.innerHTML = results.map(result => `
-        <div class="feed-item">
+        <div class="feed-item" data-feed-id="${result.rowid || result.id}">
             <div class="feed-header">
                 <div class="badges-container">
+                    ${result.similarity !== undefined && result.similarity !== null ? `
+                        <span class="similarity-badge score-badge" title="Similarity to search query">
+                            ${Math.round(result.similarity * 100)}
+                        </span>
+                    ` : ''}
                     <span class="score-badge" style="background: ${getGradientColor(result.score)}">
-                        ${(result.score * 100).toFixed(0)}%
+                        ${(result.score * 100).toFixed(0)}
                     </span>
                 </div>
                 <div class="feed-content">
                     <h3 class="feed-title">${result.title}</h3>
                     <div class="feed-meta">
-                        ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
-                        <span class="feed-meta-item feed-date">${new Date(result.published).toLocaleDateString()}</span>
+                        ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
+                        <span class="feed-meta-item feed-date">${new Date(result.published * 1000).toLocaleDateString()}</span>
                     </div>
                 </div>
             </div>
-            <div class="feed-details expanded">
-                <div class="feed-abstract">${result.content || 'No abstract available.'}</div>
+            <div class="feed-details">
+                <div class="feed-abstract">Click to load abstract...</div>
                 <div class="feed-actions">
                     <a href="${result.link}" target="_blank" class="btn btn-primary">
-                        🔗 Open Article
+                        🔗<span class="btn-text">Open Article</span>
                     </a>
-                    <button class="btn btn-similar" onclick="findSimilar(${result.id})">
-                        🔍 More Like This
+                    <button class="btn btn-star ${result.starred ? 'starred' : ''}" onclick="toggleStar(${result.rowid || result.id}, this)">
+                        ${result.starred ? '⭐' : '☆'}<span class="btn-text">${result.starred ? 'Starred' : 'Star'}</span>
+                    </button>
+                    <button class="btn btn-thumbs-up ${result.label === 1 ? 'active' : ''}"
+                            onclick="sendFeedback(${result.rowid || result.id}, 1, this)">
+                        👍<span class="btn-text">Interested</span>
+                    </button>
+                    <button class="btn btn-thumbs-down ${result.label === -1 ? 'active' : ''}"
+                            onclick="sendFeedback(${result.rowid || result.id}, -1, this)">
+                        👎<span class="btn-text">Not Interested</span>
+                    </button>
+                    <button class="btn btn-similar" onclick="findSimilar(${result.rowid || result.id})">
+                        🔍<span class="btn-text">More Like This</span>
                     </button>
                 </div>
             </div>
         </div>
     `).join('');
+    
+    // Then, add event listeners to all feed items
+    container.querySelectorAll('.feed-item').forEach(feedDiv => {
+        const feedId = feedDiv.dataset.feedId;
+        const header = feedDiv.querySelector('.feed-header');
+        
+        header.addEventListener('click', async function(e) {
+            // Don't expand if clicking on a link or button
+            if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') {
+                return;
+            }
+            const details = feedDiv.querySelector('.feed-details');
+            const abstract = details.querySelector('.feed-abstract');
+            
+            // Toggle expansion
+            details.classList.toggle('expanded');
+            feedDiv.classList.toggle('expanded');
+            
+            // Load content if expanding and not already loaded
+            if (details.classList.contains('expanded') && !abstract.dataset.loaded) {
+                abstract.innerHTML = '<div class="loading">Loading abstract...</div>';
+                try {
+                    const response = await fetch(`/api/feeds/${feedId}/content`);
+                    const data = await response.json();
+                    abstract.innerHTML = data.content || 'No abstract available.';
+                    abstract.dataset.loaded = 'true';
+                } catch (error) {
+                    abstract.innerHTML = 'Failed to load abstract.';
+                }
+            }
+        });
+    });
 }
 
 function displayAcademicResults(results) {
-    const container = document.getElementById('searchResultsContainer');
+    const container = document.getElementById('searchResults');
 
     if (!results || results.length === 0) {
         container.innerHTML = '<div class="no-results">No academic papers found</div>';
@@ -778,36 +880,36 @@ function displayAcademicResults(results) {
             <div class="search-result-item">
                 <div class="search-result-title">${paper.title}</div>
                 <div class="search-result-meta">
-                    ${paper.authors ? paper.authors.join(', ') : 'Unknown authors'}
-                    ${paper.year ? ` • ${paper.year}` : ''}
-                    ${paper.venue ? ` • ${paper.venue}` : ''}
+                    ${paper.venue ? `<strong>${paper.venue}</strong>` : ''}
+                    ${paper.authors ? `${paper.venue ? ' • ' : ''}${paper.authors.map(a => typeof a === 'object' ? a.name : a).join(', ')}` : ''}
+                    ${(paper.publicationDate || paper.year) ? `${(paper.venue || paper.authors) ? ' • ' : ''}${paper.publicationDate ? new Date(paper.publicationDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : paper.year}` : ''}
                 </div>
                 <div class="search-result-abstract">
                     ${paper.abstract || 'No abstract available'}
                 </div>
                 <div class="search-result-actions">
-                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-primary">🔗 View Paper</a>` : ''}
                     ${isAlreadyAdded ?
             '<span class="already-added-badge">✓ Already in database</span>' :
-            `<button class="btn btn-add" onclick="addPaperToDatabase('${paper.paperId}', this)">
+            `<button class="btn btn-add" onclick='addPaperToDatabase(${JSON.stringify(paper).replace(/'/g, "&apos;")}, this)'>
                         ➕ Add to Database
                      </button>`
         }
+                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-primary">🔗 View Paper</a>` : ''}
                 </div>
             </div>
         `;
     }).join('');
 }
 
-async function addPaperToDatabase(paperId, button) {
+async function addPaperToDatabase(paper, button) {
     button.disabled = true;
     button.textContent = 'Adding...';
 
     try {
-        const response = await fetch('/api/search/add-paper', {
+        const response = await fetch('/api/scholarly-database/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paper_id: paperId })
+            body: JSON.stringify({ paper: paper })
         });
 
         if (response.ok) {
@@ -826,8 +928,8 @@ async function addPaperToDatabase(paperId, button) {
 }
 
 function backToFeeds() {
-    const feedsSection = document.getElementById('feedsSection');
-    const resultsSection = document.getElementById('searchResultsSection');
+    const feedsSection = document.getElementById('feedsContainer');
+    const resultsSection = document.getElementById('searchResultsContainer');
 
     feedsSection.style.display = 'block';
     resultsSection.style.display = 'none';
@@ -838,31 +940,88 @@ function backToFeeds() {
     window.history.pushState({}, '', newUrl);
 }
 
+function backToFeedList() {
+    document.getElementById('generalSearchContainer').style.display = 'none';
+    document.getElementById('generalSearchResultsContainer').style.display = 'none';
+    document.getElementById('semanticSearchContainer').style.display = 'none';
+    document.getElementById('searchResultsContainer').style.display = 'none';
+    document.getElementById('feedsContainer').style.display = 'block';
+
+    const newUrl = new URL(window.location);
+    newUrl.searchParams.delete('q');
+    window.history.pushState({}, '', newUrl);
+}
+
+function backToSearchInput() {
+    document.getElementById('searchResultsContainer').style.display = 'none';
+    document.getElementById('semanticSearchContainer').style.display = 'block';
+}
+
+function copySearchLink(event) {
+    // Determine which URL to copy
+    let url;
+    if (currentSearchShortName) {
+        // Use the short link if available
+        const baseUrl = window.location.origin;
+        url = `${baseUrl}/link/${currentSearchShortName}`;
+    } else {
+        // Fall back to current URL
+        url = window.location.href;
+    }
+    
+    // Get the button element
+    const btn = event ? event.target : document.querySelector('[onclick*="copySearchLink"]');
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(url).then(() => {
+        // Show success feedback
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✓ Copied!';
+        btn.disabled = true;
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy URL:', err);
+        alert('Failed to copy link to clipboard');
+    });
+}
+
 // Summary generation
 async function generateSummary(papers) {
-    const summaryContent = document.getElementById('summaryContent');
+    const summarySection = document.getElementById('searchSummarySection');
+    const summaryContent = document.getElementById('searchSummaryContent');
+    const summaryInitial = document.getElementById('searchSummaryInitial');
+    const summaryLoading = document.getElementById('searchSummaryLoading');
+    const summaryText = document.getElementById('searchSummaryText');
+    
     if (!summaryContent) return;
-
-    summaryContent.innerHTML = '<div class="summary-loading"><div class="spinner"></div><p>Generating AI summary...</p></div>';
+    
+    // Show the summary section
+    summarySection.style.display = 'block';
+    summaryInitial.style.display = 'none';
+    summaryLoading.style.display = 'block';
+    summaryText.innerHTML = '';
 
     try {
-        const response = await fetch('/api/search/summarize', {
+        const response = await fetch('/api/summarize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                papers: papers.slice(0, 10).map(p => ({
-                    title: p.title,
-                    abstract: p.content,
-                    authors: p.author
-                }))
+                feed_ids: papers.slice(0, 10).map(p => p.rowid || p.id)
             })
         });
 
         if (!response.ok) throw new Error('Summary generation failed');
 
         const data = await response.json();
-        summaryContent.innerHTML = `
-            <div class="summary-text">${data.summary}</div>
+        summaryLoading.style.display = 'none';
+        summaryText.style.display = 'block';
+        summaryText.innerHTML = `
+            <div class="summary-text">${data.summary_html || data.summary_markdown || 'No summary available'}</div>
             <div class="summary-disclaimer">
                 <p><strong>Note:</strong> This summary was generated by AI and may contain inaccuracies.
                 Always refer to the original papers for authoritative information.</p>
@@ -870,40 +1029,86 @@ async function generateSummary(papers) {
         `;
     } catch (error) {
         console.error('Summary generation error:', error);
-        summaryContent.innerHTML = '<div class="error">Failed to generate summary</div>';
+        summaryLoading.style.display = 'none';
+        summaryText.style.display = 'block';
+        summaryText.innerHTML = '<div class="error">Failed to generate summary</div>';
     }
+}
+
+// Helper function to get current search results
+let currentSearchResults = [];
+let currentSearchShortName = null;
+
+function getCurrentSearchResults() {
+    return currentSearchResults;
 }
 
 // Poster generation
 async function generatePoster(papers) {
-    const posterContent = document.getElementById('posterContent');
+    const summarySection = document.getElementById('searchSummarySection');
+    const summaryInitial = document.getElementById('searchSummaryInitial');
+    const posterLoading = document.getElementById('searchPosterLoading');
+    const posterContent = document.getElementById('searchPosterContent');
+    
     if (!posterContent) return;
-
-    posterContent.innerHTML = '<div class="poster-loading"><div class="spinner"></div><p>Creating infographic poster...</p></div>';
+    
+    // Show the summary section and poster loading
+    summarySection.style.display = 'block';
+    summaryInitial.style.display = 'none';
+    posterLoading.style.display = 'block';
+    posterContent.style.display = 'none';
 
     try {
-        const response = await fetch('/api/user/poster', {
+        const response = await fetch('/api/generate-poster', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                papers: papers.slice(0, 10).map(p => ({
-                    title: p.title,
-                    abstract: p.content,
-                    authors: p.author
-                }))
+                feed_ids: papers.slice(0, 10).map(p => p.rowid || p.id)
             })
         });
 
         if (!response.ok) throw new Error('Poster generation failed');
 
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        posterContent.innerHTML = `
-            <iframe src="${url}" class="poster-iframe" title="Research Poster"></iframe>
-        `;
+        const data = await response.json();
+        const jobId = data.job_id;
+        
+        // Poll for poster completion
+        const checkPosterStatus = async () => {
+            try {
+                const statusResponse = await fetch(`/api/poster-status/${jobId}`);
+                const statusData = await statusResponse.json();
+                
+                if (statusData.status === 'completed') {
+                    posterLoading.style.display = 'none';
+                    posterContent.style.display = 'block';
+                    
+                    // Create a blob URL from the HTML content
+                    const blob = new Blob([statusData.poster_html], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    posterContent.innerHTML = `
+                        <iframe src="${url}" class="poster-iframe" title="Research Poster"></iframe>
+                    `;
+                } else if (statusData.status === 'error') {
+                    throw new Error(statusData.error || 'Poster generation failed');
+                } else {
+                    // Still processing, check again in 2 seconds
+                    setTimeout(checkPosterStatus, 2000);
+                }
+            } catch (error) {
+                console.error('Poster status check error:', error);
+                posterLoading.style.display = 'none';
+                posterContent.style.display = 'block';
+                posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
+            }
+        };
+        
+        // Start polling
+        setTimeout(checkPosterStatus, 2000);
     } catch (error) {
         console.error('Poster generation error:', error);
+        posterLoading.style.display = 'none';
+        posterContent.style.display = 'block';
         posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
     }
 }
@@ -915,6 +1120,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize theme
     ThemeManager.init();
+    
+    // Add event handlers for summary buttons
+    const generateSummaryBtn = document.getElementById('generateSearchSummaryBtn');
+    const generatePosterBtn = document.getElementById('generateSearchPosterBtn');
+    
+    if (generateSummaryBtn) {
+        generateSummaryBtn.addEventListener('click', function() {
+            // Get current search results
+            const feeds = getCurrentSearchResults();
+            if (feeds && feeds.length > 0) {
+                generateSummary(feeds);
+            }
+        });
+    }
+    
+    if (generatePosterBtn) {
+        generatePosterBtn.addEventListener('click', function() {
+            // Get current search results
+            const feeds = getCurrentSearchResults();
+            if (feeds && feeds.length > 0) {
+                generatePoster(feeds);
+            }
+        });
+    }
 
     // Check for search query in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -922,8 +1151,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (searchQuery) {
         // Restore search from URL
-        document.getElementById('semanticSearchInput').value = searchQuery;
-        performSemanticSearch();
+        document.getElementById('generalSearchInput').value = searchQuery;
+        performGeneralSearch();
     } else {
         // Load initial feeds
         loadFeeds();
@@ -935,7 +1164,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize score filter
     const scoreSlider = document.getElementById('scoreSlider');
     if (scoreSlider) {
-        scoreSlider.value = currentMinScore;
-        document.getElementById('scoreValue').textContent = (currentMinScore * 100).toFixed(0) + '%';
+        // Find the index of the current min score in the thresholds array
+        const thresholdIndex = window.feedsConfig.scoreThresholds.findIndex(t => t === currentMinScore);
+        if (thresholdIndex !== -1) {
+            scoreSlider.value = thresholdIndex;
+            document.getElementById('scoreValue').textContent = window.feedsConfig.scoreLabels[thresholdIndex];
+        } else {
+            // Default to index 2 (0.25 threshold)
+            scoreSlider.value = 2;
+            document.getElementById('scoreValue').textContent = window.feedsConfig.scoreLabels[2];
+        }
     }
 });
