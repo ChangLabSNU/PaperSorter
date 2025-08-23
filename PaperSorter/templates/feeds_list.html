@@ -178,56 +178,23 @@
         </div>
     </div>
 
+    <!-- Configuration for JavaScript -->
     <script>
-        // Theme Manager for dark mode
-        const ThemeManager = {
-            init: function() {
-                const savedTheme = '{{ current_user.theme if current_user.is_authenticated else "light" }}';
-                this.applyTheme(savedTheme);
-            },
-
-            applyTheme: function(theme) {
-                document.body.setAttribute('data-theme', theme);
-                this.updateThemeIcon(theme);
-                localStorage.setItem('theme', theme);
-            },
-
-            toggleTheme: function() {
-                const current = document.body.getAttribute('data-theme');
-                const next = current === 'light' ? 'dark' : 'light';
-                this.applyTheme(next);
-                this.savePreference(next);
-            },
-
-            savePreference: function(theme) {
-                {% if current_user.is_authenticated %}
-                fetch('/api/user/preferences', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({theme: theme})
-                });
-                {% endif %}
-            },
-
-            updateThemeIcon: function(theme) {
-                const icon = document.querySelector('.theme-icon');
-                if (icon) {
-                    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-                }
-            }
+        window.feedsConfig = {
+            isAuthenticated: {% if current_user.is_authenticated %}true{% else %}false{% endif %},
+            isAdmin: {% if current_user.is_admin %}true{% else %}false{% endif %},
+            userTheme: '{{ current_user.theme if current_user.is_authenticated else "light" }}',
+            minScore: {{ current_user.feedlist_minscore|default(0.25) }},
+            userTimezone: '{{ current_user.timezone|default("") }}',
+            bookmarkId: null
         };
+    </script>
 
-        // Initialize theme on load
-        ThemeManager.init();
+    <!-- External JavaScript -->
+    <script src="{{ url_for('static', filename='js/feeds_list.js') }}"></script>
 
-        let currentPage = 1;
-        let isLoading = false;
-        let hasMore = true;
-        let currentMinScore = {{ current_user.feedlist_minscore or 0.25 }};
-        let lastDateShown = null;
-        let bookmarkId = null;
-        let bookmarkInserted = false;
-        const userTimezone = '{{ current_user.timezone }}';
+    <script>
+        // Keep only the template-specific code that can't be moved to external file
 
         // Score threshold values corresponding to slider positions
         const scoreThresholds = [0, 0.05, 0.1, 0.25, 0.5];
