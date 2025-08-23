@@ -210,7 +210,7 @@ crontab -e
   - Import & embeddings: 15 min (mostly waiting)
   - Finding seed papers: 10 min
   - First labeling: 20 min
-  
+
 - **Stage 2** (Recommended): ~90 minutes active time
   - Second labeling: 60-90 min
   - Can be split across multiple sessions

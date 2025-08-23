@@ -70,7 +70,7 @@ def normalize_text(text):
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, max_content_length, clear_old_days, log_file, quiet):
     """Send notifications for high-scoring papers to configured channels.
-    
+
     Processes the broadcast queue and sends notifications to Slack/Discord channels
     based on their score thresholds and broadcast hours.
     """

@@ -176,7 +176,7 @@ class EmbeddingDatabase:
         # Use provided model_id or default to 1
         if model_id is None:
             model_id = 1
-        
+
         # Build the SELECT fields based on include_content parameter
         select_fields = """
                     sf.feed_id,
@@ -204,7 +204,7 @@ class EmbeddingDatabase:
             self.cursor.execute(
                 f"""
                 WITH similar_feeds AS (
-                    SELECT 
+                    SELECT
                         feed_id,
                         1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
                     FROM embeddings
@@ -249,7 +249,7 @@ class EmbeddingDatabase:
             self.cursor.execute(
                 f"""
                 WITH similar_feeds AS (
-                    SELECT 
+                    SELECT
                         feed_id,
                         1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
                     FROM embeddings
@@ -262,7 +262,7 @@ class EmbeddingDatabase:
                         feed_id,
                         score
                     FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback') 
+                    WHERE source IN ('interactive', 'alert-feedback')
                         AND user_id = %s
                         AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC
@@ -352,7 +352,7 @@ class EmbeddingDatabase:
             self.cursor.execute(
                 f"""
                 WITH similar_feeds AS (
-                    SELECT 
+                    SELECT
                         feed_id,
                         1 - (embedding <=> %s::vector) as similarity
                     FROM embeddings
@@ -396,7 +396,7 @@ class EmbeddingDatabase:
             self.cursor.execute(
                 f"""
                 WITH similar_feeds AS (
-                    SELECT 
+                    SELECT
                         feed_id,
                         1 - (embedding <=> %s::vector) as similarity
                     FROM embeddings
@@ -408,7 +408,7 @@ class EmbeddingDatabase:
                         feed_id,
                         score
                     FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback') 
+                    WHERE source IN ('interactive', 'alert-feedback')
                         AND user_id = %s
                         AND feed_id IN (SELECT feed_id FROM similar_feeds)
                     ORDER BY feed_id, id DESC

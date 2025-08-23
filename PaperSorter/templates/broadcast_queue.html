@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Broadcast Queue - Settings - PaperSorter{% endblock %}
+{% block title %}Broadcast Queue - Settings - {{ site_name }}{% endblock %}
 {% block header_title %}📤 Broadcast Queue{% endblock %}
 
 {% block header_actions %}
@@ -78,7 +78,7 @@
             font-weight: bold;
             color: var(--queue-stat-value-color);
         }
-        
+
         .stat-value .stat-label {
             font-size: 14px;
             color: var(--queue-stat-label-color);
@@ -270,7 +270,7 @@
             font-size: 14px;
             color: var(--queue-article-meta-color);
         }
-        
+
         .article-date {
             color: var(--queue-article-meta-color);
         }
