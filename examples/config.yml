@@ -25,6 +25,8 @@ db:
 
 # Web interface configuration
 web:
+  # Site name displayed in page titles and headers (defaults to "PaperSorter" if not set)
+  site_name: "PaperSorter"
   # Base URL for web interface (used for "More Like This" links in notifications)
   base_url: "https://your-domain.example.com"
   # Flask secret key for session management

@@ -374,7 +374,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
     """Fetch new papers from configured RSS/Atom feeds and generate embeddings.
-    
+
     Updates the database with new articles from all configured feed sources,
     generates embeddings, and queues high-scoring items for broadcast.
     """

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Login - PaperSorter{% endblock %}
+{% block title %}Login - {{ site_name }}{% endblock %}
 {% block meta_description %}Sign in to PaperSorter - AI-powered academic paper recommendation system{% endblock %}
 
 {% block header %}{% endblock %}
@@ -173,7 +173,7 @@
 {% block main_container %}
 <div class="login-container">
     <div class="logo">📚</div>
-    <h1 class="login-title">PaperSorter</h1>
+    <h1 class="login-title">{{ site_name }}</h1>
     <p class="subtitle">AI-powered academic paper recommendation system</p>
 
     {% if error %}

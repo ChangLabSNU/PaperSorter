@@ -159,15 +159,15 @@ papersorter broadcast --channel "weekly-digest" --limit 10
 ```bash
 # Set broadcast hours (9 AM - 5 PM)
 psql -d papersorter -c "
-UPDATE channels 
-SET broadcast_hours = '[9, 17]' 
+UPDATE channels
+SET broadcast_hours = '[9, 17]'
 WHERE name = 'work-papers'
 "
 
 # Morning digest only
 psql -d papersorter -c "
-UPDATE channels 
-SET broadcast_hours = '[9, 10]' 
+UPDATE channels
+SET broadcast_hours = '[9, 10]'
 WHERE name = 'morning-digest'
 "
 ```
@@ -410,24 +410,24 @@ papers = db.get_recent_papers(days=7)
 for paper in papers:
     # ML model score
     ml_score = predictor.predict(paper['id'])
-    
+
     # Keyword boost
     keyword_score = 0
     keywords = ['transformer', 'attention', 'bert']
     for kw in keywords:
         if kw in paper['title'].lower():
             keyword_score += 1
-    
+
     # Author reputation (custom logic)
     author_score = get_author_score(paper['authors'])
-    
+
     # Combine scores
     final_score = (
         0.7 * ml_score +
         0.2 * keyword_score +
         0.1 * author_score
     )
-    
+
     # Save custom score
     db.save_prediction(paper['id'], final_score, model_id=999)
 ```

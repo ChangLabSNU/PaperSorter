@@ -65,10 +65,14 @@ def create_app(config_path, skip_authentication=None):
     # Get web config
     web_config = config.get("web", {})
 
+    # Get site name with default fallback
+    site_name = web_config.get("site_name", "PaperSorter")
+
     # Store configurations in app
     app.db_config = db_config
     app.config["CONFIG_PATH"] = config_path
     app.config["SKIP_AUTHENTICATION"] = skip_authentication
+    app.config["SITE_NAME"] = site_name
 
     # Set up Flask secret key
     # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
@@ -268,6 +272,11 @@ def create_app(config_path, skip_authentication=None):
                         # Set session as permanent to match normal login behavior
                         from flask import session
                         session.permanent = True
+
+    # Context processor to inject site_name into all templates
+    @app.context_processor
+    def inject_site_name():
+        return {"site_name": app.config.get("SITE_NAME", "PaperSorter")}
 
     # Error handlers
     @app.errorhandler(403)

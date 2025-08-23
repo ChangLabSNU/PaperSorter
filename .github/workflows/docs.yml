@@ -53,7 +53,7 @@ jobs:
         cd docs
         make clean
         make html
-        
+
     - name: Check for broken links
       run: |
         cd docs

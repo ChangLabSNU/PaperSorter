@@ -164,6 +164,7 @@ db:
   password: "your_password"
 
 web:
+  site_name: "PaperSorter"  # Site name displayed in page titles and headers (defaults to "PaperSorter" if not set)
   base_url: "https://papersorter.useoul.edu" # Base URL for web interface (used for "More Like This" links in Slack)
   flask_secret_key: "your_flask_secret_key"  # generate with secrets.token_hex(32)
 

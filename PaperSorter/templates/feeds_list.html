@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QBio Feeds - PaperSorter</title>
+    <title>Feeds - {{ site_name }}</title>
     <!-- CSS Variables for Dark Mode -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
     <style>
@@ -18,7 +18,7 @@
             margin-left: 10px;
             transition: all var(--transition-base);
         }
-        
+
         .btn-theme-toggle:hover {
             background: var(--bg-hover);
         }
@@ -161,7 +161,7 @@
             right: 30px;
             z-index: 1001;
         }
-        
+
         /* Adjust for smaller screens */
         @media (max-width: 768px) {
             .hamburger-menu {
@@ -210,7 +210,7 @@
             max-height: calc(100vh - 100px);
             overflow-y: auto;
         }
-        
+
         @media (max-width: 768px) {
             .dropdown-menu {
                 top: 60px;
@@ -240,7 +240,7 @@
             font-weight: 500;
             font-family: inherit;
         }
-        
+
         .dropdown-user {
             display: flex;
             align-items: center;
@@ -1290,20 +1290,20 @@
                 const savedTheme = '{{ current_user.theme if current_user.is_authenticated else "light" }}';
                 this.applyTheme(savedTheme);
             },
-            
+
             applyTheme: function(theme) {
                 document.body.setAttribute('data-theme', theme);
                 this.updateThemeIcon(theme);
                 localStorage.setItem('theme', theme);
             },
-            
+
             toggleTheme: function() {
                 const current = document.body.getAttribute('data-theme');
                 const next = current === 'light' ? 'dark' : 'light';
                 this.applyTheme(next);
                 this.savePreference(next);
             },
-            
+
             savePreference: function(theme) {
                 {% if current_user.is_authenticated %}
                 fetch('/api/user/preferences', {
@@ -1313,7 +1313,7 @@
                 });
                 {% endif %}
             },
-            
+
             updateThemeIcon: function(theme) {
                 const icon = document.querySelector('.theme-icon');
                 if (icon) {
@@ -1321,10 +1321,10 @@
                 }
             }
         };
-        
+
         // Initialize theme on load
         ThemeManager.init();
-        
+
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;
