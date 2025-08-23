@@ -9,6 +9,9 @@
 
     <!-- CSS Variables for theming -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+    
+    <!-- Common JavaScript utilities -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 
     <!-- Base styles matching feeds_list.html -->
     <style>
@@ -317,6 +320,12 @@
                 <span>👤 {{ current_user.username }}</span>
             </div>
             <div class="dropdown-divider"></div>
+            {% if show_back_to_feeds %}
+            <a href="/" class="dropdown-item">
+                <span>🏠 Back to Feed List</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            {% endif %}
             {% if current_user.is_admin %}
             <button class="dropdown-item" onclick="if(typeof toggleSemanticSearch !== 'undefined') { toggleSemanticSearch(); closeHamburgerMenu(); }">
                 <span>➕ Add a Paper</span>

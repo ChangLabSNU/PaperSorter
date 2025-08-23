@@ -219,9 +219,9 @@ def labeling():
     conn.close()
 
     if not item:
-        return render_template("complete.html", stats=stats)
+        return render_template("complete.html", stats=stats, show_back_to_feeds=True)
 
-    return render_template("labeling.html", item=item, stats=stats)
+    return render_template("labeling.html", item=item, stats=stats, show_back_to_feeds=True)
 
 
 @main_bp.route("/broadcast-queue")
