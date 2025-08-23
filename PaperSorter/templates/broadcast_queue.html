@@ -270,6 +270,10 @@
             font-size: 14px;
             color: var(--queue-article-meta-color);
         }
+        
+        .article-date {
+            color: var(--queue-article-meta-color);
+        }
 
         .empty-state {
             text-align: center;
@@ -510,7 +514,7 @@
                                             ${item.score ? item.score.toFixed(3) : 'N/A'}
                                         </span>
                                     </td>
-                                    <td>${formatDate(item.published)}</td>
+                                    <td class="article-date">${formatDate(item.published)}</td>
                                     <td>
                                         <button class="btn btn-danger"
                                                 onclick="removeFromQueue(${item.feed_id}, ${item.channel_id})"

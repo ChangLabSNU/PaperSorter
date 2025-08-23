@@ -665,7 +665,7 @@
   --event-feed-color: #b0b0b0;
   --event-search-query-color: #81c784;
   --event-badge-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  --event-badge-separator: rgba(255, 255, 255, 0.2);
+  --event-badge-separator: rgba(45, 45, 45, 0.8);
   --error-bg: #4a2c2c;
   --error-text: #ff6b6b;
 
@@ -772,7 +772,7 @@
   --queue-channel-group-border: #505050;
   --queue-channel-name-color: #e0e0e0;
   --queue-channel-count-color: #9ca3af;
-  --queue-article-title-color: #e0e0e0;
+  --queue-article-title-color: #b0b0b0;
   --queue-article-title-hover: #60a5fa;
   --queue-article-meta-color: #888888;
   --queue-empty-state-color: #888888;
@@ -886,10 +886,10 @@
   --score-low-bg: #4b5563;
 
   /* Button variants for queue - Dark Mode */
-  --btn-danger-bg: #dc2626;
-  --btn-danger-hover: #991b1b;
-  --btn-warning-bg: #6b7280;
-  --btn-warning-hover: #4b5563;
+  --btn-danger-bg: #7f1d1d;
+  --btn-danger-hover: #5f1515;
+  --btn-warning-bg: #4b5563;
+  --btn-warning-hover: #374151;
   --btn-warning-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   --btn-warning-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.5);
 

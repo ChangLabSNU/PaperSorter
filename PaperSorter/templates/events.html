@@ -281,7 +281,7 @@
             }
 
             // Format the action text for display
-            const actionDisplay = action.replace(/-/g, ' ');
+            const actionDisplay = action.replace(/-/g, ' ').replace(/_/g, ' ');
 
             return `
                 <span class="event-type">
