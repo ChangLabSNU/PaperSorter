@@ -646,13 +646,25 @@ def api_update_model(model_id):
 @admin_required
 def api_delete_model(model_id):
     """Delete a model."""
-    if model_id == 1:
-        return jsonify({"success": False, "error": "Cannot delete default model"}), 400
-
     conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
+        # Check if model is being used by any channels
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM channels WHERE model_id = %s",
+            (model_id,)
+        )
+        channel_count = cursor.fetchone()["count"]
+        
+        if channel_count > 0:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False, 
+                "error": f"Cannot delete model: used by {channel_count} channel(s)"
+            }), 400
+
         cursor.execute("DELETE FROM models WHERE id = %s", (model_id,))
         conn.commit()
         cursor.close()

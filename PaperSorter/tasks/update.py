@@ -258,8 +258,13 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
     # Load models for each channel
     channel_models = {}
+    channels_without_model = []
     for channel in all_channels:
-        model_id = channel["model_id"] or 1  # Default to model 1
+        model_id = channel["model_id"]
+        if model_id is None:
+            log.warning(f"Channel '{channel['name']}' (ID: {channel['id']}) has no model assigned, skipping")
+            channels_without_model.append(channel)
+            continue
         if model_id not in channel_models:
             model_file_path = f"{model_dir}/model-{model_id}.pkl"
             try:
@@ -268,6 +273,10 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
             except FileNotFoundError:
                 log.error(f"Model file not found: {model_file_path}")
                 channel_models[model_id] = None
+    
+    if channels_without_model and not channel_models:
+        log.error("No channels have valid models assigned. Cannot score feeds.")
+        return
     batchsize = 100
 
     for bid, batch in enumerate(batched(unscored, batchsize)):
@@ -286,7 +295,9 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
         # Score with each channel's model and add to appropriate queues
         for channel in all_channels:
-            model_id = channel["model_id"] or 1
+            model_id = channel["model_id"]
+            if model_id is None:
+                continue  # Already logged warning above
             predmodel = channel_models.get(model_id)
             if not predmodel:
                 continue
