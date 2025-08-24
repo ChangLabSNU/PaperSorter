@@ -112,18 +112,33 @@ scholarly_database:
 
 # SMTP configuration for email notifications
 # Used when channel endpoint URLs start with "mailto:"
+
+# Option 1: Provider-based configuration (recommended for public services)
+# Uncomment one of the following provider configurations:
+
+# Gmail
 smtp:
-  # SMTP server hostname
-  host: "smtp.example.com"
-  # SMTP server port (25 for plain, 587 for STARTTLS, 465 for SSL/TLS)
-  port: 25
-  # Enable STARTTLS (for port 587)
-  use_tls: false
-  # Enable SSL/TLS (for port 465)
-  use_ssl: false
-  # Connection timeout in seconds
-  timeout: 30
-  # Note: Authentication support will be added in a future version
+  provider: gmail
+  username: "your-email@gmail.com"
+  password: "your-app-password"  # Use app-specific password, not regular password
+
+# Outlook.com/Hotmail (personal accounts only)
+# smtp:
+#   provider: outlook
+#   username: "your-email@outlook.com"
+#   password: "your-app-password"  # Requires 2FA enabled
+
+# Option 2: Custom SMTP configuration (for university, corporate, or other providers)
+#smtp:
+#  provider: custom
+#  host: "smtp.example.com"
+#  port: 587
+#  encryption: tls  # Options: tls, ssl, none
+#  # Optional: Authentication credentials (comment out if not needed)
+#  # username: "your_smtp_username"
+#  # password: "your_smtp_password"
+#  # Connection timeout in seconds
+#  timeout: 30
 
 # Email notification configuration
 email:
