@@ -23,6 +23,7 @@ PaperSorter helps you:
    configuration
    feed-sources
    training-models
+   sharing-broadcasting
    notifications
    search-from-pdf
    web-interface
