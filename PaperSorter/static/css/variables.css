@@ -196,6 +196,12 @@
   --btn-similar-bg-hover: #e1bee7;
   --btn-similar-border-hover: #ba68c8;
 
+  --btn-pdf-bg: #ffebee;
+  --btn-pdf-color: #c62828;
+  --btn-pdf-border: #ef9a9a;
+  --btn-pdf-bg-hover: #ffcdd2;
+  --btn-pdf-border-hover: #e57373;
+
   --btn-secondary-bg: #ecf0f1;
   --btn-secondary-color: #34495e;
   --btn-secondary-border: #bdc3c7;
@@ -513,6 +519,12 @@
   --btn-similar-bg-hover: #e1bee7;
   --btn-similar-border-hover: #ba68c8;
 
+  --btn-pdf-bg: #ffebee;
+  --btn-pdf-color: #c62828;
+  --btn-pdf-border: #ef9a9a;
+  --btn-pdf-bg-hover: #ffcdd2;
+  --btn-pdf-border-hover: #e57373;
+
   --btn-secondary-bg: #ecf0f1;
   --btn-secondary-color: #2c3e50;
   --btn-secondary-border: #bdc3c7;
@@ -625,6 +637,12 @@
   --btn-similar-border: #5d5a7f;
   --btn-similar-bg-hover: #4d4a6f;
   --btn-similar-border-hover: #6d6a8f;
+
+  --btn-pdf-bg: #4a2828;
+  --btn-pdf-color: #ff8a80;
+  --btn-pdf-border: #8c3636;
+  --btn-pdf-bg-hover: #5a3838;
+  --btn-pdf-border-hover: #ff5252;
 
   --btn-secondary-bg: #424242;
   --btn-secondary-color: #bdbdbd;
