@@ -220,7 +220,7 @@ def google_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
                 (email,),
             )
             user_data = cursor.fetchone()
@@ -229,11 +229,13 @@ def google_callback():
                 # Create new user (non-admin by default)
                 cursor.execute(
                     """
-                    INSERT INTO users (username, password, created, is_admin, timezone)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
-                    RETURNING id, username, is_admin, timezone
+                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                    RETURNING id, username, is_admin, timezone, date_format
                 """,
-                    (email, "oauth"),
+                    (email, "oauth", 
+                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
+                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
                 )
                 user_data = cursor.fetchone()
                 conn.commit()
@@ -260,7 +262,8 @@ def google_callback():
                 user_data["username"],
                 email,
                 is_admin=is_admin,
-                timezone=user_data.get("timezone", "Asia/Seoul"),
+                timezone=user_data.get("timezone", "UTC"),
+                date_format=user_data.get("date_format", "MMM D, YYYY"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
                 theme=user_data.get("theme", "light"),
@@ -312,7 +315,7 @@ def github_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
                 (email,),
             )
             user_data = cursor.fetchone()
@@ -321,11 +324,13 @@ def github_callback():
                 # Create new user (non-admin by default)
                 cursor.execute(
                     """
-                    INSERT INTO users (username, password, created, is_admin, timezone)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
-                    RETURNING id, username, is_admin, timezone
+                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                    RETURNING id, username, is_admin, timezone, date_format
                 """,
-                    (email, "oauth"),
+                    (email, "oauth", 
+                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
+                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
                 )
                 user_data = cursor.fetchone()
                 conn.commit()
@@ -352,7 +357,8 @@ def github_callback():
                 user_data["username"],
                 email,
                 is_admin=is_admin,
-                timezone=user_data.get("timezone", "Asia/Seoul"),
+                timezone=user_data.get("timezone", "UTC"),
+                date_format=user_data.get("date_format", "MMM D, YYYY"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
                 theme=user_data.get("theme", "light"),
@@ -412,7 +418,7 @@ def orcid_callback():
 
             # Check if user exists
             cursor.execute(
-                "SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id FROM users WHERE username = %s",
+                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
                 (username,),
             )
             user_data = cursor.fetchone()
@@ -421,11 +427,13 @@ def orcid_callback():
                 # Create new user (non-admin by default)
                 cursor.execute(
                     """
-                    INSERT INTO users (username, password, created, is_admin, timezone)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, 'Asia/Seoul')
-                    RETURNING id, username, is_admin, timezone
+                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                    RETURNING id, username, is_admin, timezone, date_format
                 """,
-                    (username, "oauth"),
+                    (username, "oauth",
+                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
+                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
                 )
                 user_data = cursor.fetchone()
                 conn.commit()

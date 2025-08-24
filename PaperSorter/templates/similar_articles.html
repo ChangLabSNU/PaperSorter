@@ -202,7 +202,7 @@
             background: var(--similar-shared-icon-bg);
             color: white;
         }
-        
+
         .score-icon.broadcasted {
             background: var(--similar-broadcasted-icon-bg);
             color: white;
@@ -269,7 +269,7 @@
             background: var(--similar-label-shared-icon-bg);
             color: white;
         }
-        
+
         .label-broadcasted {
             background: var(--similar-label-positive-bg);
             color: white;
@@ -331,6 +331,19 @@
         .btn-primary:hover {
             background: var(--similar-btn-primary-hover-bg);
             border-color: var(--similar-btn-primary-hover-border);
+        }
+
+        .btn-open-article {
+            background: var(--btn-open-article-bg);
+            color: var(--btn-open-article-color);
+            border: 1px solid var(--btn-open-article-border);
+            text-decoration: none;
+        }
+
+        .btn-open-article:hover {
+            background: var(--btn-open-article-bg-hover);
+            border-color: var(--btn-open-article-border-hover);
+            text-decoration: none;
         }
 
         .btn-share {
@@ -796,26 +809,6 @@
             return getScoreGradientColor(score);
         }
 
-        function formatDate(timestamp) {
-            if (!timestamp) return 'Unknown';
-            const date = new Date(timestamp * 1000);
-
-            // Format date in user's timezone to YYYY-mm-dd
-            const options = {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                timeZone: userTimezone || 'UTC'
-            };
-
-            // Get the parts and reformat to YYYY-mm-dd
-            const parts = date.toLocaleDateString('en-US', options).split('/');
-            if (parts.length === 3) {
-                const [month, day, year] = parts;
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            return date.toLocaleDateString('en-US', options).replace(/\//g, '-');
-        }
 
         function createFeedElement(feed) {
             const scoreColor = calculateScoreColor(feed.score);
@@ -867,8 +860,8 @@
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
                             ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Article</span></a>` : ''}
-                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}" 
-                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})" 
+                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
+                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
                                     data-shared="${feed.shared ? 'true' : 'false'}"
                                     ${feed.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
                                 ${feed.broadcasted ? '📡' : '📤'}<span class="btn-text"> ${feed.broadcasted ? 'Broadcasted' : (feed.shared ? 'Shared' : 'Share')}</span>
@@ -976,14 +969,14 @@
             .then(data => {
                 if (data.success) {
                     const feedItem = buttonElement.closest('.feed-item');
-                    
+
                     // Update button immediately without intermediate state
                     if (data.action === 'share') {
                         // Update button state to shared
                         buttonElement.dataset.shared = 'true';
                         buttonElement.innerHTML = '📤<span class="btn-text"> Shared</span>';
                         buttonElement.classList.add('shared');
-                        
+
                         // Add icon to score badge
                         const scoreBadge = feedItem.querySelector('.badges-container .score-badge:not(.similarity-badge)');
                         if (scoreBadge) {
@@ -1002,7 +995,7 @@
                         buttonElement.dataset.shared = 'false';
                         buttonElement.innerHTML = '📤<span class="btn-text"> Share</span>';
                         buttonElement.classList.remove('shared');
-                        
+
                         // Remove icon from score badge
                         const scoreBadge = feedItem.querySelector('.badges-container .score-badge:not(.similarity-badge)');
                         const shareIcon = scoreBadge?.querySelector('.score-icon.shared');

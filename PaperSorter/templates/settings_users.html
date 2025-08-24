@@ -138,8 +138,8 @@
                                 <td>${user.id}</td>
                                 <td><strong>${user.username}</strong></td>
                                 <td>${user.is_admin ? '<span class="tag tag-active">Yes</span>' : '<span class="tag tag-inactive">No</span>'}</td>
-                                <td>${user.created ? new Date(user.created).toLocaleDateString() : '-'}</td>
-                                <td>${user.lastlogin ? new Date(user.lastlogin).toLocaleString() : 'Never'}</td>
+                                <td>${user.created ? formatDate(user.created) : '-'}</td>
+                                <td>${user.lastlogin ? formatDateTime(user.lastlogin) : 'Never'}</td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editUser(${user.id})">Edit</button>

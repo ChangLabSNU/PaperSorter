@@ -35,7 +35,8 @@ class User(UserMixin):
         username,
         email=None,
         is_admin=False,
-        timezone="Asia/Seoul",
+        timezone="UTC",
+        date_format="MMM D, YYYY",
         feedlist_minscore=None,
         primary_channel_id=None,
         theme="light",
@@ -45,6 +46,7 @@ class User(UserMixin):
         self.email = email
         self.is_admin = is_admin
         self.timezone = timezone
+        self.date_format = date_format
         # Store the integer value from DB, convert to decimal for internal use
         self.feedlist_minscore_int = (
             feedlist_minscore if feedlist_minscore is not None else 25

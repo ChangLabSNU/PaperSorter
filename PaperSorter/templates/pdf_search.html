@@ -382,7 +382,7 @@
             background: var(--badge-shared-bg);
             color: var(--text-white);
         }
-        
+
         .score-icon.broadcasted {
             background: var(--badge-broadcasted-bg);
             color: var(--text-white);
@@ -461,7 +461,7 @@
             background: var(--color-warning);
             color: var(--text-white);
         }
-        
+
         .label-broadcasted {
             background: var(--color-success);
             color: var(--text-white);
@@ -1073,7 +1073,7 @@
                     let newLabelsHtml = '';
                     const positiveVotes = parseInt(feedItem.getAttribute('data-positive-votes') || '0');
                     const negativeVotes = parseInt(feedItem.getAttribute('data-negative-votes') || '0');
-                    
+
                     if (newScore === 1 || positiveVotes > 0) {
                         const count = newScore === 1 ? Math.max(1, positiveVotes) : positiveVotes;
                         newLabelsHtml += `<span class="label-badge label-positive">+${count}</span>`;
@@ -1082,7 +1082,7 @@
                         const count = newScore === 0 ? Math.max(1, negativeVotes) : negativeVotes;
                         newLabelsHtml += `<span class="label-badge label-negative">−${count}</span>`;
                     }
-                    
+
                     if (newLabelsHtml) {
                         if (labelsContainer) {
                             labelsContainer.innerHTML = newLabelsHtml;
@@ -1155,33 +1155,11 @@
         function getGradientColor(score) {
             return getScoreGradientColor(score);
         }
-        
+
         function getSimilarityColor(similarity) {
             return getSimilarityGradientColor(similarity);
         }
 
-        // Helper function to format date
-        function formatDate(dateString) {
-            if (!dateString) return 'Unknown Date';
-
-            // Handle Unix timestamp (in seconds)
-            let date;
-            if (typeof dateString === 'number' || /^\d+$/.test(dateString)) {
-                // If it's a number or numeric string, assume it's a Unix timestamp in seconds
-                date = new Date(parseInt(dateString) * 1000);
-            } else {
-                // Otherwise try to parse it as a date string
-                date = new Date(dateString);
-            }
-
-            // Check if date is valid
-            if (isNaN(date.getTime())) {
-                return 'Unknown Date';
-            }
-
-            const options = { year: 'numeric', month: 'short', day: 'numeric' };
-            return date.toLocaleDateString('en-US', options);
-        }
 
         // Create feed element matching feeds_list.html
         function createFeedElement(feed) {
@@ -1234,9 +1212,9 @@
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
                             ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article" title="Open Article">🔗</a>` : ''}
-                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}" 
-                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})" 
-                                    data-shared="${feed.shared ? 'true' : 'false'}" 
+                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
+                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
+                                    data-shared="${feed.shared ? 'true' : 'false'}"
                                     ${feed.broadcasted ? 'disabled' : ''}
                                     title="${feed.broadcasted ? 'Already broadcasted' : (feed.shared ? 'Shared' : 'Share')}">
                                 ${feed.broadcasted ? '📡' : '📤'}

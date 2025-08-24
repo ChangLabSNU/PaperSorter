@@ -40,7 +40,9 @@ document.addEventListener('click', function(event) {
 
 function formatDateForHeader(dateInput) {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    // dateInput is already converted to milliseconds when called
+        if (typeof formatDate !== 'undefined') {
+        return formatDate(dateInput / 1000);
+    }
     const date = new Date(dateInput);
     return date.toLocaleDateString('en-US', options);
 }
@@ -69,7 +71,7 @@ function createFeedElement(feed) {
     const hasPositiveFeedback = feed.label === 1;
     const hasNegativeFeedback = feed.label === 0;
     const isBroadcasted = feed.broadcasted === true;
-    
+
     const hasLabels = false;  // Don't show shared/broadcasted as labels on the right
 
     let headerHTML = `
@@ -111,10 +113,10 @@ function createFeedElement(feed) {
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
                     ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
-                    <span class="feed-meta-item feed-date">${new Date((feed.added || feed.published) * 1000).toLocaleDateString()}</span>
+                    <span class="feed-meta-item feed-date">${formatDate(feed.added || feed.published)}</span>
                 </div>
             </div>`;
-    
+
     // Add vote count badges on the far right
     headerHTML += '<div class="vote-badges-container">';
     if (feed.positive_votes > 0) {
@@ -140,7 +142,7 @@ function createFeedElement(feed) {
                 <a href="${feed.link}" target="_blank" class="btn btn-open-article">
                     🔗<span class="btn-text">Open Article</span>
                 </a>
-                <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}" 
+                <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}"
                         onclick="toggleShare(${feed.rowid}, this, ${isBroadcasted})"
                         ${isBroadcasted ? 'disabled title="Already broadcasted"' : ''}>
                     ${isBroadcasted ? '📡' : '📤'}<span class="btn-text">${isBroadcasted ? 'Broadcasted' : (isShared ? 'Shared' : 'Share')}</span>
@@ -270,7 +272,7 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
         }
 
         data.feeds.forEach(feed => {
-            const feedDate = new Date((feed.added || feed.published) * 1000).toDateString();
+            const feedDate = formatDate(feed.added || feed.published);
 
             // Check if we need to insert bookmark divider
             if (!bookmarkInserted && bookmarkId && feed.rowid === bookmarkId) {
@@ -362,12 +364,12 @@ async function toggleShare(feedId, button, isBroadcasted) {
     if (isBroadcasted) {
         return;
     }
-    
+
     const isShared = button.classList.contains('shared');
 
     // Get current channel ID
     const channelId = document.getElementById('channelSelector')?.value || '';
-    
+
     try {
         const response = await fetch(`/api/feeds/${feedId}/share`, {
             method: 'POST',
@@ -444,7 +446,7 @@ async function sendFeedback(feedId, score, button) {
             // Update button states
             const thumbsUp = feedItem.querySelector('.btn-thumbs-up');
             const thumbsDown = feedItem.querySelector('.btn-thumbs-down');
-            
+
             // Update vote count badges
             let voteBadgesContainer = feedItem.querySelector('.vote-badges-container');
             if (!voteBadgesContainer) {
@@ -453,15 +455,15 @@ async function sendFeedback(feedId, score, button) {
                 voteBadgesContainer.className = 'vote-badges-container';
                 feedItem.querySelector('.feed-header').appendChild(voteBadgesContainer);
             }
-            
+
             // Get current vote badges
             let positiveBadge = voteBadgesContainer.querySelector('.vote-positive');
             let negativeBadge = voteBadgesContainer.querySelector('.vote-negative');
-            
+
             // Parse current counts
             let positiveCount = positiveBadge ? parseInt(positiveBadge.textContent.substring(1)) : 0;
             let negativeCount = negativeBadge ? parseInt(negativeBadge.textContent.substring(1)) : 0;
-            
+
             if (isActive) {
                 // Remove feedback - decrement the appropriate counter
                 button.classList.remove('active');
@@ -488,12 +490,12 @@ async function sendFeedback(feedId, score, button) {
                         negativeCount++;
                     }
                 }
-                
+
                 // Update button states
                 thumbsUp.classList.toggle('active', score === 1);
                 thumbsDown.classList.toggle('active', score === 0);
             }
-            
+
             // Update or remove positive badge
             if (positiveCount > 0) {
                 if (!positiveBadge) {
@@ -506,7 +508,7 @@ async function sendFeedback(feedId, score, button) {
             } else if (positiveBadge) {
                 positiveBadge.remove();
             }
-            
+
             // Update or remove negative badge
             if (negativeCount > 0) {
                 if (!negativeBadge) {
@@ -715,18 +717,18 @@ async function searchSemanticScholar(event) {
 function displaySearchResults(results, searchQuery) {
     // Store results for AI Summary generation
     currentSearchResults = results || [];
-    
+
     // Determine which container to use based on what's visible
     let container = document.getElementById('generalSearchResults');
     if (!container || container.parentElement.style.display === 'none') {
         container = document.getElementById('searchResults');
     }
-    
+
     const queryDisplay = document.getElementById('searchQueryDisplay');
     if (queryDisplay) {
         queryDisplay.textContent = `Search: "${searchQuery}"`;
     }
-    
+
     // Show AI Summary section if admin and has results
     const summarySection = document.getElementById('searchSummarySection');
     if (summarySection) {
@@ -773,7 +775,7 @@ function displaySearchResults(results, searchQuery) {
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
                         ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
-                        <span class="feed-meta-item feed-date">${new Date((result.added || result.published) * 1000).toLocaleDateString()}</span>
+                        <span class="feed-meta-item feed-date">${formatDate(result.added || result.published)}</span>
                     </div>
                 </div>
                 <div class="vote-badges-container">
@@ -795,7 +797,7 @@ function displaySearchResults(results, searchQuery) {
                     <a href="${result.link}" target="_blank" class="btn btn-open-article">
                         🔗<span class="btn-text">Open Article</span>
                     </a>
-                    <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}" 
+                    <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}"
                             onclick="toggleShare(${result.rowid || result.id}, this, ${result.broadcasted})"
                             ${result.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
                         ${result.broadcasted ? '📡' : '📤'}<span class="btn-text">${result.broadcasted ? 'Broadcasted' : (result.shared ? 'Shared' : 'Share')}</span>
@@ -815,12 +817,12 @@ function displaySearchResults(results, searchQuery) {
             </div>
         </div>
     `).join('');
-    
+
     // Then, add event listeners to all feed items
     container.querySelectorAll('.feed-item').forEach(feedDiv => {
         const feedId = feedDiv.dataset.feedId;
         const header = feedDiv.querySelector('.feed-header');
-        
+
         header.addEventListener('click', async function(e) {
             // Don't expand if clicking on a link or button
             if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') {
@@ -828,11 +830,11 @@ function displaySearchResults(results, searchQuery) {
             }
             const details = feedDiv.querySelector('.feed-details');
             const abstract = details.querySelector('.feed-abstract');
-            
+
             // Toggle expansion
             details.classList.toggle('expanded');
             feedDiv.classList.toggle('expanded');
-            
+
             // Load content if expanding and not already loaded
             if (details.classList.contains('expanded') && !abstract.dataset.loaded) {
                 abstract.innerHTML = '<div class="loading">Loading abstract...</div>';
@@ -865,7 +867,7 @@ function displayAcademicResults(results) {
                 <div class="search-result-meta">
                     ${paper.venue ? `<strong>${paper.venue}</strong>` : ''}
                     ${paper.authors ? `${paper.venue ? ' • ' : ''}${paper.authors.map(a => typeof a === 'object' ? a.name : a).join(', ')}` : ''}
-                    ${(paper.publicationDate || paper.year) ? `${(paper.venue || paper.authors) ? ' • ' : ''}${paper.publicationDate ? new Date(paper.publicationDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : paper.year}` : ''}
+                    ${(paper.publicationDate || paper.year) ? `${(paper.venue || paper.authors) ? ' • ' : ''}${paper.publicationDate ? formatDate(paper.publicationDate) : paper.year}` : ''}
                 </div>
                 <div class="search-result-abstract">
                     ${paper.abstract || 'No abstract available'}
@@ -951,17 +953,17 @@ function copySearchLink(event) {
         // Fall back to current URL
         url = window.location.href;
     }
-    
+
     // Get the button element
     const btn = event ? event.target : document.querySelector('[onclick*="copySearchLink"]');
-    
+
     // Copy to clipboard
     navigator.clipboard.writeText(url).then(() => {
         // Show success feedback
         const originalText = btn.innerHTML;
         btn.innerHTML = '✓ Copied!';
         btn.disabled = true;
-        
+
         // Reset button after 2 seconds
         setTimeout(() => {
             btn.innerHTML = originalText;
@@ -980,9 +982,9 @@ async function generateSummary(papers) {
     const summaryInitial = document.getElementById('searchSummaryInitial');
     const summaryLoading = document.getElementById('searchSummaryLoading');
     const summaryText = document.getElementById('searchSummaryText');
-    
+
     if (!summaryContent) return;
-    
+
     // Show the summary section
     summarySection.style.display = 'block';
     summaryInitial.style.display = 'none';
@@ -1032,9 +1034,9 @@ async function generatePoster(papers) {
     const summaryInitial = document.getElementById('searchSummaryInitial');
     const posterLoading = document.getElementById('searchPosterLoading');
     const posterContent = document.getElementById('searchPosterContent');
-    
+
     if (!posterContent) return;
-    
+
     // Show the summary section and poster loading
     summarySection.style.display = 'block';
     summaryInitial.style.display = 'none';
@@ -1054,21 +1056,21 @@ async function generatePoster(papers) {
 
         const data = await response.json();
         const jobId = data.job_id;
-        
+
         // Poll for poster completion
         const checkPosterStatus = async () => {
             try {
                 const statusResponse = await fetch(`/api/poster-status/${jobId}`);
                 const statusData = await statusResponse.json();
-                
+
                 if (statusData.status === 'completed') {
                     posterLoading.style.display = 'none';
                     posterContent.style.display = 'block';
-                    
+
                     // Create a blob URL from the HTML content
                     const blob = new Blob([statusData.poster_html], { type: 'text/html' });
                     const url = URL.createObjectURL(blob);
-                    
+
                     posterContent.innerHTML = `
                         <iframe src="${url}" class="poster-iframe" title="Research Poster"></iframe>
                     `;
@@ -1085,7 +1087,7 @@ async function generatePoster(papers) {
                 posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
             }
         };
-        
+
         // Start polling
         setTimeout(checkPosterStatus, 2000);
     } catch (error) {
@@ -1100,11 +1102,11 @@ async function generatePoster(papers) {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize from config
     initializeFromConfig();
-    
+
     // Add event handlers for summary buttons
     const generateSummaryBtn = document.getElementById('generateSearchSummaryBtn');
     const generatePosterBtn = document.getElementById('generateSearchPosterBtn');
-    
+
     if (generateSummaryBtn) {
         generateSummaryBtn.addEventListener('click', function() {
             // Get current search results
@@ -1114,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     if (generatePosterBtn) {
         generatePosterBtn.addEventListener('click', function() {
             // Get current search results

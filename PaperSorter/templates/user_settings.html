@@ -264,6 +264,20 @@
         </div>
 
         <div class="form-group">
+            <label for="dateFormat">Date Format</label>
+            <select id="dateFormat" name="date_format">
+                <option value="YYYY-MM-DD" {% if user_data.date_format == 'YYYY-MM-DD' %}selected{% endif %}>2024-12-31</option>
+                <option value="MMM D, YYYY" {% if user_data.date_format == 'MMM D, YYYY' %}selected{% endif %}>Dec 31, 2024</option>
+                <option value="D MMM YYYY" {% if user_data.date_format == 'D MMM YYYY' %}selected{% endif %}>31 Dec 2024</option>
+                <option value="DD/MM/YYYY" {% if user_data.date_format == 'DD/MM/YYYY' %}selected{% endif %}>31/12/2024</option>
+                <option value="MM/DD/YYYY" {% if user_data.date_format == 'MM/DD/YYYY' %}selected{% endif %}>12/31/2024</option>
+                <option value="YYYY年M月D日" {% if user_data.date_format == 'YYYY年M月D日' %}selected{% endif %}>2024年12月31日</option>
+                <option value="D. MMM YYYY" {% if user_data.date_format == 'D. MMM YYYY' %}selected{% endif %}>31. Dec 2024</option>
+            </select>
+            <div class="help-text">How dates will be displayed throughout the site</div>
+        </div>
+
+        <div class="form-group">
             <label for="primaryChannel">Primary Channel</label>
             <select id="primaryChannel" name="primary_channel_id">
                 <option value="">None</option>
@@ -308,6 +322,7 @@
         const formData = {
             theme: document.querySelector('input[name="theme"]:checked').value,
             timezone: document.getElementById('timezone').value,
+            date_format: document.getElementById('dateFormat').value,
             primary_channel_id: document.getElementById('primaryChannel').value || null
         };
 
