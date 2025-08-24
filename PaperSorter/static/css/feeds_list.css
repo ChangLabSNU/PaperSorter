@@ -434,7 +434,6 @@ button.user-info.btn-logout:hover {
 }
 
 .similarity-badge {
-    background: linear-gradient(135deg, var(--color-info) 0%, var(--color-info) 100%);
     color: var(--text-white);
     min-width: 49px;
 }

@@ -173,7 +173,6 @@
         }
 
         .similarity-badge {
-            background: var(--similar-similarity-badge-bg);
             color: white;
             min-width: 49px;
         }
@@ -805,6 +804,7 @@
 
         function createFeedElement(feed) {
             const scoreColor = calculateScoreColor(feed.score);
+            const similarityColor = getSimilarityGradientColor(feed.similarity);
             const scoreText = feed.score !== null ? Math.round(feed.score * 100).toString() : 'N/A';
             const similarityText = Math.round(feed.similarity * 100).toString();
 
@@ -831,7 +831,7 @@
                 <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${feed.positive_votes || 0}" data-negative-votes="${feed.negative_votes || 0}">
                     <div class="feed-header">
                         <div class="badges-container">
-                            <div class="similarity-badge score-badge">
+                            <div class="similarity-badge score-badge" style="background-color: ${similarityColor};">
                                 ${similarityText}
                             </div>
                             <div class="score-badge" style="background-color: ${scoreColor};">
