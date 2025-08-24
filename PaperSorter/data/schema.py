@@ -27,7 +27,7 @@
 CUSTOM_TYPES = {
     "preferences_source": {
         "type": "ENUM",
-        "values": ["feed-star", "interactive", "alert-feedback"]
+        "values": ["feed-share", "interactive", "alert-feedback"]
     }
 }
 

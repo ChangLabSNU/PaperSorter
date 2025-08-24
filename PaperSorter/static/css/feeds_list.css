@@ -275,13 +275,13 @@ button.user-info.btn-logout:hover {
     border: 1px solid var(--text-white);
 }
 
-.score-icon.starred {
-    background: var(--color-warning);
+.score-icon.shared {
+    background: var(--badge-shared-bg);
     color: var(--text-white);
 }
 
 .score-icon.broadcasted {
-    background: var(--color-info);
+    background: var(--badge-broadcasted-bg);
     color: var(--text-white);
 }
 
@@ -386,8 +386,13 @@ button.user-info.btn-logout:hover {
     font-weight: bold;
 }
 
-.label-starred {
+.label-shared {
     background: var(--color-warning);
+    color: var(--text-white);
+}
+
+.label-broadcasted {
+    background: var(--color-success);
     color: var(--text-white);
 }
 
@@ -440,21 +445,41 @@ button.user-info.btn-logout:hover {
     border-color: var(--btn-primary-border-hover);
 }
 
-.btn-star {
-    background: var(--btn-star-bg);
-    color: var(--btn-star-color);
-    border: 1px solid var(--btn-star-border);
+.btn-open-article {
+    background: var(--btn-open-article-bg);
+    color: var(--btn-open-article-color);
+    border: 1px solid var(--btn-open-article-border);
 }
 
-.btn-star:hover {
-    background: var(--btn-star-bg-hover);
-    border-color: var(--btn-star-border-hover);
+.btn-open-article:hover {
+    background: var(--btn-open-article-bg-hover);
+    border-color: var(--btn-open-article-border-hover);
 }
 
-.btn-star.starred {
-    background: var(--btn-star-bg-active);
-    border-color: var(--btn-star-border);
-    color: var(--btn-star-color-active);
+.btn-share {
+    background: var(--btn-share-bg);
+    color: var(--btn-share-color);
+    border: 1px solid var(--btn-share-border);
+}
+
+.btn-share:hover {
+    background: var(--btn-share-bg-hover);
+    border-color: var(--btn-share-border-hover);
+}
+
+.btn-share.shared {
+    background: var(--btn-share-bg-active);
+    border-color: var(--btn-share-border);
+    color: var(--btn-share-color-active);
+}
+
+.btn-share.disabled,
+.btn-share:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--btn-secondary-bg);
+    color: var(--text-meta);
+    border-color: var(--border-medium);
 }
 
 .btn-thumbs-up {
@@ -830,10 +855,10 @@ button.user-info.btn-logout:hover {
         border-color: var(--btn-primary-border-hover);
     }
 
-    .btn-star.starred {
-        background: var(--btn-star-bg-active);
-        color: var(--btn-star-color-active);
-        border-color: var(--btn-star-border);
+    .btn-share.shared {
+        background: var(--btn-share-bg-active);
+        color: var(--btn-share-color-active);
+        border-color: var(--btn-share-border);
     }
 
     .btn-thumbs-up.active {

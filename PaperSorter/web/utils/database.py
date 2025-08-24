@@ -103,19 +103,6 @@ def get_unlabeled_item(conn, user=None):
     return item
 
 
-def update_label(conn, session_id, label_value):
-    """Update the label for a specific item."""
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "UPDATE labeling_sessions SET score = %s, update_time = CURRENT_TIMESTAMP WHERE id = %s",
-        (float(label_value), session_id),
-    )
-
-    conn.commit()
-    cursor.close()
-
-
 def get_labeling_stats(conn):
     """Get statistics about labeling progress."""
     cursor = conn.cursor()
