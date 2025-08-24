@@ -92,8 +92,6 @@ class FeedPredictor:
             log.info("All feeds already have embeddings")
             return feed_ids
 
-        log.info(f"Generating embeddings for {len(feeds_needing_embeddings)} feeds")
-
         successful_feeds = []
 
         # Process in batches
@@ -146,9 +144,6 @@ class FeedPredictor:
                             )
                             successful_feeds.append(feed_id)
 
-                    log.info(
-                        f"Generated embeddings for batch of {len(response.data)} items"
-                    )
                     break  # Success, exit retry loop
 
                 except Exception as e:
