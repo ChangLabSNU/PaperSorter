@@ -59,7 +59,7 @@ Each search result displays:
 ### Action Buttons
 - **👍 Interested**: Mark this paper as relevant to your research
 - **👎 Not Interested**: Mark as not relevant (helps train the model)
-- **⭐ Star**: Add to your starred papers for quick access
+- **📤 Share**: Queue this paper for notification to Slack/Discord channels or email newsletters
 - **🔍 More Like This**: Find papers similar to this result
 
 ## Features
@@ -147,7 +147,7 @@ Paper Connect is fully integrated with PaperSorter's recommendation system:
 
 - **Shared database**: Searches the same paper collection as the main feed
 - **Labeling syncs**: Your feedback improves the ML model
-- **Starred papers**: Stars sync with your main paper list
+- **Notification queue**: Papers shared here are queued for channel notifications
 - **Similar papers**: "More Like This" uses the same similarity engine
 
 ## Privacy and Security
