@@ -169,13 +169,8 @@ class EmbeddingDatabase:
     def write_batch(self):
         return EmbeddingDatabaseWriteBatch(self)
 
-    def find_similar(
-        self, feed_id, limit=30, user_id=None, model_id=None, include_content=False, channel_id=None
-    ):
+    def find_similar(self, feed_id, limit, user_id, model_id, channel_id):
         """Find similar articles using pgvector similarity search"""
-        # Use provided model_id or default to 1
-        if model_id is None:
-            model_id = 1
 
         # Build the SELECT fields based on include_content parameter
         select_fields = """
@@ -194,101 +189,49 @@ class EmbeddingDatabase:
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes"""
 
-        if include_content:
-            select_fields += (
-                ",\n                    f.content,\n                    f.tldr"
-            )
-
-        if user_id is None:
-            # If no user_id provided, don't filter preferences
-            self.cursor.execute(
-                f"""
-                WITH similar_feeds AS (
-                    SELECT
-                        feed_id,
-                        1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
-                    FROM embeddings
-                    WHERE feed_id != %s
-                    ORDER BY embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)
-                    LIMIT %s
-                ),
-                all_prefs AS (
-                    SELECT DISTINCT ON (feed_id)
-                        feed_id,
-                        score
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    ORDER BY feed_id, id DESC
-                ),
-                vote_counts AS (
-                    SELECT
-                        feed_id,
-                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    GROUP BY feed_id
-                )
+        self.cursor.execute(
+            f"""
+            WITH similar_feeds AS (
                 SELECT
-                    {select_fields}
-                FROM similar_feeds sf
-                JOIN feeds f ON sf.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
-                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC, f.added DESC
-            """,
-                (feed_id, feed_id, feed_id, limit, model_id, channel_id),
-            )
-        else:
-            # Filter preferences by user_id
-            self.cursor.execute(
-                f"""
-                WITH similar_feeds AS (
-                    SELECT
-                        feed_id,
-                        1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
-                    FROM embeddings
-                    WHERE feed_id != %s
-                    ORDER BY embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)
-                    LIMIT %s
-                ),
-                user_prefs AS (
-                    SELECT DISTINCT ON (feed_id)
-                        feed_id,
-                        score
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND user_id = %s
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    ORDER BY feed_id, id DESC
-                ),
-                vote_counts AS (
-                    SELECT
-                        feed_id,
-                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    GROUP BY feed_id
-                )
+                    feed_id,
+                    1 - (embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)) as similarity
+                FROM embeddings
+                WHERE feed_id != %s
+                ORDER BY embedding <=> (SELECT embedding FROM embeddings WHERE feed_id = %s)
+                LIMIT %s
+            ),
+            user_prefs AS (
+                SELECT DISTINCT ON (feed_id)
+                    feed_id,
+                    score
+                FROM preferences
+                WHERE source IN ('interactive', 'alert-feedback')
+                    AND user_id = %s
+                    AND feed_id IN (SELECT feed_id FROM similar_feeds)
+                ORDER BY feed_id, id DESC
+            ),
+            vote_counts AS (
                 SELECT
-                    {select_fields}
-                FROM similar_feeds sf
-                JOIN feeds f ON sf.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
-                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC, f.added DESC
-            """,
-                (feed_id, feed_id, feed_id, limit, user_id, model_id, channel_id),
+                    feed_id,
+                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                FROM preferences
+                WHERE source IN ('interactive', 'alert-feedback')
+                    AND feed_id IN (SELECT feed_id FROM similar_feeds)
+                GROUP BY feed_id
             )
-
+            SELECT
+                {select_fields}
+            FROM similar_feeds sf
+            JOIN feeds f ON sf.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
+            LEFT JOIN user_prefs pf ON f.id = pf.feed_id
+            LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+            ORDER BY sf.similarity DESC, f.added DESC
+        """,
+            (feed_id, feed_id, feed_id, limit, user_id, model_id, channel_id),
+        )
         results = self.cursor.fetchall()
         if not results:
             # Check if the source feed_id exists
@@ -300,9 +243,7 @@ class EmbeddingDatabase:
 
         return results
 
-    def search_by_text(
-        self, query_text, limit=50, user_id=None, model_id=None, include_content=False, channel_id=None
-    ):
+    def search_by_text(self, query_text, limit, user_id, model_id, channel_id):
         """Search for articles by text query using embedding similarity"""
         if not self.openai_client:
             raise ValueError("OpenAI client not configured for embeddings")
@@ -317,11 +258,7 @@ class EmbeddingDatabase:
         response = self.openai_client.embeddings.create(**params)
         query_embedding = response.data[0].embedding
 
-        # Use provided model_id or default to 1
-        if model_id is None:
-            model_id = 1
-
-        # Build the SELECT fields based on include_content parameter
+        # Build the SELECT fields
         select_fields = """
                     sf.feed_id,
                     f.external_id,
@@ -339,99 +276,49 @@ class EmbeddingDatabase:
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes"""
 
-        if include_content:
-            select_fields += (
-                ",\n                    f.content,\n                    f.tldr"
-            )
-
         # Perform similarity search using the query embedding
-        if user_id is None:
-            # If no user_id provided, don't filter preferences
-            self.cursor.execute(
-                f"""
-                WITH similar_feeds AS (
-                    SELECT
-                        feed_id,
-                        1 - (embedding <=> %s::vector) as similarity
-                    FROM embeddings
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                ),
-                all_prefs AS (
-                    SELECT DISTINCT ON (feed_id)
-                        feed_id,
-                        score
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    ORDER BY feed_id, id DESC
-                ),
-                vote_counts AS (
-                    SELECT
-                        feed_id,
-                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    GROUP BY feed_id
-                )
+        self.cursor.execute(
+            f"""
+            WITH similar_feeds AS (
                 SELECT
-                    {select_fields}
-                FROM similar_feeds sf
-                JOIN feeds f ON sf.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
-                LEFT JOIN all_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC, f.added DESC
-            """,
-                (query_embedding, query_embedding, limit, model_id, channel_id),
-            )
-        else:
-            # Filter preferences by user_id
-            self.cursor.execute(
-                f"""
-                WITH similar_feeds AS (
-                    SELECT
-                        feed_id,
-                        1 - (embedding <=> %s::vector) as similarity
-                    FROM embeddings
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                ),
-                user_prefs AS (
-                    SELECT DISTINCT ON (feed_id)
-                        feed_id,
-                        score
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND user_id = %s
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    ORDER BY feed_id, id DESC
-                ),
-                vote_counts AS (
-                    SELECT
-                        feed_id,
-                        SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                        SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-                    FROM preferences
-                    WHERE source IN ('interactive', 'alert-feedback')
-                        AND feed_id IN (SELECT feed_id FROM similar_feeds)
-                    GROUP BY feed_id
-                )
+                    feed_id,
+                    1 - (embedding <=> %s::vector) as similarity
+                FROM embeddings
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+            ),
+            user_prefs AS (
+                SELECT DISTINCT ON (feed_id)
+                    feed_id,
+                    score
+                FROM preferences
+                WHERE source IN ('interactive', 'alert-feedback')
+                    AND user_id = %s
+                    AND feed_id IN (SELECT feed_id FROM similar_feeds)
+                ORDER BY feed_id, id DESC
+            ),
+            vote_counts AS (
                 SELECT
-                    {select_fields}
-                FROM similar_feeds sf
-                JOIN feeds f ON sf.feed_id = f.id
-                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
-                LEFT JOIN user_prefs pf ON f.id = pf.feed_id
-                LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC, f.added DESC
-            """,
-                (query_embedding, query_embedding, limit, user_id, model_id, channel_id),
+                    feed_id,
+                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                FROM preferences
+                WHERE source IN ('interactive', 'alert-feedback')
+                    AND feed_id IN (SELECT feed_id FROM similar_feeds)
+                GROUP BY feed_id
             )
+            SELECT
+                {select_fields}
+            FROM similar_feeds sf
+            JOIN feeds f ON sf.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
+            LEFT JOIN user_prefs pf ON f.id = pf.feed_id
+            LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
+            ORDER BY sf.similarity DESC, f.added DESC
+        """,
+            (query_embedding, query_embedding, limit, user_id, model_id, channel_id),
+        )
 
         results = self.cursor.fetchall()
         return results
