@@ -1,51 +1,9 @@
-/* Theme toggle button */
 .btn-theme-toggle {
-    background: var(--bg-card);
-    border: 1px solid var(--border-medium);
-    border-radius: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 20px;
     margin-left: 10px;
-    transition: all var(--transition-base);
 }
 
-.btn-theme-toggle:hover {
-    background: var(--bg-hover);
-}
-
-/* Base layout */
 body {
     font-family: var(--font-family-base);
-    margin: 0;
-    padding: 20px;
-    background-color: var(--bg-body);
-    line-height: 1.6;
-    transition: background-color var(--transition-base), color var(--transition-base);
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-/* Header */
-.header {
-    background: var(--bg-card);
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: var(--shadow-card);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: background-color var(--transition-base);
-}
-
-.header h1 {
-    margin: 0;
-    color: var(--text-primary);
-    transition: color var(--transition-base);
 }
 
 /* Filter controls */
@@ -151,114 +109,6 @@ body {
     color: var(--text-white);
 }
 
-/* Hamburger menu styles */
-.hamburger-menu {
-    position: fixed;
-    top: 30px;
-    right: 30px;
-    z-index: 1001;
-}
-
-/* Adjust for smaller screens */
-@media (max-width: 768px) {
-    .hamburger-menu {
-        top: 15px;
-        right: 15px;
-    }
-}
-
-.hamburger-btn {
-    background: var(--bg-card);
-    border: 1px solid var(--border-medium);
-    border-radius: 8px;
-    cursor: pointer;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    transition: all 0.3s ease;
-    box-shadow: var(--shadow-card);
-}
-
-.hamburger-btn:hover {
-    background: var(--bg-hover);
-    box-shadow: var(--shadow-hover);
-}
-
-.hamburger-line {
-    width: 25px;
-    height: 3px;
-    background: var(--text-primary);
-    border-radius: 2px;
-    transition: all 0.3s ease;
-}
-
-.dropdown-menu {
-    display: none;
-    position: fixed;
-    top: 85px;
-    right: 30px;
-    background: var(--bg-card);
-    border-radius: 8px;
-    box-shadow: var(--shadow-modal);
-    min-width: 220px;
-    z-index: 1000;
-    overflow: hidden;
-    max-height: calc(100vh - 100px);
-    overflow-y: auto;
-}
-
-@media (max-width: 768px) {
-    .dropdown-menu {
-        top: 60px;
-        right: 15px;
-        min-width: 200px;
-    }
-}
-
-.dropdown-menu.show {
-    display: block;
-}
-
-.dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 20px;
-    color: var(--text-primary);
-    text-decoration: none;
-    border: none;
-    background: none;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: inherit;
-}
-
-.dropdown-user {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 20px;
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 600;
-    background: var(--bg-hover);
-    border-bottom: 1px solid var(--border-light);
-}
-
-.dropdown-item:hover {
-    background: var(--bg-hover);
-}
-
-.dropdown-divider {
-    height: 1px;
-    background: var(--border-light);
-    margin: 5px 0;
-}
 
 /* User info */
 .user-info {
@@ -576,20 +426,6 @@ button.user-info.btn-logout:hover {
 }
 
 /* Buttons */
-.btn {
-    padding: 8px 16px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-    transition: all 0.2s ease;
-    vertical-align: middle;
-    line-height: 1.5;
-    box-sizing: border-box;
-}
 
 .btn-primary {
     background: var(--btn-primary-bg);
@@ -873,10 +709,6 @@ button.user-info.btn-logout:hover {
     margin: 0 auto 15px;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
 
 .btn-text {
     margin-left: 5px;
@@ -897,16 +729,6 @@ button.user-info.btn-logout:hover {
     .filter-controls {
         flex-direction: column;
         gap: 15px;
-    }
-
-    .hamburger-menu {
-        position: relative;
-    }
-
-    .dropdown-menu {
-        right: auto;
-        left: 50%;
-        transform: translateX(-50%);
     }
 
     .search-interface {
