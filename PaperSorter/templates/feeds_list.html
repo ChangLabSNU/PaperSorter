@@ -1,62 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feeds - {{ site_name }}</title>
-    <!-- CSS Variables for Dark Mode -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+{% extends "base.html" %}
+
+{% block title %}Feeds - {{ site_name }}{% endblock %}
+
+{% block styles %}
     <!-- Feeds List CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/feeds_list.css') }}">
-    <!-- Common JavaScript utilities -->
-    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
-</head>
-<body data-theme="{{ current_user.theme | default('light') if current_user.is_authenticated else 'light' }}">
-    <!-- Fixed hamburger menu -->
-    <div class="hamburger-menu">
-        <button class="hamburger-btn" onclick="toggleHamburgerMenu(event)">
-            <span class="hamburger-line"></span>
-            <span class="hamburger-line"></span>
-            <span class="hamburger-line"></span>
-        </button>
-        <div class="dropdown-menu" id="hamburgerDropdown">
-            <!-- Display current user -->
-            <div class="dropdown-user">
-                <span>👤 {{ current_user.username }}</span>
-            </div>
-            <div class="dropdown-divider"></div>
-            {% if current_user.is_admin %}
-            <button class="dropdown-item" onclick="toggleSemanticSearch(); closeHamburgerMenu();">
-                <span>➕ Add a Paper</span>
-            </button>
-            <div class="dropdown-divider"></div>
-            <a href="/broadcast-queue" class="dropdown-item">
-                <span>📤 Broadcast Queue</span>
-            </a>
-            <a href="/events" class="dropdown-item">
-                <span>📋 Event Logs</span>
-            </a>
-            <div class="dropdown-divider"></div>
-            <a href="/labeling" class="dropdown-item">
-                <span>🏷️ Labeling Session</span>
-            </a>
-            <a href="/settings" class="dropdown-item">
-                <span>⚙️ System Settings</span>
-            </a>
-            <a href="/user-settings" class="dropdown-item">
-                <span>🛠️ Personal Settings</span>
-            </a>
-            {% else %}
-            <a href="/user-settings" class="dropdown-item">
-                <span>⚙️️ Settings</span>
-            </a>
-            {% endif %}
-            <div class="dropdown-divider"></div>
-            <a href="/logout" class="dropdown-item">
-                <span>🚪 Logout</span>
-            </a>
-        </div>
-    </div>
+{% endblock %}
+
+{% block header %}
     <div class="container">
         <div class="header">
             <h1>{{ site_name }}</h1>
@@ -181,7 +132,9 @@
             </div>
         </div>
     </div>
+{% endblock %}
 
+{% block scripts %}
     <!-- Configuration for JavaScript -->
     <script>
         window.feedsConfig = {
@@ -208,5 +161,4 @@
         // All main functionality is now in feeds_list.js
         // The external script will initialize everything on DOMContentLoaded
     </script>
-</body>
-</html>
+{% endblock %}

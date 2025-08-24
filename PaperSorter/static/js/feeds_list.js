@@ -1,44 +1,6 @@
 // Feeds List JavaScript
 // This file handles all the interactive functionality for the feeds list page
 
-// Theme Manager for dark mode
-const ThemeManager = {
-    init: function() {
-        const savedTheme = window.feedsConfig.userTheme || 'light';
-        this.applyTheme(savedTheme);
-    },
-
-    applyTheme: function(theme) {
-        document.body.setAttribute('data-theme', theme);
-        this.updateThemeIcon(theme);
-        localStorage.setItem('theme', theme);
-    },
-
-    toggleTheme: function() {
-        const current = document.body.getAttribute('data-theme');
-        const next = current === 'light' ? 'dark' : 'light';
-        this.applyTheme(next);
-        this.savePreference(next);
-    },
-
-    savePreference: function(theme) {
-        if (window.feedsConfig.isAuthenticated) {
-            fetch('/api/user/preferences', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({theme: theme})
-            });
-        }
-    },
-
-    updateThemeIcon: function(theme) {
-        const icon = document.querySelector('.theme-icon');
-        if (icon) {
-            icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-        }
-    }
-};
-
 // Initialize configuration from template
 let currentPage = 1;
 let isLoading = false;
@@ -310,8 +272,6 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
             bookmarkId = data.bookmark_id;
             updateBookmarkButton();
         }
-
-        const feedsToDisplay = [];
 
         data.feeds.forEach(feed => {
             const feedDate = new Date(feed.published * 1000).toDateString();
@@ -1117,9 +1077,6 @@ async function generatePoster(papers) {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize from config
     initializeFromConfig();
-
-    // Initialize theme
-    ThemeManager.init();
     
     // Add event handlers for summary buttons
     const generateSummaryBtn = document.getElementById('generateSearchSummaryBtn');
