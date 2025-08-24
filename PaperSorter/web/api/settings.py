@@ -677,11 +677,25 @@ def api_get_feed_sources():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
+        # Optimized query: count feeds per origin first, then join with feed_sources
         cursor.execute("""
-            SELECT id, name, source_type, url, added, last_updated, last_checked,
-                   (SELECT COUNT(*) FROM feeds WHERE origin = feed_sources.name) as feed_count
-            FROM feed_sources
-            ORDER BY id
+            WITH feed_counts AS (
+                SELECT origin, COUNT(*) as count
+                FROM feeds
+                GROUP BY origin
+            )
+            SELECT 
+                fs.id, 
+                fs.name, 
+                fs.source_type, 
+                fs.url, 
+                fs.added, 
+                fs.last_updated, 
+                fs.last_checked,
+                COALESCE(fc.count, 0) as feed_count
+            FROM feed_sources fs
+            LEFT JOIN feed_counts fc ON fs.name = fc.origin
+            ORDER BY fs.id
         """)
 
         feed_sources = cursor.fetchall()
