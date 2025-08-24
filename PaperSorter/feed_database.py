@@ -129,9 +129,6 @@ class FeedDatabase:
     def insert_item(self, item, shared=0, broadcasted=None, tldr=None):
         content = remove_html_tags(item.content)
 
-        # Get user_id from preferences table or use default
-        user_id = 1  # Default user
-
         # Convert published to timestamp if it's a datetime object
         if hasattr(item.published, 'timestamp'):
             published_ts = item.published.timestamp()
@@ -162,20 +159,6 @@ class FeedDatabase:
         result = self.cursor.fetchone()
         if result:
             feed_id = result["id"]
-
-            # shared parameter is kept for backward compatibility but not used
-
-            # Insert broadcast log if broadcasted
-            if broadcasted is not None:
-                channel_id = 1  # Default channel
-                self.cursor.execute(
-                    """
-                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                    VALUES (%s, %s, to_timestamp(%s))
-                    ON CONFLICT DO NOTHING
-                """,
-                    (feed_id, channel_id, broadcasted),
-                )
 
             self.idcache.add(item.item_id)
             return feed_id
@@ -268,51 +251,7 @@ class FeedDatabase:
 
         return pd.DataFrame(data).set_index("id")
 
-    def update_label(self, item_id, label):
-        user_id = 1  # Default user
-
-        # Get feed_id based on item_id type
-        if isinstance(item_id, str):
-            self.cursor.execute(
-                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
-            )
-        else:
-            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
-        result = self.cursor.fetchone()
-        if result:
-            feed_id = result["id"]
-            # First check if a preference already exists
-            self.cursor.execute(
-                """
-                SELECT id FROM preferences
-                WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-            """,
-                (feed_id, user_id),
-            )
-
-            existing = self.cursor.fetchone()
-
-            if existing:
-                # Update existing preference
-                self.cursor.execute(
-                    """
-                    UPDATE preferences
-                    SET score = %s, time = CURRENT_TIMESTAMP
-                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-                """,
-                    (float(label), feed_id, user_id),
-                )
-            else:
-                # Insert new preference
-                self.cursor.execute(
-                    """
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                """,
-                    (feed_id, user_id, float(label)),
-                )
-
-    def update_score(self, item_id, score, model_id=1):
+    def update_score(self, item_id, score, model_id):
         # Get feed_id based on item_id type
         if isinstance(item_id, str):
             self.cursor.execute(
@@ -396,64 +335,6 @@ class FeedDatabase:
             (*active_model_ids, active_model_count),
         )
         return [row["external_id"] for row in self.cursor.fetchall()]
-
-    def filter_duplicates(self, matches, remove_duplicated):
-        if len(matches) == 0:
-            return matches
-
-        blacklisted = set()
-        if remove_duplicated is not None:
-            for item_id in matches.index:
-                if self.check_broadcasted(item_id, remove_duplicated):
-                    blacklisted.add(item_id)
-
-        if len(blacklisted) > 0:
-            matches = matches.drop(blacklisted)
-
-        return matches
-
-    def check_broadcasted(self, item_id, since):
-        if isinstance(item_id, str):
-            where_clause = "a.external_id = %s"
-        else:
-            where_clause = "a.id = %s"
-
-        self.cursor.execute(
-            f"""
-            SELECT COUNT(*) as count
-            FROM feeds a
-            JOIN feeds b ON a.title = b.title AND a.id != b.id
-            JOIN broadcasts bl ON b.id = bl.feed_id
-            WHERE {where_clause} AND b.published >= to_timestamp(%s)
-                  AND bl.broadcasted_time IS NOT NULL
-        """,
-            (item_id, since),
-        )
-        dup_broadcasted = self.cursor.fetchone()["count"]
-
-        if dup_broadcasted > 0:
-            # Mark duplicates as blacklisted
-            channel_id = 1  # Default channel
-            if isinstance(item_id, str):
-                self.cursor.execute(
-                    "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
-                )
-            else:
-                self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
-            result = self.cursor.fetchone()
-            if result:
-                feed_id = result["id"]
-                self.cursor.execute(
-                    """
-                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                    VALUES (%s, %s, to_timestamp(0))
-                    ON CONFLICT DO NOTHING
-                """,
-                    (feed_id, channel_id),
-                )
-                self.commit()
-
-        return dup_broadcasted > 0
 
     def add_to_broadcast_queue(self, feed_id, channel_id):
         """Add an item to the broadcast queue (using merged broadcasts table)."""

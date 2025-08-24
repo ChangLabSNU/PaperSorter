@@ -94,20 +94,6 @@ class BroadcastChannels:
             )
             self.db.commit()
 
-    def create_channel(self, name, endpoint_url, score_threshold=0.7, model_id=1):
-        """Create a new broadcast channel."""
-        self.cursor.execute(
-            """
-            INSERT INTO channels (name, endpoint_url, score_threshold, model_id)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-        """,
-            (name, endpoint_url, score_threshold, model_id),
-        )
-        result = self.cursor.fetchone()
-        self.db.commit()
-        return result["id"]
-
     def delete_channel(self, channel_id):
         """Delete a channel."""
         self.cursor.execute("DELETE FROM channels WHERE id = %s", (channel_id,))

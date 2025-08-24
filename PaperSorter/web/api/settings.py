@@ -209,7 +209,7 @@ def api_create_channel():
                 data["name"],
                 data["endpoint_url"],
                 data.get("score_threshold", 0.7),
-                data.get("model_id", 1),
+                data.get("model_id", None),
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
                 broadcast_hours,
@@ -270,7 +270,7 @@ def api_update_channel(channel_id):
                 data["name"],
                 data["endpoint_url"],
                 data.get("score_threshold", 0.7),
-                data.get("model_id", 1),
+                data.get("model_id", None),
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
                 broadcast_hours,
@@ -523,9 +523,6 @@ def api_update_user(user_id):
 @admin_required
 def api_delete_user(user_id):
     """Delete a user."""
-    if user_id == 1:
-        return jsonify({"success": False, "error": "Cannot delete default user"}), 400
-
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
 
