@@ -455,7 +455,7 @@ class FeedDatabase:
 
         return dup_broadcasted > 0
 
-    def add_to_broadcast_queue(self, feed_id, channel_id=1):
+    def add_to_broadcast_queue(self, feed_id, channel_id):
         """Add an item to the broadcast queue (using merged broadcasts table)."""
         self.cursor.execute(
             """
@@ -527,7 +527,7 @@ class FeedDatabase:
         similarity = SequenceMatcher(None, norm1, norm2).ratio()
         return similarity >= threshold
 
-    def get_broadcast_queue_items(self, channel_id=1, limit=None, model_id=None):
+    def get_broadcast_queue_items(self, channel_id, limit=None, model_id=None):
         """Get unprocessed items from the broadcast queue (using merged broadcasts table)."""
         # If no model_id provided, get the most recent active model
         if model_id is None:
@@ -538,7 +538,11 @@ class FeedDatabase:
                 LIMIT 1
             """)
             result = self.cursor.fetchone()
-            model_id = result["id"] if result else 1
+            if not result:
+                from .log import log
+                log.warning(f"No active models found for channel {channel_id}, cannot retrieve broadcast queue items")
+                return pd.DataFrame()
+            model_id = result["id"]
 
         # Get unprocessed items from the queue (FIFO - oldest added first)
         query = """
@@ -566,7 +570,7 @@ class FeedDatabase:
         else:
             return pd.DataFrame()
 
-    def mark_broadcast_queue_processed(self, feed_id, channel_id=1):
+    def mark_broadcast_queue_processed(self, feed_id, channel_id):
         """Mark an item in the broadcast queue as processed (using merged broadcasts table)."""
         self.cursor.execute(
             """
@@ -597,7 +601,7 @@ class FeedDatabase:
             (feed_id, channel_id),
         )
 
-    def check_and_remove_duplicate_broadcasts(self, channel_id=1, lookback_months=3):
+    def check_and_remove_duplicate_broadcasts(self, channel_id, lookback_months=3):
         """Check for duplicate items in the broadcast queue and remove them.
 
         Returns the number of duplicates removed.

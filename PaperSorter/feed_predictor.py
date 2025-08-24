@@ -205,11 +205,20 @@ class FeedPredictor:
 
         # Group channels by model
         channels_by_model = {}
+        channels_without_model = []
         for channel in active_channels:
-            model_id = channel["model_id"] or 1  # Default to model 1 if not specified
+            model_id = channel["model_id"]
+            if model_id is None:
+                log.warning(f"Channel '{channel['name']}' (ID: {channel['id']}) has no model assigned, skipping predictions")
+                channels_without_model.append(channel)
+                continue
             if model_id not in channels_by_model:
                 channels_by_model[model_id] = []
             channels_by_model[model_id].append(channel)
+        
+        if channels_without_model and not channels_by_model:
+            log.error("No channels have valid models assigned. Cannot generate predictions.")
+            return
 
         # Get embeddings for feeds that have them
         embeddings_map = {}
