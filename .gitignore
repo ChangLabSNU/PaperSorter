@@ -76,8 +76,6 @@ cache/
 
 # Data files
 *.tsv
-*.png
-*.json
 search-dump.json
 sqlnotes.txt
 dbbackup-*
