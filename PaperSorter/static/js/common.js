@@ -32,7 +32,39 @@ function getScoreGradientColor(score) {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
+/**
+ * Calculate gradient color for similarity badges
+ * Uses gray-orange-red gradient:
+ * - Gray (0.0): rgb(149, 165, 166)
+ * - Orange (0.5): rgb(255, 165, 0)
+ * - Red (1.0): rgb(220, 53, 69)
+ */
+function getSimilarityGradientColor(similarity) {
+    // Handle null/undefined similarity
+    if (similarity === null || similarity === undefined) {
+        return 'rgb(149, 165, 166)'; // Gray for null similarity
+    }
+    
+    let r, g, b;
+    
+    if (similarity < 0.5) {
+        // Gray to Orange transition (0.0 to 0.5)
+        const t = similarity * 2;
+        r = Math.round(149 + (255 - 149) * t);
+        g = Math.round(165 + (165 - 165) * t);
+        b = Math.round(166 + (0 - 166) * t);
+    } else {
+        // Orange to Red transition (0.5 to 1.0)
+        const t = (similarity - 0.5) * 2;
+        r = Math.round(255 + (220 - 255) * t);
+        g = Math.round(165 + (53 - 165) * t);
+        b = Math.round(0 + (69 - 0) * t);
+    }
+    
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
 // Export for use in other files if needed
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getScoreGradientColor };
+    module.exports = { getScoreGradientColor, getSimilarityGradientColor };
 }

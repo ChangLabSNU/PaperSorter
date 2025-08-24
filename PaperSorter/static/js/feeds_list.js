@@ -95,8 +95,10 @@ function createFeedElement(feed) {
     // Add similarity badge if applicable
     if (feed.similarity_score !== undefined && feed.similarity_score !== null) {
         const similarity = calculateSimilarity(Math.abs(feed.score - feed.similarity_score));
+        const similarityValue = similarity / 100; // Convert to 0-1 range
+        const similarityColor = getSimilarityGradientColor(similarityValue);
         headerHTML += `
-            <span class="similarity-badge score-badge" title="Similarity to selected paper">
+            <span class="similarity-badge score-badge" style="background: ${similarityColor}" title="Similarity to selected paper">
                 ${similarity}
             </span>`;
     }
@@ -751,7 +753,7 @@ function displaySearchResults(results, searchQuery) {
             <div class="feed-header">
                 <div class="badges-container">
                     ${result.similarity !== undefined && result.similarity !== null ? `
-                        <span class="similarity-badge score-badge" title="Similarity to search query">
+                        <span class="similarity-badge score-badge" style="background: ${getSimilarityGradientColor(result.similarity)}" title="Similarity to search query">
                             ${Math.round(result.similarity * 100)}
                         </span>
                     ` : ''}
