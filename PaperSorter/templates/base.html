@@ -341,27 +341,21 @@
             <a href="/events" class="dropdown-item">
                 <span>📋 Event Logs</span>
             </a>
-            <div class="dropdown-divider"></div>
-            <a href="/settings" class="dropdown-item">
-                <span>⚙️ Settings</span>
-            </a>
             <a href="/labeling" class="dropdown-item">
                 <span>🏷️ Labeling</span>
             </a>
             <div class="dropdown-divider"></div>
-            {% else %}
-            <!-- Non-admin user menu items -->
-            <button class="dropdown-item" onclick="if(typeof toggleGeneralSearch !== 'undefined') { toggleGeneralSearch(); closeHamburgerMenu(); }">
-                <span>🔍 Search Papers</span>
-            </button>
-            <a href="/pdf-search" class="dropdown-item">
-                <span>📄 Paper Connect</span>
+            <a href="/settings" class="dropdown-item">
+                <span>⚙️ System Settings</span>
             </a>
-            <div class="dropdown-divider"></div>
-            {% endif %}
             <a href="/user-settings" class="dropdown-item">
-                <span>👤 Personal Settings</span>
+                <span>⚒️ Personal Settings</span>
             </a>
+            {% else %}
+            <a href="/user-settings" class="dropdown-item">
+                <span>⚙️ Settings</span>
+            </a>
+            {% endif %}
             <a href="/logout" class="dropdown-item">
                 <span>🚪 Logout</span>
             </a>
