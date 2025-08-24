@@ -875,11 +875,11 @@ function displayAcademicResults(results) {
                 <div class="search-result-actions">
                     ${isAlreadyAdded ?
             '<span class="already-added-badge">✓ Already in database</span>' :
-            `<button class="btn btn-add" onclick='addPaperToDatabase(${JSON.stringify(paper).replace(/'/g, "&apos;")}, this)'>
+            `<button class="btn btn-primary" onclick='addPaperToDatabase(${JSON.stringify(paper).replace(/'/g, "&apos;")}, this)'>
                         ➕ Add to Database
                      </button>`
         }
-                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-primary">🔗 View Paper</a>` : ''}
+                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Article</span></a>` : ''}
                 </div>
             </div>
         `;
