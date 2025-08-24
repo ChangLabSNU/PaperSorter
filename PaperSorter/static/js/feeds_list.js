@@ -63,29 +63,29 @@ function createFeedElement(feed) {
     const feedDiv = document.createElement('div');
     feedDiv.className = 'feed-item';
     feedDiv.dataset.feedId = feed.rowid;
-    feedDiv.dataset.published = feed.published;
+    feedDiv.dataset.published = feed.added || feed.published;
 
-    const isStarred = feed.starred === true;
+    const isShared = feed.shared === true;
     const hasPositiveFeedback = feed.label === 1;
     const hasNegativeFeedback = feed.label === 0;
     const isBroadcasted = feed.broadcasted === true;
-
-    const hasLabels = isStarred;  // Only show starred label now
+    
+    const hasLabels = false;  // Don't show shared/broadcasted as labels on the right
 
     let headerHTML = `
         <div class="feed-header">
             <div class="badges-container">
-                <span class="score-badge" style="background: ${getGradientColor(feed.score)}">
+                <span class="score-badge preference-score" style="background: ${getGradientColor(feed.score)}">
                     ${(feed.score * 100).toFixed(0)}`;
 
     // Add icons container if needed
-    if (isStarred || isBroadcasted) {
+    if (isShared || isBroadcasted) {
         headerHTML += '<div class="score-icons">';
-        if (isStarred) {
-            headerHTML += '<span class="score-icon starred" title="Starred">⭐</span>';
+        if (isShared) {
+            headerHTML += '<span class="score-icon shared" title="In Queue">📤</span>';
         }
         if (isBroadcasted) {
-            headerHTML += '<span class="score-icon broadcasted" title="Broadcasted">📨</span>';
+            headerHTML += '<span class="score-icon broadcasted" title="Broadcasted">📡</span>';
         }
         headerHTML += '</div>';
     }
@@ -111,7 +111,7 @@ function createFeedElement(feed) {
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
                     ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
-                    <span class="feed-meta-item feed-date">${new Date(feed.published * 1000).toLocaleDateString()}</span>
+                    <span class="feed-meta-item feed-date">${new Date((feed.added || feed.published) * 1000).toLocaleDateString()}</span>
                 </div>
             </div>`;
     
@@ -131,25 +131,19 @@ function createFeedElement(feed) {
     }
     headerHTML += '</div>';
 
-    if (hasLabels) {
-        headerHTML += '<div class="feed-labels">';
-        if (isStarred) {
-            headerHTML += '<span class="label-badge label-starred" title="Starred">⭐</span>';
-        }
-        headerHTML += '</div>';
-    }
-
     headerHTML += '</div>';
 
     const detailsHTML = `
         <div class="feed-details">
             <div class="feed-abstract">Click to load abstract...</div>
             <div class="feed-actions">
-                <a href="${feed.link}" target="_blank" class="btn btn-primary">
+                <a href="${feed.link}" target="_blank" class="btn btn-open-article">
                     🔗<span class="btn-text">Open Article</span>
                 </a>
-                <button class="btn btn-star ${isStarred ? 'starred' : ''}" onclick="toggleStar(${feed.rowid}, this)">
-                    ${isStarred ? '⭐' : '☆'}<span class="btn-text">${isStarred ? 'Starred' : 'Star'}</span>
+                <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}" 
+                        onclick="toggleShare(${feed.rowid}, this, ${isBroadcasted})"
+                        ${isBroadcasted ? 'disabled title="Already broadcasted"' : ''}>
+                    ${isBroadcasted ? '📡' : '📤'}<span class="btn-text">${isBroadcasted ? 'Broadcasted' : (isShared ? 'Shared' : 'Share')}</span>
                 </button>
                 <button class="btn btn-thumbs-up ${hasPositiveFeedback ? 'active' : ''}"
                         onclick="sendFeedback(${feed.rowid}, 1, this)">
@@ -276,7 +270,7 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
         }
 
         data.feeds.forEach(feed => {
-            const feedDate = new Date(feed.published * 1000).toDateString();
+            const feedDate = new Date((feed.added || feed.published) * 1000).toDateString();
 
             // Check if we need to insert bookmark divider
             if (!bookmarkInserted && bookmarkId && feed.rowid === bookmarkId) {
@@ -293,7 +287,7 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
             if (feedDate !== lastDateShown) {
                 const dateHeader = document.createElement('div');
                 dateHeader.className = 'date-header';
-                dateHeader.textContent = formatDateForHeader(feed.published * 1000);
+                dateHeader.textContent = formatDateForHeader((feed.added || feed.published) * 1000);
                 container.appendChild(dateHeader);
                 lastDateShown = feedDate;
             }
@@ -362,54 +356,61 @@ function onChannelChange() {
     loadFeeds(1, false);
 }
 
-// Star/unstar functionality
-async function toggleStar(feedId, button) {
-    const isStarred = button.classList.contains('starred');
+// Share/unshare functionality
+async function toggleShare(feedId, button, isBroadcasted) {
+    // Prevent sharing if already broadcasted
+    if (isBroadcasted) {
+        return;
+    }
+    
+    const isShared = button.classList.contains('shared');
 
+    // Get current channel ID
+    const channelId = document.getElementById('channelSelector')?.value || '';
+    
     try {
-        const response = await fetch(`/api/feeds/${feedId}/star`, {
+        const response = await fetch(`/api/feeds/${feedId}/share`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                starred: !isStarred
+                shared: !isShared,
+                channel_id: channelId
             })
         });
 
         if (response.ok) {
-            button.classList.toggle('starred');
+            button.classList.toggle('shared');
             const btnText = button.querySelector('.btn-text');
             if (btnText) {
-                btnText.textContent = isStarred ? 'Star' : 'Starred';
+                btnText.textContent = isShared ? 'Share' : 'Shared';
             }
-            button.innerHTML = (isStarred ? '☆' : '⭐') +
-                '<span class="btn-text">' + (isStarred ? 'Star' : 'Starred') + '</span>';
-
-            // Update label in header
-            const feedItem = button.closest('.feed-item');
-            updateFeedLabels(feedItem, 'starred', !isStarred);
+            button.innerHTML = '📤' +
+                '<span class="btn-text">' + (isShared ? 'Share' : 'Shared') + '</span>';
 
             // Update icon in score badge
-            const scoreIcons = feedItem.querySelector('.score-icons');
-            const starIcon = scoreIcons?.querySelector('.starred');
+            const feedItem = button.closest('.feed-item');
+            // Look for preference score badge specifically, or any score badge if no preference class
+            const scoreBadge = feedItem.querySelector('.preference-score') || feedItem.querySelector('.score-badge');
+            const scoreIcons = scoreBadge?.querySelector('.score-icons');
+            const shareIcon = scoreIcons?.querySelector('.shared');
 
-            if (!isStarred) {
-                // Add star icon
-                if (!scoreIcons) {
-                    const scoreBadge = feedItem.querySelector('.score-badge');
+            if (!isShared) {
+                // Add share icon
+                if (!scoreIcons && scoreBadge) {
                     const iconsDiv = document.createElement('div');
                     iconsDiv.className = 'score-icons';
-                    iconsDiv.innerHTML = '<span class="score-icon starred" title="Starred">⭐</span>';
+                    iconsDiv.innerHTML = '<span class="score-icon shared" title="Shared">📤</span>';
                     scoreBadge.appendChild(iconsDiv);
-                } else if (!starIcon) {
+                } else if (scoreIcons && !shareIcon) {
                     scoreIcons.insertAdjacentHTML('afterbegin',
-                        '<span class="score-icon starred" title="Starred">⭐</span>');
+                        '<span class="score-icon shared" title="Shared">📤</span>');
                 }
             } else {
-                // Remove star icon
-                if (starIcon) {
-                    starIcon.remove();
+                // Remove share icon
+                if (shareIcon) {
+                    shareIcon.remove();
                     // Remove icons container if empty
                     if (scoreIcons && scoreIcons.children.length === 0) {
                         scoreIcons.remove();
@@ -419,7 +420,7 @@ async function toggleStar(feedId, button) {
 
         }
     } catch (error) {
-        console.error('Failed to toggle star:', error);
+        console.error('Failed to toggle share:', error);
     }
 }
 
@@ -549,9 +550,9 @@ function updateFeedLabels(feedItem, type, add) {
         if (!existingLabel) {
             const label = document.createElement('span');
             label.className = `label-badge label-${type}`;
-            if (type === 'starred') {
-                label.textContent = '⭐';
-                label.title = 'Starred';
+            if (type === 'shared') {
+                // Shared labels are no longer shown on the right side
+                return;
             } else if (type === 'positive') {
                 // No longer used - we use vote badges instead
                 return;
@@ -757,8 +758,14 @@ function displaySearchResults(results, searchQuery) {
                             ${Math.round(result.similarity * 100)}
                         </span>
                     ` : ''}
-                    <span class="score-badge" style="background: ${getGradientColor(result.score)}">
+                    <span class="score-badge preference-score" style="background: ${getGradientColor(result.score)}">
                         ${(result.score * 100).toFixed(0)}
+                        ${(result.shared || result.broadcasted) ? `
+                            <div class="score-icons">
+                                ${result.shared ? '<span class="score-icon shared" title="In Queue">📤</span>' : ''}
+                                ${result.broadcasted ? '<span class="score-icon broadcasted" title="Broadcasted">📡</span>' : ''}
+                            </div>
+                        ` : ''}
                     </span>
                 </div>
                 <div class="feed-content">
@@ -766,25 +773,39 @@ function displaySearchResults(results, searchQuery) {
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
                         ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
-                        <span class="feed-meta-item feed-date">${new Date(result.published * 1000).toLocaleDateString()}</span>
+                        <span class="feed-meta-item feed-date">${new Date((result.added || result.published) * 1000).toLocaleDateString()}</span>
                     </div>
+                </div>
+                <div class="vote-badges-container">
+                    ${result.positive_votes > 0 ? `
+                        <span class="vote-badge vote-positive" title="${result.positive_votes} interested">
+                            +${result.positive_votes}
+                        </span>
+                    ` : ''}
+                    ${result.negative_votes > 0 ? `
+                        <span class="vote-badge vote-negative" title="${result.negative_votes} not interested">
+                            −${result.negative_votes}
+                        </span>
+                    ` : ''}
                 </div>
             </div>
             <div class="feed-details">
                 <div class="feed-abstract">Click to load abstract...</div>
                 <div class="feed-actions">
-                    <a href="${result.link}" target="_blank" class="btn btn-primary">
+                    <a href="${result.link}" target="_blank" class="btn btn-open-article">
                         🔗<span class="btn-text">Open Article</span>
                     </a>
-                    <button class="btn btn-star ${result.starred ? 'starred' : ''}" onclick="toggleStar(${result.rowid || result.id}, this)">
-                        ${result.starred ? '⭐' : '☆'}<span class="btn-text">${result.starred ? 'Starred' : 'Star'}</span>
+                    <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}" 
+                            onclick="toggleShare(${result.rowid || result.id}, this, ${result.broadcasted})"
+                            ${result.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
+                        ${result.broadcasted ? '📡' : '📤'}<span class="btn-text">${result.broadcasted ? 'Broadcasted' : (result.shared ? 'Shared' : 'Share')}</span>
                     </button>
                     <button class="btn btn-thumbs-up ${result.label === 1 ? 'active' : ''}"
                             onclick="sendFeedback(${result.rowid || result.id}, 1, this)">
                         👍<span class="btn-text">Interested</span>
                     </button>
-                    <button class="btn btn-thumbs-down ${result.label === -1 ? 'active' : ''}"
-                            onclick="sendFeedback(${result.rowid || result.id}, -1, this)">
+                    <button class="btn btn-thumbs-down ${result.label === 0 ? 'active' : ''}"
+                            onclick="sendFeedback(${result.rowid || result.id}, 0, this)">
                         👎<span class="btn-text">Not Interested</span>
                     </button>
                     <button class="btn btn-similar" onclick="findSimilar(${result.rowid || result.id})">

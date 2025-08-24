@@ -198,15 +198,16 @@
             border: 1px solid white;
         }
 
-        .score-icon.starred {
-            background: var(--similar-starred-icon-bg);
+        .score-icon.shared {
+            background: var(--similar-shared-icon-bg);
             color: white;
         }
-
+        
         .score-icon.broadcasted {
             background: var(--similar-broadcasted-icon-bg);
             color: white;
         }
+
 
         .feed-content {
             flex: 1;
@@ -264,8 +265,13 @@
             font-weight: bold;
         }
 
-        .label-starred {
-            background: var(--similar-label-starred-bg);
+        .label-shared {
+            background: var(--similar-label-shared-icon-bg);
+            color: white;
+        }
+        
+        .label-broadcasted {
+            background: var(--similar-label-positive-bg);
             color: white;
         }
 
@@ -327,21 +333,30 @@
             border-color: var(--similar-btn-primary-hover-border);
         }
 
-        .btn-star {
-            background: var(--similar-btn-star-bg);
-            color: var(--similar-btn-star-color);
-            border: 1px solid var(--similar-btn-star-border);
+        .btn-share {
+            background: var(--similar-btn-share-bg);
+            color: var(--similar-btn-share-color);
+            border: 1px solid var(--similar-btn-share-border);
         }
 
-        .btn-star:hover {
-            background: var(--similar-btn-star-hover-bg);
-            border-color: var(--similar-btn-star-hover-border);
+        .btn-share:hover {
+            background: var(--similar-btn-share-hover-bg);
+            border-color: var(--similar-btn-share-hover-border);
         }
 
-        .btn-star.starred {
-            background: var(--similar-btn-star-starred-bg);
-            border-color: var(--similar-btn-star-starred-border);
-            color: var(--similar-btn-star-starred-color);
+        .btn-share.shared {
+            background: var(--similar-btn-share-shared-bg);
+            border-color: var(--similar-btn-share-shared-border);
+            color: var(--similar-btn-share-shared-color);
+        }
+
+        .btn-share.disabled,
+        .btn-share:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: var(--btn-secondary-bg);
+            color: var(--text-meta);
+            border-color: var(--border-medium);
         }
 
         .btn-thumbs-up {
@@ -692,10 +707,10 @@
                 border-color: var(--similar-btn-primary-hover-border);
             }
 
-            .btn-star.starred {
-                background: var(--similar-starred-icon-bg);
+            .btn-share.shared {
+                background: var(--similar-shared-icon-bg);
                 color: white;
-                border-color: var(--similar-starred-icon-bg);
+                border-color: var(--similar-shared-icon-bg);
             }
 
             .btn-thumbs-up.active {
@@ -810,12 +825,11 @@
 
             // Create icons for score badge
             let icons = [];
-            if (feed.starred) icons.push('<div class="score-icon starred">★</div>');
-            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted">📡</div>');
+            if (feed.shared) icons.push('<div class="score-icon shared" title="In Queue">📤</div>');
+            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted" title="Broadcasted">📡</div>');
             const iconsHtml = icons.length > 0 ? `<div class="score-icons">${icons.join('')}</div>` : '';
 
             let labels = [];
-            if (feed.starred) labels.push('<span class="label-badge label-starred">★ Starred</span>');
 
             // Show vote badges with counts (including current user's vote)
             if (feed.positive_votes > 0 || feed.label === 1) {
@@ -844,7 +858,7 @@
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
                                 ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
-                                <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
+                                <div class="feed-meta-item feed-date">${formatDate(feed.added || feed.published)}</div>
                             </div>
                         </div>
                         ${labels.length > 0 ? `<div class="feed-labels">${labels.join('')}</div>` : ''}
@@ -852,9 +866,12 @@
                     <div class="feed-details">
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
-                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary">📄<span class="btn-text"> View Article</span></a>` : ''}
-                            <button class="btn btn-star ${feed.starred ? 'starred' : ''}" onclick="starFeed(${feed.rowid}, this)" data-starred="${feed.starred ? 'true' : 'false'}">
-                                ${feed.starred ? '★' : '☆'}<span class="btn-text"> ${feed.starred ? 'Starred' : 'Star'}</span>
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Article</span></a>` : ''}
+                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}" 
+                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})" 
+                                    data-shared="${feed.shared ? 'true' : 'false'}"
+                                    ${feed.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
+                                ${feed.broadcasted ? '📡' : '📤'}<span class="btn-text"> ${feed.broadcasted ? 'Broadcasted' : (feed.shared ? 'Shared' : 'Share')}</span>
                             </button>
                             <button class="btn btn-thumbs-up ${feed.label === 1 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 1, this)" data-label="${feed.label}">
                                 👍<span class="btn-text"> Interested</span>
@@ -936,15 +953,17 @@
                 });
         }
 
-        function starFeed(feedRowid, buttonElement) {
+        function shareFeed(feedRowid, buttonElement, isBroadcasted) {
             event.stopPropagation();
 
-            const isCurrentlyStarred = buttonElement.dataset.starred === 'true';
+            // Prevent sharing if already broadcasted
+            if (isBroadcasted) {
+                return;
+            }
 
-            buttonElement.disabled = true;
-            buttonElement.innerHTML = isCurrentlyStarred ? '★<span class="btn-text"> Unstarring...</span>' : '☆<span class="btn-text"> Starring...</span>';
+            const isCurrentlyShared = buttonElement.dataset.shared === 'true';
 
-            fetch(`/api/feeds/${feedRowid}/star`, {
+            fetch(`/api/feeds/${feedRowid}/share`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -957,36 +976,42 @@
             .then(data => {
                 if (data.success) {
                     const feedItem = buttonElement.closest('.feed-item');
-                    const labelsDiv = feedItem.querySelector('.feed-labels');
-
-                    if (data.action === 'star') {
-                        // Update button state to starred
-                        buttonElement.dataset.starred = 'true';
-                        buttonElement.innerHTML = '★<span class="btn-text"> Starred</span>';
-                        buttonElement.classList.add('starred');
-
-                        // Add star label if not exists
-                        if (labelsDiv && !labelsDiv.querySelector('.label-starred')) {
-                            labelsDiv.insertAdjacentHTML('afterbegin', '<span class="label-badge label-starred">★ Starred</span>');
-                        } else if (!labelsDiv) {
-                            const feedHeader = feedItem.querySelector('.feed-header');
-                            feedHeader.insertAdjacentHTML('beforeend', '<div class="feed-labels"><span class="label-badge label-starred">★ Starred</span></div>');
+                    
+                    // Update button immediately without intermediate state
+                    if (data.action === 'share') {
+                        // Update button state to shared
+                        buttonElement.dataset.shared = 'true';
+                        buttonElement.innerHTML = '📤<span class="btn-text"> Shared</span>';
+                        buttonElement.classList.add('shared');
+                        
+                        // Add icon to score badge
+                        const scoreBadge = feedItem.querySelector('.badges-container .score-badge:not(.similarity-badge)');
+                        if (scoreBadge) {
+                            let scoreIcons = scoreBadge.querySelector('.score-icons');
+                            if (!scoreIcons) {
+                                scoreIcons = document.createElement('div');
+                                scoreIcons.className = 'score-icons';
+                                scoreBadge.appendChild(scoreIcons);
+                            }
+                            if (!scoreIcons.querySelector('.shared')) {
+                                scoreIcons.insertAdjacentHTML('afterbegin', '<span class="score-icon shared" title="In Queue">📤</span>');
+                            }
                         }
-                    } else {  // unstar
-                        // Update button state to unstarred
-                        buttonElement.dataset.starred = 'false';
-                        buttonElement.innerHTML = '☆<span class="btn-text"> Star</span>';
-                        buttonElement.classList.remove('starred');
-
-                        // Remove star label
-                        if (labelsDiv) {
-                            const starLabel = labelsDiv.querySelector('.label-starred');
-                            if (starLabel) {
-                                starLabel.remove();
-                                // Remove labels div if empty
-                                if (labelsDiv.children.length === 0) {
-                                    labelsDiv.remove();
-                                }
+                    } else {  // unshare
+                        // Update button state to unshared
+                        buttonElement.dataset.shared = 'false';
+                        buttonElement.innerHTML = '📤<span class="btn-text"> Share</span>';
+                        buttonElement.classList.remove('shared');
+                        
+                        // Remove icon from score badge
+                        const scoreBadge = feedItem.querySelector('.badges-container .score-badge:not(.similarity-badge)');
+                        const shareIcon = scoreBadge?.querySelector('.score-icon.shared');
+                        if (shareIcon) {
+                            shareIcon.remove();
+                            // Remove icons container if empty
+                            const scoreIcons = scoreBadge.querySelector('.score-icons');
+                            if (scoreIcons && scoreIcons.children.length === 0) {
+                                scoreIcons.remove();
                             }
                         }
                     }
@@ -995,12 +1020,9 @@
                 }
             })
             .catch(error => {
-                console.error('Error toggling star:', error);
-                buttonElement.innerHTML = isCurrentlyStarred ? '★<span class="btn-text"> Starred</span>' : '☆<span class="btn-text"> Star</span>';
-                alert('Failed to update star. Please try again.');
-            })
-            .finally(() => {
-                buttonElement.disabled = false;
+                console.error('Error toggling share:', error);
+                buttonElement.innerHTML = isCurrentlyShared ? '📤<span class="btn-text"> Shared</span>' : '📤<span class="btn-text"> Share</span>';
+                alert('Failed to update share. Please try again.');
             });
         }
 

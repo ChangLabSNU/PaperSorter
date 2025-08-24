@@ -41,6 +41,7 @@ def api_feeds():
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 20))
     min_score = float(request.args.get("min_score", 0))
+    channel_id = request.args.get("channel_id")  # Get channel_id from request
     offset = (page - 1) * limit
 
     conn = current_app.config["get_db_connection"]()
@@ -49,21 +50,29 @@ def api_feeds():
     # Get feeds with all the necessary information
     # Filter preferences by current user
     user_id = current_user.id
-    default_model_id = get_user_model_id(conn, current_user)
-
-    # Get user's bookmark and primary channel
+    
+    # Get user's bookmark and use channel_id from request or fall back to primary channel
     cursor.execute("SELECT bookmark, primary_channel_id FROM users WHERE id = %s", (user_id,))
     user_result = cursor.fetchone()
     bookmark_id = user_result["bookmark"] if user_result else None
-    primary_channel_id = user_result["primary_channel_id"] if user_result else None
+    # Use channel_id from request parameter, or fall back to user's primary channel
+    channel_id = channel_id if channel_id else (user_result["primary_channel_id"] if user_result else None)
+    
+    # Get the model_id from the selected channel, or fall back to user's default
+    if channel_id:
+        cursor.execute("SELECT model_id FROM channels WHERE id = %s", (channel_id,))
+        channel_result = cursor.fetchone()
+        model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
+    else:
+        model_id = get_user_model_id(conn, current_user)
 
     # Build WHERE clause based on min_score
     if min_score <= 0:
         where_clause = "1=1"  # Show all feeds
-        query_params = (user_id, primary_channel_id, primary_channel_id, default_model_id, limit + 1, offset)
+        query_params = (user_id, model_id, channel_id, limit + 1, offset)
     else:
         where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
-        query_params = (user_id, primary_channel_id, primary_channel_id, default_model_id, min_score, limit + 1, offset)
+        query_params = (user_id, model_id, channel_id, min_score, limit + 1, offset)
 
     cursor.execute(
         f"""
@@ -82,11 +91,6 @@ def api_feeds():
             FROM preferences
             WHERE source IN ('interactive', 'alert-feedback')
             GROUP BY feed_id
-        ),
-        broadcast_status AS (
-            SELECT DISTINCT feed_id, TRUE as has_broadcast
-            FROM broadcasts
-            WHERE channel_id = %s OR %s IS NULL
         )
         SELECT
             f.id as rowid,
@@ -98,16 +102,15 @@ def api_feeds():
             EXTRACT(EPOCH FROM f.published)::integer as published,
             EXTRACT(EPOCH FROM f.added)::integer as added,
             pp.score as score,
-            COALESCE(star_p.score > 0, FALSE) as starred,
-            COALESCE(b.has_broadcast, FALSE) as broadcasted,
+            COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NULL, FALSE) as shared,
+            COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NOT NULL, FALSE) as broadcasted,
             inter_p.score as label,
             COALESCE(vc.positive_votes, 0) as positive_votes,
             COALESCE(vc.negative_votes, 0) as negative_votes
         FROM feeds f
         LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-        LEFT JOIN latest_prefs star_p ON f.id = star_p.feed_id AND star_p.source = 'feed-star'
+        LEFT JOIN broadcasts user_b ON f.id = user_b.feed_id AND user_b.channel_id = %s
         LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source IN ('interactive', 'alert-feedback')
-        LEFT JOIN broadcast_status b ON f.id = b.feed_id
         LEFT JOIN vote_counts vc ON f.id = vc.feed_id
         WHERE {where_clause}
         ORDER BY f.added DESC
@@ -160,84 +163,68 @@ def api_feed_content(feed_id):
         return jsonify({"error": "Feed not found"}), 404
 
 
-@feeds_bp.route("/api/feeds/<int:feed_id>/star", methods=["POST"])
+@feeds_bp.route("/api/feeds/<int:feed_id>/share", methods=["POST"])
 @login_required
-def api_star_feed(feed_id):
-    """API endpoint to star/unstar a feed."""
+def api_share_feed(feed_id):
+    """API endpoint to share/unshare a feed (add/remove from broadcast queue)."""
     user_id = current_user.id
     data = request.get_json() or {}
-    action = data.get("action", "toggle")  # 'star', 'unstar', or 'toggle'
+    action = data.get("action", "toggle")  # 'share', 'unshare', or 'toggle'
+    
+    # Get channel_id from request or fall back to user's primary channel
+    channel_id = data.get("channel_id")
+    if not channel_id:
+        channel_id = current_user.primary_channel_id
 
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
-        # Check if preference already exists
+        # Validate channel
+        if not channel_id:
+            return jsonify({"success": False, "error": "No channel specified or configured"}), 400
+            
+        # Check if the channel exists
+        cursor.execute(
+            "SELECT id FROM channels WHERE id = %s",
+            (channel_id,)
+        )
+        if not cursor.fetchone():
+            return jsonify({"success": False, "error": "Channel not found"}), 404
+            
+        # Check if already shared (exists in broadcasts table for this channel)
         cursor.execute(
             """
-            SELECT id, score FROM preferences
-            WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
+            SELECT feed_id FROM broadcasts
+            WHERE feed_id = %s AND channel_id = %s
         """,
-            (feed_id, user_id),
+            (feed_id, channel_id),
         )
-
-        existing = cursor.fetchone()
-
+        
+        is_shared = cursor.fetchone() is not None
+        
         if action == "toggle":
-            # Toggle based on current state
-            if existing and existing["score"] > 0:
-                action = "unstar"
-            else:
-                action = "star"
-
-        if action == "unstar":
-            if existing:
-                # Remove the star preference
-                cursor.execute(
-                    """
-                    DELETE FROM preferences
-                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """,
-                    (feed_id, user_id),
-                )
-        else:  # action == 'star'
-            if existing:
-                # Update existing preference to starred
-                cursor.execute(
-                    """
-                    UPDATE preferences
-                    SET score = 1.0, time = CURRENT_TIMESTAMP
-                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """,
-                    (feed_id, user_id),
-                )
-            else:
-                # Insert new preference
-                cursor.execute(
-                    """
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
-                """,
-                    (feed_id, user_id),
-                )
-
-            # When starring, add to broadcasts table for user's primary channel (if set and valid)
-            if current_user.primary_channel_id:
-                # First check if the channel exists
-                cursor.execute(
-                    "SELECT id FROM channels WHERE id = %s",
-                    (current_user.primary_channel_id,)
-                )
-                if cursor.fetchone():
-                    # Channel exists, safe to insert
-                    cursor.execute(
-                        """
-                        INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                        VALUES (%s, %s, NULL)
-                        ON CONFLICT (feed_id, channel_id) DO NOTHING
-                    """,
-                        (feed_id, current_user.primary_channel_id),
-                    )
+            action = "unshare" if is_shared else "share"
+        
+        if action == "unshare":
+            # Remove from broadcasts table
+            cursor.execute(
+                """
+                DELETE FROM broadcasts
+                WHERE feed_id = %s AND channel_id = %s
+            """,
+                (feed_id, channel_id),
+            )
+        else:  # action == 'share'
+            # Add to broadcasts table (will be processed by broadcast task)
+            cursor.execute(
+                """
+                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                VALUES (%s, %s, NULL)
+                ON CONFLICT (feed_id, channel_id) DO NOTHING
+            """,
+                (feed_id, channel_id),
+            )
 
         conn.commit()
         cursor.close()
@@ -338,9 +325,20 @@ def api_similar_feeds(feed_id):
 
         # Get similar articles filtered by current user with default model
         conn = current_app.config["get_db_connection"]()
-        default_model_id = get_user_model_id(conn, current_user)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Get model_id from primary channel if it exists
+        if current_user.primary_channel_id:
+            cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
+            channel_result = cursor.fetchone()
+            model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
+        else:
+            model_id = get_user_model_id(conn, current_user)
+        
+        # Use primary_channel_id for similar articles view
         similar_feeds = edb.find_similar(
-            feed_id, limit=30, user_id=current_user.id, model_id=default_model_id
+            feed_id, limit=30, user_id=current_user.id, model_id=model_id,
+            channel_id=current_user.primary_channel_id
         )
 
         # Convert to format compatible with feeds list
@@ -356,7 +354,7 @@ def api_similar_feeds(feed_id):
                     "link": feed["link"],
                     "published": feed["published"],
                     "score": feed["predicted_score"],
-                    "starred": feed["starred"],
+                    "shared": feed["shared"],
                     "broadcasted": feed["broadcasted"],
                     "label": feed["label"],
                     "similarity": float(feed["similarity"]),

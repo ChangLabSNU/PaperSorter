@@ -34,7 +34,7 @@ from .log import log
 class FeedDatabase:
     dbfields = [
         "id",
-        "starred",
+        "shared",
         "title",
         "content",
         "author",
@@ -97,7 +97,7 @@ class FeedDatabase:
             # Map to old field names for compatibility
             return {
                 "id": result["external_id"],
-                "starred": result.get("starred", 0),
+                "shared": result.get("shared", 0),
                 "title": result["title"],
                 "content": result["content"],
                 "author": result["author"],
@@ -126,7 +126,7 @@ class FeedDatabase:
     def commit(self):
         self.db.commit()
 
-    def insert_item(self, item, starred=0, broadcasted=None, tldr=None):
+    def insert_item(self, item, shared=0, broadcasted=None, tldr=None):
         content = remove_html_tags(item.content)
 
         # Get user_id from preferences table or use default
@@ -163,25 +163,7 @@ class FeedDatabase:
         if result:
             feed_id = result["id"]
 
-            # Insert starred status as preference if starred
-            if starred:
-                # Check if preference already exists before inserting
-                self.cursor.execute(
-                    """
-                    SELECT id FROM preferences
-                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """,
-                    (feed_id, user_id),
-                )
-
-                if not self.cursor.fetchone():
-                    self.cursor.execute(
-                        """
-                        INSERT INTO preferences (feed_id, user_id, time, score, source)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP, 1.0, 'feed-star')
-                    """,
-                        (feed_id, user_id),
-                    )
+            # shared parameter is kept for backward compatibility but not used
 
             # Insert broadcast log if broadcasted
             if broadcasted is not None:
@@ -267,7 +249,7 @@ class FeedDatabase:
             data.append(
                 {
                     "id": row["external_id"],
-                    "starred": row.get("starred", 0),
+                    "shared": row.get("shared", 0),
                     "title": row["title"],
                     "content": row["content"],
                     "author": row["author"],
@@ -285,21 +267,6 @@ class FeedDatabase:
             )
 
         return pd.DataFrame(data).set_index("id")
-
-    def get_metadata(self):
-        self.cursor.execute("""
-            SELECT f.*,
-                   CASE WHEN p.score > 0 THEN 1 ELSE 0 END as starred,
-                   p.score as label,
-                   pp.score as score,
-                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
-            FROM feeds f
-            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
-            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-            WHERE f.external_id IS NOT NULL
-        """)
-        return self.build_dataframe_from_results(self.cursor.fetchall())
 
     def update_label(self, item_id, label):
         user_id = 1  # Default user
@@ -363,28 +330,6 @@ class FeedDatabase:
                 ON CONFLICT (feed_id, model_id) DO UPDATE SET score = %s
             """,
                 (feed_id, model_id, float(score), float(score)),
-            )
-
-    def update_broadcasted(self, item_id, timemark):
-        channel_id = 1  # Default channel
-
-        # Get feed_id based on item_id type
-        if isinstance(item_id, str):
-            self.cursor.execute(
-                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
-            )
-        else:
-            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
-        result = self.cursor.fetchone()
-        if result:
-            feed_id = result["id"]
-            self.cursor.execute(
-                """
-                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                VALUES (%s, %s, to_timestamp(%s))
-                ON CONFLICT DO NOTHING
-            """,
-                (feed_id, channel_id, timemark),
             )
 
     def update_tldr(self, item_id, tldr):
@@ -467,23 +412,6 @@ class FeedDatabase:
 
         return matches
 
-    def get_newly_starred_items(self, since, remove_duplicated=None):
-        self.cursor.execute(
-            """
-            SELECT f.*,
-                   1 as starred,
-                   CASE WHEN bl.broadcasted_time IS NOT NULL THEN EXTRACT(EPOCH FROM bl.broadcasted_time)::integer ELSE NULL END as broadcasted
-            FROM feeds f
-            JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.score > 0
-            LEFT JOIN broadcasts bl ON f.id = bl.feed_id
-            WHERE f.published >= to_timestamp(%s) AND bl.broadcasted_time IS NULL
-                  AND f.external_id IS NOT NULL
-        """,
-            (since,),
-        )
-        matches = self.build_dataframe_from_results(self.cursor.fetchall())
-        return self.filter_duplicates(matches, remove_duplicated)
-
     def check_broadcasted(self, item_id, since):
         if isinstance(item_id, str):
             where_clause = "a.external_id = %s"
@@ -526,64 +454,6 @@ class FeedDatabase:
                 self.commit()
 
         return dup_broadcasted > 0
-
-    def get_star_status(self, since, till):
-        self.cursor.execute(
-            """
-            SELECT f.external_id, CASE WHEN p.score > 0 THEN true ELSE false END as starred
-            FROM feeds f
-            LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-            WHERE f.published >= to_timestamp(%s) AND f.published <= to_timestamp(%s)
-                  AND f.external_id IS NOT NULL
-        """,
-            (since, till),
-        )
-        return {row["external_id"]: row["starred"] for row in self.cursor.fetchall()}
-
-    def update_star_status(self, item_id, starred):
-        user_id = 1  # Default user
-
-        # Get feed_id based on item_id type
-        if isinstance(item_id, str):
-            self.cursor.execute(
-                "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
-            )
-        else:
-            self.cursor.execute("SELECT id FROM feeds WHERE id = %s", (item_id,))
-        result = self.cursor.fetchone()
-        if result:
-            feed_id = result["id"]
-            score = 1.0 if starred else 0.0
-            # First check if a preference already exists
-            self.cursor.execute(
-                """
-                SELECT id FROM preferences
-                WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-            """,
-                (feed_id, user_id),
-            )
-
-            existing = self.cursor.fetchone()
-
-            if existing:
-                # Update existing preference
-                self.cursor.execute(
-                    """
-                    UPDATE preferences
-                    SET score = %s, time = CURRENT_TIMESTAMP
-                    WHERE feed_id = %s AND user_id = %s AND source = 'feed-star'
-                """,
-                    (score, feed_id, user_id),
-                )
-            else:
-                # Insert new preference
-                self.cursor.execute(
-                    """
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'feed-star')
-                """,
-                    (feed_id, user_id, score),
-                )
 
     def add_to_broadcast_queue(self, feed_id, channel_id=1):
         """Add an item to the broadcast queue (using merged broadcasts table)."""

@@ -170,7 +170,7 @@ class EmbeddingDatabase:
         return EmbeddingDatabaseWriteBatch(self)
 
     def find_similar(
-        self, feed_id, limit=30, user_id=None, model_id=None, include_content=False
+        self, feed_id, limit=30, user_id=None, model_id=None, include_content=False, channel_id=None
     ):
         """Find similar articles using pgvector similarity search"""
         # Use provided model_id or default to 1
@@ -188,8 +188,8 @@ class EmbeddingDatabase:
                     EXTRACT(EPOCH FROM f.published)::integer as published,
                     sf.similarity,
                     pp.score as predicted_score,
-                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    CASE WHEN bl_share.feed_id IS NOT NULL AND bl_share.broadcasted_time IS NULL THEN true ELSE false END as shared,
+                    CASE WHEN bl_share.feed_id IS NOT NULL AND bl_share.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes"""
@@ -236,13 +236,12 @@ class EmbeddingDatabase:
                 FROM similar_feeds sf
                 JOIN feeds f ON sf.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
                 LEFT JOIN all_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC
+                ORDER BY sf.similarity DESC, f.added DESC
             """,
-                (feed_id, feed_id, feed_id, limit, model_id),
+                (feed_id, feed_id, feed_id, limit, model_id, channel_id),
             )
         else:
             # Filter preferences by user_id
@@ -282,13 +281,12 @@ class EmbeddingDatabase:
                 FROM similar_feeds sf
                 JOIN feeds f ON sf.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
                 LEFT JOIN user_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC
+                ORDER BY sf.similarity DESC, f.added DESC
             """,
-                (feed_id, feed_id, feed_id, limit, user_id, model_id, user_id),
+                (feed_id, feed_id, feed_id, limit, user_id, model_id, channel_id),
             )
 
         results = self.cursor.fetchall()
@@ -303,7 +301,7 @@ class EmbeddingDatabase:
         return results
 
     def search_by_text(
-        self, query_text, limit=50, user_id=None, model_id=None, include_content=False
+        self, query_text, limit=50, user_id=None, model_id=None, include_content=False, channel_id=None
     ):
         """Search for articles by text query using embedding similarity"""
         if not self.openai_client:
@@ -335,8 +333,8 @@ class EmbeddingDatabase:
                     EXTRACT(EPOCH FROM f.added)::integer as added,
                     sf.similarity,
                     pp.score as predicted_score,
-                    CASE WHEN p.score > 0 THEN true ELSE false END as starred,
-                    CASE WHEN bl.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
+                    CASE WHEN bl_share.feed_id IS NOT NULL AND bl_share.broadcasted_time IS NULL THEN true ELSE false END as shared,
+                    CASE WHEN bl_share.feed_id IS NOT NULL AND bl_share.broadcasted_time IS NOT NULL THEN true ELSE false END as broadcasted,
                     pf.score as label,
                     COALESCE(vote_counts.positive_votes, 0) as positive_votes,
                     COALESCE(vote_counts.negative_votes, 0) as negative_votes"""
@@ -383,13 +381,12 @@ class EmbeddingDatabase:
                 FROM similar_feeds sf
                 JOIN feeds f ON sf.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star'
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
                 LEFT JOIN all_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC
+                ORDER BY sf.similarity DESC, f.added DESC
             """,
-                (query_embedding, query_embedding, limit, model_id),
+                (query_embedding, query_embedding, limit, model_id, channel_id),
             )
         else:
             # Filter preferences by user_id
@@ -428,13 +425,12 @@ class EmbeddingDatabase:
                 FROM similar_feeds sf
                 JOIN feeds f ON sf.feed_id = f.id
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-                LEFT JOIN preferences p ON f.id = p.feed_id AND p.source = 'feed-star' AND p.user_id = %s
-                LEFT JOIN broadcasts bl ON f.id = bl.feed_id
+                LEFT JOIN broadcasts bl_share ON f.id = bl_share.feed_id AND bl_share.channel_id = %s
                 LEFT JOIN user_prefs pf ON f.id = pf.feed_id
                 LEFT JOIN vote_counts ON f.id = vote_counts.feed_id
-                ORDER BY sf.similarity DESC
+                ORDER BY sf.similarity DESC, f.added DESC
             """,
-                (query_embedding, query_embedding, limit, user_id, model_id, user_id),
+                (query_embedding, query_embedding, limit, user_id, model_id, channel_id),
             )
 
         results = self.cursor.fetchall()

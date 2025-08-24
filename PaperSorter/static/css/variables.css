@@ -13,6 +13,10 @@
   --color-info: #9b59b6;           /* Purple - special actions */
   --color-secondary: #95a5a6;      /* Gray - secondary actions */
 
+  /* Badge-specific Colors */
+  --badge-shared-bg: #2196F3;      /* Blue - shared items in queue */
+  --badge-broadcasted-bg: #6D4C41; /* Brown - broadcasted items */
+
   /* =================================== */
   /* Text Colors */
   /* =================================== */
@@ -166,13 +170,19 @@
   --btn-primary-bg-hover: #bbdefb;
   --btn-primary-border-hover: #64b5f6;
 
-  --btn-star-bg: #fff3e0;
-  --btn-star-color: #f57c00;
-  --btn-star-border: #ffcc80;
-  --btn-star-bg-hover: #ffe0b2;
-  --btn-star-border-hover: #ffb74d;
-  --btn-star-bg-active: #ffcc80;
-  --btn-star-color-active: #e65100;
+  --btn-open-article-bg: #e0f2f1;
+  --btn-open-article-color: #00695c;
+  --btn-open-article-border: #4db6ac;
+  --btn-open-article-bg-hover: #b2dfdb;
+  --btn-open-article-border-hover: #26a69a;
+
+  --btn-share-bg: #e3f2fd;
+  --btn-share-color: #1976d2;
+  --btn-share-border: #90caf9;
+  --btn-share-bg-hover: #bbdefb;
+  --btn-share-border-hover: #64b5f6;
+  --btn-share-bg-active: #90caf9;
+  --btn-share-color-active: #1565c0;
 
   --btn-thumbs-up-bg: #e8f5e9;
   --btn-thumbs-up-color: #388e3c;
@@ -436,9 +446,9 @@
   --similar-feed-details-border: #e9ecef;
   --similar-feed-abstract-color: #34495e;
   --similar-similarity-badge-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --similar-starred-icon-bg: #f39c12;
-  --similar-broadcasted-icon-bg: #3498db;
-  --similar-label-starred-bg: #f39c12;
+  --similar-shared-icon-bg: #2196F3;
+  --similar-broadcasted-icon-bg: #6D4C41;
+  --similar-label-shared-bg: #3498db;
   --similar-label-positive-bg: #27ae60;
   --similar-label-negative-bg: #e74c3c;
   --similar-btn-primary-bg: #e3f2fd;
@@ -446,14 +456,14 @@
   --similar-btn-primary-border: #90caf9;
   --similar-btn-primary-hover-bg: #bbdefb;
   --similar-btn-primary-hover-border: #64b5f6;
-  --similar-btn-star-bg: #fff3e0;
-  --similar-btn-star-color: #f57c00;
-  --similar-btn-star-border: #ffcc80;
-  --similar-btn-star-hover-bg: #ffe0b2;
-  --similar-btn-star-hover-border: #ffb74d;
-  --similar-btn-star-starred-bg: #ffcc80;
-  --similar-btn-star-starred-border: #ff9800;
-  --similar-btn-star-starred-color: #e65100;
+  --similar-btn-share-bg: #e3f2fd;
+  --similar-btn-share-color: #1976d2;
+  --similar-btn-share-border: #90caf9;
+  --similar-btn-share-hover-bg: #bbdefb;
+  --similar-btn-share-hover-border: #64b5f6;
+  --similar-btn-share-shared-bg: #90caf9;
+  --similar-btn-share-shared-border: #42a5f5;
+  --similar-btn-share-shared-color: #1565c0;
   --similar-btn-thumbs-up-bg: #e8f5e9;
   --similar-btn-thumbs-up-color: #388e3c;
   --similar-btn-thumbs-up-border: #a5d6a7;
@@ -565,6 +575,10 @@
   --color-info: #6c3e80;
   --color-secondary: #687374;
 
+  /* Badge-specific Colors - Dark Mode */
+  --badge-shared-bg: #2196F3;      /* Blue - shared items in queue */
+  --badge-broadcasted-bg: #6D4C41; /* Brown - broadcasted items */
+
   /* Text Colors */
   --text-primary: #e0e0e0;
   --text-secondary: #b0b0b0;
@@ -608,13 +622,19 @@
   --btn-primary-bg-hover: #2c5282;
   --btn-primary-border-hover: #42a5f5;
 
-  --btn-star-bg: #5d4037;
-  --btn-star-color: #ffb74d;
-  --btn-star-border: #ff9800;
-  --btn-star-bg-hover: #6d4c41;
-  --btn-star-border-hover: #ffa726;
-  --btn-star-bg-active: #ff9800;
-  --btn-star-color-active: #ffffff;
+  --btn-open-article-bg: #004d40;
+  --btn-open-article-color: #4db6ac;
+  --btn-open-article-border: #00897b;
+  --btn-open-article-bg-hover: #00695c;
+  --btn-open-article-border-hover: #00a693;
+
+  --btn-share-bg: #1e3a5f;
+  --btn-share-color: #64b5f6;
+  --btn-share-border: #2196f3;
+  --btn-share-bg-hover: #2c5282;
+  --btn-share-border-hover: #42a5f5;
+  --btn-share-bg-active: #1769aa;
+  --btn-share-color-active: #ffffff;
 
   --btn-thumbs-up-bg: #2d4a3d;
   --btn-thumbs-up-color: #81c784;
@@ -842,7 +862,7 @@
   --similar-feed-abstract-color: #b0b0b0;
   --similar-similarity-badge-bg: linear-gradient(135deg, #4a5bbd 0%, #5a3775 100%);
   --similar-starred-icon-bg: #aa6c0c;
-  --similar-broadcasted-icon-bg: #246a9a;
+  --similar-broadcasted-icon-bg: #6D4C41;
   --similar-label-starred-bg: #aa6c0c;
   --similar-label-positive-bg: #1c7943;
   --similar-label-negative-bg: #a1342a;
@@ -851,14 +871,14 @@
   --similar-btn-primary-border: #42a5f5;
   --similar-btn-primary-hover-bg: #2c5282;
   --similar-btn-primary-hover-border: #64b5f6;
-  --similar-btn-star-bg: #3a2f1a;
-  --similar-btn-star-color: #ffa726;
-  --similar-btn-star-border: #ff9800;
-  --similar-btn-star-hover-bg: #4a3a22;
-  --similar-btn-star-hover-border: #ffb74d;
-  --similar-btn-star-starred-bg: #ff9800;
-  --similar-btn-star-starred-border: #f57c00;
-  --similar-btn-star-starred-color: #fff;
+  --similar-btn-share-bg: #1e3a5f;
+  --similar-btn-share-color: #64b5f6;
+  --similar-btn-share-border: #2196f3;
+  --similar-btn-share-hover-bg: #2c5282;
+  --similar-btn-share-hover-border: #42a5f5;
+  --similar-btn-share-shared-bg: #1769aa;
+  --similar-btn-share-shared-border: #1455a0;
+  --similar-btn-share-shared-color: #fff;
   --similar-btn-thumbs-up-bg: #1d3a24;
   --similar-btn-thumbs-up-color: #81c784;
   --similar-btn-thumbs-up-border: #4caf50;
@@ -912,11 +932,11 @@
   --btn-warning-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.5);
 
   /* Feed List Page Variables - Dark Mode */
-  --btn-primary-bg: #1a3a52;
-  --btn-primary-color: #90caf9;
-  --btn-primary-border: #42718f;
-  --btn-primary-bg-hover: #245070;
-  --btn-primary-border-hover: #5a8fb0;
+  --btn-primary-bg: #1e3a5f;
+  --btn-primary-color: #64b5f6;
+  --btn-primary-border: #2196f3;
+  --btn-primary-bg-hover: #2c5282;
+  --btn-primary-border-hover: #42a5f5;
 
   --btn-similar-bg: #3a1f44;
   --btn-similar-color: #ce93d8;

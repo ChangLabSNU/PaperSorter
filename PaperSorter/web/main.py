@@ -35,7 +35,7 @@ from flask import (
     url_for,
 )
 from flask_login import login_required, current_user
-from .utils.database import get_unlabeled_item, update_label, get_labeling_stats
+from .utils.database import get_unlabeled_item, get_labeling_stats
 
 main_bp = Blueprint("main", __name__)
 
@@ -152,7 +152,6 @@ def label_item():
 
     if session_id and label_value is not None:
         conn = current_app.config["get_db_connection"]()
-        update_label(conn, session_id, label_value)
 
         # Also update preferences table
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

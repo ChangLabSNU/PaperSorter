@@ -65,11 +65,20 @@ def api_search():
         # Get user ID and default model ID for filtering
         user_id = current_user.id
         conn = current_app.config["get_db_connection"]()
-        default_model_id = get_user_model_id(conn, current_user)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Get model_id from primary channel if it exists
+        if current_user.primary_channel_id:
+            cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
+            channel_result = cursor.fetchone()
+            model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
+        else:
+            model_id = get_user_model_id(conn, current_user)
 
         # Search using embeddings
         search_results = edb.search_by_text(
-            query, limit=50, user_id=user_id, model_id=default_model_id
+            query, limit=50, user_id=user_id, model_id=model_id,
+            channel_id=current_user.primary_channel_id
         )
 
         # Convert to format compatible with feeds list
@@ -86,7 +95,7 @@ def api_search():
                     "published": feed["published"],
                     "added": feed["added"],
                     "score": feed["predicted_score"],
-                    "starred": feed["starred"],
+                    "shared": feed["shared"],
                     "broadcasted": feed["broadcasted"],
                     "label": feed["label"],
                     "similarity": float(feed["similarity"]),
@@ -515,7 +524,7 @@ def api_scholarly_database_add():
         # Check if item already exists
         if item not in db:
             # Add the item without starring
-            feed_id = db.insert_item(item, starred=0)
+            feed_id = db.insert_item(item, shared=0)
             db.commit()
 
             # Generate embeddings and predict preferences

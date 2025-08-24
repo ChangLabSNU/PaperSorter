@@ -378,15 +378,16 @@
             border: 1px solid var(--bg-card);
         }
 
-        .score-icon.starred {
-            background: var(--color-warning);
+        .score-icon.shared {
+            background: var(--badge-shared-bg);
+            color: var(--text-white);
+        }
+        
+        .score-icon.broadcasted {
+            background: var(--badge-broadcasted-bg);
             color: var(--text-white);
         }
 
-        .score-icon.broadcasted {
-            background: var(--pdf-broadcasted-bg);
-            color: var(--text-white);
-        }
 
         .similarity-badge {
             background: var(--similar-similarity-badge-bg);
@@ -456,8 +457,13 @@
             font-weight: bold;
         }
 
-        .label-starred {
+        .label-shared {
             background: var(--color-warning);
+            color: var(--text-white);
+        }
+        
+        .label-broadcasted {
+            background: var(--color-success);
             color: var(--text-white);
         }
 
@@ -538,6 +544,17 @@
             border-color: var(--similar-btn-primary-hover-border);
         }
 
+        .btn-open-article {
+            background: var(--btn-open-article-bg);
+            color: var(--btn-open-article-color);
+            border: 1px solid var(--btn-open-article-border);
+        }
+
+        .btn-open-article:hover {
+            background: var(--btn-open-article-bg-hover);
+            border-color: var(--btn-open-article-border-hover);
+        }
+
         .btn-secondary {
             background: var(--btn-secondary-bg);
             color: var(--btn-secondary-color);
@@ -549,21 +566,30 @@
             border-color: var(--btn-secondary-border-hover);
         }
 
-        .btn-star {
-            background: var(--similar-btn-star-bg);
-            color: var(--similar-btn-star-color);
-            border: 1px solid var(--similar-btn-star-border);
+        .btn-share {
+            background: var(--similar-btn-share-bg);
+            color: var(--similar-btn-share-color);
+            border: 1px solid var(--similar-btn-share-border);
         }
 
-        .btn-star:hover {
-            background: var(--similar-btn-star-hover-bg);
-            border-color: var(--similar-btn-star-hover-border);
+        .btn-share:hover {
+            background: var(--similar-btn-share-hover-bg);
+            border-color: var(--similar-btn-share-hover-border);
         }
 
-        .btn-star.starred {
-            background: var(--similar-btn-star-starred-bg);
-            border-color: var(--similar-btn-star-starred-border);
-            color: var(--similar-btn-star-starred-color);
+        .btn-share.shared {
+            background: var(--similar-btn-share-shared-bg);
+            border-color: var(--similar-btn-share-shared-border);
+            color: var(--similar-btn-share-shared-color);
+        }
+
+        .btn-share.disabled,
+        .btn-share:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: var(--btn-secondary-bg);
+            color: var(--text-meta);
+            border-color: var(--border-medium);
         }
 
         .btn-thumbs-up {
@@ -937,13 +963,20 @@
 
 
         // Feed action functions
-        function starFeed(feedId, button) {
+        function shareFeed(feedId, button, isBroadcasted) {
             // Prevent event bubbling if needed
             if (event) event.stopPropagation();
 
-            const isStarred = button.getAttribute('data-starred') === 'true';
+            // Prevent sharing if already broadcasted
+            if (isBroadcasted) {
+                return;
+            }
 
-            fetch(`/api/feeds/${feedId}/star`, {
+            const isShared = button.getAttribute('data-shared') === 'true';
+            const feedItem = button.closest('.feed-item');
+            const similarityBadge = feedItem.querySelector('.similarity-badge');
+
+            fetch(`/api/feeds/${feedId}/share`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -958,20 +991,48 @@
             })
             .then(data => {
                 if (data.success) {
-                    const newStarred = data.action === 'star';
-                    button.setAttribute('data-starred', newStarred.toString());
-                    if (newStarred) {
-                        button.classList.add('starred');
-                        button.innerHTML = '★';
-                        button.title = 'Starred';
+                    const newShared = data.action === 'share';
+                    button.setAttribute('data-shared', newShared.toString());
+                    if (newShared) {
+                        button.classList.add('shared');
+                        button.innerHTML = '📤';
+                        button.title = 'Shared';
+                        // Add shared icon to similarity badge
+                        if (similarityBadge) {
+                            let iconsContainer = similarityBadge.querySelector('.score-icons');
+                            if (!iconsContainer) {
+                                iconsContainer = document.createElement('div');
+                                iconsContainer.className = 'score-icons';
+                                similarityBadge.appendChild(iconsContainer);
+                            }
+                            if (!iconsContainer.querySelector('.score-icon.shared')) {
+                                const sharedIcon = document.createElement('div');
+                                sharedIcon.className = 'score-icon shared';
+                                sharedIcon.title = 'In Queue';
+                                sharedIcon.textContent = '📤';
+                                iconsContainer.appendChild(sharedIcon);
+                            }
+                        }
                     } else {
-                        button.classList.remove('starred');
-                        button.innerHTML = '☆';
-                        button.title = 'Star';
+                        button.classList.remove('shared');
+                        button.innerHTML = '📤';
+                        button.title = 'Share';
+                        // Remove shared icon from similarity badge
+                        if (similarityBadge) {
+                            const sharedIcon = similarityBadge.querySelector('.score-icon.shared');
+                            if (sharedIcon) {
+                                sharedIcon.remove();
+                                // Remove icons container if empty
+                                const iconsContainer = similarityBadge.querySelector('.score-icons');
+                                if (iconsContainer && iconsContainer.children.length === 0) {
+                                    iconsContainer.remove();
+                                }
+                            }
+                        }
                     }
                 }
             })
-            .catch(error => console.error('Error starring feed:', error));
+            .catch(error => console.error('Error sharing feed:', error));
         }
 
         function feedbackFeed(feedId, score, button) {
@@ -992,6 +1053,8 @@
                     const feedItem = button.closest('.feed-item');
                     const thumbsUp = feedItem.querySelector('.btn-thumbs-up');
                     const thumbsDown = feedItem.querySelector('.btn-thumbs-down');
+                    const labelsContainer = feedItem.querySelector('.feed-labels');
+                    const feedHeader = feedItem.querySelector('.feed-header');
 
                     // Reset both buttons
                     thumbsUp.classList.remove('active');
@@ -1004,6 +1067,33 @@
                         thumbsUp.classList.add('active');
                     } else if (newScore === 0) {
                         thumbsDown.classList.add('active');
+                    }
+
+                    // Update vote badges
+                    let newLabelsHtml = '';
+                    const positiveVotes = parseInt(feedItem.getAttribute('data-positive-votes') || '0');
+                    const negativeVotes = parseInt(feedItem.getAttribute('data-negative-votes') || '0');
+                    
+                    if (newScore === 1 || positiveVotes > 0) {
+                        const count = newScore === 1 ? Math.max(1, positiveVotes) : positiveVotes;
+                        newLabelsHtml += `<span class="label-badge label-positive">+${count}</span>`;
+                    }
+                    if (newScore === 0 || negativeVotes > 0) {
+                        const count = newScore === 0 ? Math.max(1, negativeVotes) : negativeVotes;
+                        newLabelsHtml += `<span class="label-badge label-negative">−${count}</span>`;
+                    }
+                    
+                    if (newLabelsHtml) {
+                        if (labelsContainer) {
+                            labelsContainer.innerHTML = newLabelsHtml;
+                        } else {
+                            const newLabelsContainer = document.createElement('div');
+                            newLabelsContainer.className = 'feed-labels';
+                            newLabelsContainer.innerHTML = newLabelsHtml;
+                            feedHeader.appendChild(newLabelsContainer);
+                        }
+                    } else if (labelsContainer) {
+                        labelsContainer.remove();
                     }
                 }
             })
@@ -1061,35 +1151,13 @@
             }
         }
 
-        // Helper function to calculate score color
-        function calculateScoreColor(score) {
-            if (score === null || score === undefined) return '#95a5a6'; // Gray for N/A
-
-            // Convert score from 0-1 to 0-100
-            const percent = score * 100;
-
-            if (percent >= 70) {
-                // Green spectrum
-                const intensity = (percent - 70) / 30; // 0 to 1
-                const r = Math.round(46 - intensity * 20);
-                const g = Math.round(125 + intensity * 79);
-                const b = Math.round(50 - intensity * 18);
-                return `rgb(${r}, ${g}, ${b})`;
-            } else if (percent >= 40) {
-                // Yellow to orange spectrum
-                const intensity = (percent - 40) / 30; // 0 to 1
-                const r = Math.round(241 - intensity * 11);
-                const g = Math.round(196 - intensity * 40);
-                const b = Math.round(15 + intensity * 3);
-                return `rgb(${r}, ${g}, ${b})`;
-            } else {
-                // Red spectrum
-                const intensity = percent / 40; // 0 to 1
-                const r = Math.round(192 + intensity * 39);
-                const g = Math.round(57 + intensity * 99);
-                const b = Math.round(43 + intensity * 28);
-                return `rgb(${r}, ${g}, ${b})`;
-            }
+        // Use the common gradient color functions from common.js
+        function getGradientColor(score) {
+            return getScoreGradientColor(score);
+        }
+        
+        function getSimilarityColor(similarity) {
+            return getSimilarityGradientColor(similarity);
         }
 
         // Helper function to format date
@@ -1117,25 +1185,21 @@
 
         // Create feed element matching feeds_list.html
         function createFeedElement(feed) {
-            const scoreColor = calculateScoreColor(feed.score);
-            const scoreText = feed.score !== null ? Math.round(feed.score * 100).toString() : 'N/A';
-
-            // Create icons for score badge
+            // Create icons for similarity badge
             let icons = [];
-            if (feed.starred) icons.push('<div class="score-icon starred">★</div>');
-            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted">📡</div>');
+            if (feed.shared) icons.push('<div class="score-icon shared" title="In Queue">📤</div>');
+            if (feed.broadcasted) icons.push('<div class="score-icon broadcasted" title="Broadcasted">📡</div>');
             const iconsHtml = icons.length > 0 ? `<div class="score-icons">${icons.join('')}</div>` : '';
 
             let labels = [];
-            if (feed.starred) labels.push('<span class="label-badge label-starred">★</span>');
 
-            // Show vote badges with counts
+            // Show vote badges with counts on the far right
             if (feed.positive_votes > 0 || feed.label === 1) {
-                const count = feed.positive_votes || 0;
+                const count = feed.positive_votes || 1;
                 labels.push(`<span class="label-badge label-positive">+${count}</span>`);
             }
             if (feed.negative_votes > 0 || feed.label === 0) {
-                const count = feed.negative_votes || 0;
+                const count = feed.negative_votes || 1;
                 labels.push(`<span class="label-badge label-negative">−${count}</span>`);
             }
 
@@ -1143,9 +1207,11 @@
             let badgesHtml = '';
             if (feed.similarity !== undefined && feed.similarity !== null) {
                 const similarityText = Math.round(feed.similarity * 100).toString();
+                const similarityColor = getSimilarityColor(feed.similarity);
                 badgesHtml = `
-                    <div class="similarity-badge score-badge">
+                    <div class="similarity-badge score-badge" style="background: ${similarityColor}">
                         ${similarityText}
+                        ${iconsHtml}
                     </div>
                 `;
             }
@@ -1159,7 +1225,7 @@
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
                                 ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
-                                <div class="feed-meta-item feed-date">${formatDate(feed.published)}</div>
+                                <div class="feed-meta-item feed-date">${formatDate(feed.added || feed.published)}</div>
                             </div>
                         </div>
                         ${labels.length > 0 ? `<div class="feed-labels">${labels.join('')}</div>` : ''}
@@ -1167,9 +1233,13 @@
                     <div class="feed-details" data-feed-id="${feed.rowid}" data-loaded="false">
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
-                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-primary" title="View Article">📄</a>` : ''}
-                            <button class="btn btn-star ${feed.starred ? 'starred' : ''}" onclick="starFeed(${feed.rowid}, this)" data-starred="${feed.starred ? 'true' : 'false'}" title="${feed.starred ? 'Starred' : 'Star'}">
-                                ${feed.starred ? '★' : '☆'}
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article" title="Open Article">🔗</a>` : ''}
+                            <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}" 
+                                    onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})" 
+                                    data-shared="${feed.shared ? 'true' : 'false'}" 
+                                    ${feed.broadcasted ? 'disabled' : ''}
+                                    title="${feed.broadcasted ? 'Already broadcasted' : (feed.shared ? 'Shared' : 'Share')}">
+                                ${feed.broadcasted ? '📡' : '📤'}
                             </button>
                             <button class="btn btn-thumbs-up ${feed.label === 1 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 1, this)" data-label="${feed.label}" title="Interested">
                                 👍
