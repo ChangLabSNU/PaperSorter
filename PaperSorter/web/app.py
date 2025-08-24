@@ -68,11 +68,17 @@ def create_app(config_path, skip_authentication=None):
     # Get site name with default fallback
     site_name = web_config.get("site_name", "PaperSorter")
 
+    # Get default timezone and date format
+    default_timezone = web_config.get("default_timezone", "UTC")
+    default_date_format = web_config.get("default_date_format", "MMM D, YYYY")
+
     # Store configurations in app
     app.db_config = db_config
     app.config["CONFIG_PATH"] = config_path
     app.config["SKIP_AUTHENTICATION"] = skip_authentication
     app.config["SITE_NAME"] = site_name
+    app.config["DEFAULT_TIMEZONE"] = default_timezone
+    app.config["DEFAULT_DATE_FORMAT"] = default_date_format
 
     # Set up Flask secret key
     # Check web.flask_secret_key first, then fall back to google_oauth for backward compatibility
@@ -128,9 +134,9 @@ def create_app(config_path, skip_authentication=None):
         else:
             # Create new admin user with 'oauth' as password placeholder
             cursor.execute(
-                """INSERT INTO users (username, password, is_admin, timezone, feedlist_minscore)
-                   VALUES (%s, 'oauth', TRUE, 'Asia/Seoul', 25) RETURNING id""",
-                (skip_authentication,)
+                """INSERT INTO users (username, password, is_admin, timezone, date_format, feedlist_minscore)
+                   VALUES (%s, 'oauth', TRUE, %s, %s, 25) RETURNING id""",
+                (skip_authentication, default_timezone, default_date_format)
             )
             skip_auth_user_id = cursor.fetchone()["id"]
             conn.commit()
@@ -171,7 +177,7 @@ def create_app(config_path, skip_authentication=None):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
-            """SELECT id, username, is_admin, timezone, feedlist_minscore, primary_channel_id,
+            """SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id,
                       theme, lastlogin,
                       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(lastlogin, TIMESTAMP '1970-01-01'))) as seconds_since_login
                FROM users WHERE id = %s""",
@@ -197,7 +203,8 @@ def create_app(config_path, skip_authentication=None):
                 user_data["id"],
                 user_data["username"],
                 is_admin=user_data.get("is_admin", False),
-                timezone=user_data.get("timezone", "Asia/Seoul"),
+                timezone=user_data.get("timezone", "UTC"),
+                date_format=user_data.get("date_format", "MMM D, YYYY"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),
                 primary_channel_id=user_data.get("primary_channel_id"),
                 theme=user_data.get("theme", "light"),

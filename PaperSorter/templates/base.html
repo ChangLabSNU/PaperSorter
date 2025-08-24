@@ -9,7 +9,7 @@
 
     <!-- CSS Variables for theming -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
-    
+
     <!-- Common JavaScript utilities -->
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 
@@ -408,6 +408,15 @@
 
     <!-- Common JavaScript -->
     <script>
+        // User preferences for date formatting
+        {% if current_user.is_authenticated %}
+        window.userDateFormat = '{{ current_user.date_format|default("MMM D, YYYY") }}';
+        window.userTimezone = '{{ current_user.timezone|default("UTC") }}';
+        {% else %}
+        window.userDateFormat = 'MMM D, YYYY';
+        window.userTimezone = 'UTC';
+        {% endif %}
+
         // Theme Manager for dark mode support
         const ThemeManager = {
             init: function() {

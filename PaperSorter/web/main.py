@@ -259,7 +259,7 @@ def user_settings():
 
     # Get user's current settings
     cursor.execute("""
-        SELECT id, username, theme, primary_channel_id, timezone
+        SELECT id, username, theme, primary_channel_id, timezone, date_format
         FROM users
         WHERE id = %s
     """, (current_user.id,))

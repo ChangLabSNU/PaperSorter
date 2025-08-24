@@ -136,7 +136,7 @@
                                 <td>${model.id}</td>
                                 <td><strong>${model.name}</strong></td>
                                 <td>${model.notes ? (model.notes.length > 50 ? model.notes.substring(0, 50) + '...' : model.notes) : '-'}</td>
-                                <td>${model.created ? new Date(model.created).toLocaleDateString() : '-'}</td>
+                                <td>${model.created ? formatDate(model.created) : '-'}</td>
                                 <td>
                                     <span class="tag ${model.is_active !== false ? 'tag-active' : 'tag-inactive'}">
                                         ${model.is_active !== false ? 'Active' : 'Inactive'}

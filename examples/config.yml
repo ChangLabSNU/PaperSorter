@@ -32,6 +32,13 @@ web:
   # Flask secret key for session management
   # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
   flask_secret_key: "generate_with_python_secrets.token_hex(32)"
+  # Default timezone for new users (IANA timezone name, e.g., "UTC", "America/New_York", "Asia/Seoul")
+  default_timezone: "UTC"
+  # Default date format for new users (using moment.js format tokens)
+  # Examples: "MMM D, YYYY" -> "Jan 1, 2024"
+  #           "YYYY-MM-DD" -> "2024-01-01"
+  #           "DD/MM/YYYY" -> "01/01/2024"
+  default_date_format: "MMM D, YYYY"
 
 # OAuth configuration for web interface authentication
 # Configure one or both providers as needed

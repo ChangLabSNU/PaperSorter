@@ -41,7 +41,7 @@
                         <span style="font-weight: bold;">{{ item.origin }}</span>
                         {% endif %}
                         {% if item.published %}
-                        <span style="margin-left: 10px;">{{ item.published.strftime('%m/%d/%Y') if item.published else '' }}</span>
+                        <span class="item-date" style="margin-left: 10px;" data-timestamp="{{ item.published.timestamp() if item.published else '' }}"></span>
                         {% endif %}
                     </div>
                     {% if item.author %}
@@ -480,5 +480,14 @@
 
         // Initialize
         updateCurrentItem();
+
+        // Format dates using the global formatDate from common.js
+        const dateElements = document.querySelectorAll('.item-date');
+        dateElements.forEach(elem => {
+            const timestamp = elem.getAttribute('data-timestamp');
+            if (timestamp) {
+                elem.textContent = formatDate(parseFloat(timestamp));
+            }
+        });
     </script>
 {% endblock %}

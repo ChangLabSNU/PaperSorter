@@ -4,7 +4,7 @@
  * Calculate gradient color for score badges
  * Uses gray-blue-purple gradient:
  * - Gray (0.0): rgb(149, 165, 166)
- * - Blue (0.5): rgb(59, 130, 246) 
+ * - Blue (0.5): rgb(59, 130, 246)
  * - Purple (1.0): rgb(147, 51, 204)
  */
 function getScoreGradientColor(score) {
@@ -14,7 +14,7 @@ function getScoreGradientColor(score) {
     }
 
     let r, g, b;
-    
+
     if (score < 0.5) {
         // Gray to Blue transition (0.0 to 0.5)
         const t = score * 2;
@@ -44,9 +44,9 @@ function getSimilarityGradientColor(similarity) {
     if (similarity === null || similarity === undefined) {
         return 'rgb(149, 165, 166)'; // Gray for null similarity
     }
-    
+
     let r, g, b;
-    
+
     if (similarity < 0.5) {
         // Gray to Orange transition (0.0 to 0.5)
         const t = similarity * 2;
@@ -60,11 +60,105 @@ function getSimilarityGradientColor(similarity) {
         g = Math.round(165 + (53 - 165) * t);
         b = Math.round(0 + (69 - 0) * t);
     }
-    
+
     return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Format date according to user's preference
+ * @param {number|string} timestamp - Unix timestamp in seconds or date string
+ * @param {string} format - Date format string (moment.js style)
+ * @param {string} timezone - IANA timezone name
+ * @returns {string} Formatted date string
+ */
+function formatDate(timestamp, format, timezone) {
+    // Default values
+    format = format || window.userDateFormat || 'MMM D, YYYY';
+    timezone = timezone || window.userTimezone || 'UTC';
+
+    // Convert timestamp to Date object
+    let date;
+    if (typeof timestamp === 'number' || /^\d+$/.test(timestamp)) {
+        // Unix timestamp in seconds
+        date = new Date(parseInt(timestamp) * 1000);
+    } else {
+        date = new Date(timestamp);
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+    }
+
+    // Basic format replacements (simplified version)
+    // For full functionality, would need moment.js or similar
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const fullMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const monthStr = (month + 1).toString().padStart(2, '0');
+    const dayStr = day.toString().padStart(2, '0');
+
+    let formatted = format;
+    formatted = formatted.replace('YYYY', year);
+    formatted = formatted.replace('MMM', months[month]);
+    formatted = formatted.replace('MM', monthStr);
+    formatted = formatted.replace('M', month + 1);
+    formatted = formatted.replace('DD', dayStr);
+    formatted = formatted.replace('D', day);
+    formatted = formatted.replace('年', '年');
+    formatted = formatted.replace('月', '月');
+    formatted = formatted.replace('日', '日');
+
+    return formatted;
+}
+
+/**
+ * Format date and time according to user's preference
+ * @param {number|string} timestamp - Unix timestamp in seconds or date string
+ * @param {string} dateFormat - Date format string (moment.js style)
+ * @param {string} timezone - IANA timezone name
+ * @returns {string} Formatted datetime string
+ */
+function formatDateTime(timestamp, dateFormat, timezone) {
+    // Default values
+    dateFormat = dateFormat || window.userDateFormat || 'MMM D, YYYY';
+    timezone = timezone || window.userTimezone || 'UTC';
+
+    // Convert timestamp to Date object
+    let date;
+    if (typeof timestamp === 'number' || /^\d+$/.test(timestamp)) {
+        // Unix timestamp in seconds
+        date = new Date(parseInt(timestamp) * 1000);
+    } else {
+        date = new Date(timestamp);
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+    }
+
+    // Format date part
+    const datePart = formatDate(timestamp, dateFormat, timezone);
+
+    // Format time part (fixed format: HH:MM:SS AM/PM)
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const hoursStr = hours.toString().padStart(2, '0');
+
+    const timePart = `${hoursStr}:${minutes}:${seconds} ${ampm}`;
+
+    return `${datePart} ${timePart}`;
 }
 
 // Export for use in other files if needed
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getScoreGradientColor, getSimilarityGradientColor };
+    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime };
 }

@@ -118,6 +118,22 @@ def api_update_user_preferences():
             # Update the current user object
             current_user.timezone = timezone
 
+        # Handle date_format update
+        if "date_format" in data:
+            date_format = data["date_format"]
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET date_format = %s
+                WHERE id = %s
+                """,
+                (date_format, current_user.id),
+            )
+
+            # Update the current user object
+            current_user.date_format = date_format
+
         conn.commit()
         cursor.close()
         conn.close()

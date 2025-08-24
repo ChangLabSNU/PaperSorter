@@ -150,8 +150,8 @@
                                 </td>
                                 <td>${source.feed_count || 0}</td>
                                 <td class="date-info">${formatDate(source.added)}</td>
-                                <td class="date-info">${source.last_checked ? formatDate(source.last_checked) : 'Never'}</td>
-                                <td class="date-info">${source.last_updated ? formatDate(source.last_updated) : 'Never'}</td>
+                                <td class="date-info">${source.last_checked ? formatLastChecked(source.last_checked) : 'Never'}</td>
+                                <td class="date-info">${source.last_updated ? formatLastChecked(source.last_updated) : 'Never'}</td>
                                 <td>
                                     <div class="actions">
                                         <button class="btn btn-edit" onclick="editSource(${source.id})">Edit</button>
@@ -165,10 +165,9 @@
             `;
         }
 
-        function formatDate(dateString) {
+        function formatLastChecked(dateString) {
             if (!dateString) return '—';
-            const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return formatDateTime(dateString);
         }
 
         function openAddModal() {
