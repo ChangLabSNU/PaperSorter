@@ -154,12 +154,14 @@ button.user-info.btn-search:hover {
 }
 
 button.user-info.btn-pdf {
-    background: var(--btn-similar-bg);
-    color: var(--btn-similar-color);
+    background: var(--btn-pdf-bg);
+    color: var(--btn-pdf-color);
+    border-color: var(--btn-pdf-border);
 }
 
 button.user-info.btn-pdf:hover {
-    background: var(--btn-similar-bg-hover);
+    background: var(--btn-pdf-bg-hover);
+    border-color: var(--btn-pdf-border-hover);
 }
 
 button.user-info.btn-logout {

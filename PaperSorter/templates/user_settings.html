@@ -53,7 +53,6 @@
         margin-top: 0;
         margin-bottom: 20px;
         color: var(--text-primary);
-        font-size: 18px;
         font-weight: bold;
         transition: color var(--transition-base);
     }
@@ -64,29 +63,23 @@
 
     .form-group label {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
         color: var(--text-primary);
         font-weight: bold;
-        font-size: 14px;
         transition: color var(--transition-base);
     }
 
     .form-group input,
     .form-group select {
         width: 100%;
-        padding: 12px;
+        padding: 10px;
         border: 1px solid var(--border-medium);
         border-radius: 4px;
-        font-size: 14px;
-        background: white;
+        font-size: 16px;
+        background: var(--bg-card);
         color: var(--text-primary);
         transition: all var(--transition-base);
         box-sizing: border-box;
-    }
-
-    [data-theme="dark"] .form-group input,
-    [data-theme="dark"] .form-group select {
-        background: var(--bg-card);
     }
 
     .form-group input:focus,
@@ -135,8 +128,37 @@
 
 
     /* Button margin adjustment */
+    /* Button styles matching admin settings pages */
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all var(--transition-base);
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-primary {
+        background: var(--color-primary);
+        color: var(--text-white);
+    }
+
+    .btn-primary:hover {
+        background: #2980b9;
+        transform: translateY(-1px);
+    }
+
     .btn-secondary {
+        background: var(--color-secondary);
+        color: var(--text-white);
         margin-left: 10px;
+    }
+
+    .btn-secondary:hover {
+        background: #7f8c8d;
     }
 
     .success-message,
