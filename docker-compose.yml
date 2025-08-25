@@ -1,0 +1,34 @@
+services:
+  app:
+    build: .
+    image: papersorter/app:prod
+    env_file: .env
+    ports:
+      - "5001:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Persist AI-generated posters (inside container path set by AI_POSTER_DIR)
+    volumes:
+      - ai_posters:${AI_POSTER_DIR}
+    restart: unless-stopped
+
+  db:
+    image: ankane/pgvector:latest
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ai_posters:
