@@ -240,7 +240,7 @@
         let isLoading = false;
         let hasMore = true;
 
-        function formatDate(dateString) {
+        function formatEventDate(dateString) {
             const date = new Date(dateString);
             const now = new Date();
             const diffMs = now - date;
@@ -253,7 +253,7 @@
             if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
             if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
 
-            return formatDateTime(date);
+            return formatDateTime(Math.floor(date.getTime() / 1000));
         }
 
         function renderEventTypeBadge(eventType) {
@@ -342,7 +342,7 @@
                         </div>
                         <div class="event-meta">
                             ${renderEventTypeBadge(event.event_type)}
-                            <div class="event-time">${formatDate(event.occurred)}</div>
+                            <div class="event-time">${formatEventDate(event.occurred)}</div>
                         </div>
                     </div>
                 </div>
