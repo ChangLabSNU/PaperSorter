@@ -22,49 +22,106 @@
 #
 
 from ..log import log, initialize_logging
+from ..cli.base import BaseCommand, registry
+from ..cli.types import probability_float
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import xgboost as xgb
 import numpy as np
-import click
 import pickle
 import psycopg2
+import argparse
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import yaml
 
 
-@click.option(
-    "--config", "-c", default="./config.yml", help="Database configuration file."
-)
-@click.option("-o", "--output", help="Output file path. Mutually exclusive with --name.")
-@click.option("--name", help="Model name for database registration. Mutually exclusive with --output.")
-@click.option("-r", "--rounds", default=1000, help="Number of boosting rounds.")
-@click.option("--user-id", "-u", multiple=True, type=int, help="User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users.")
-@click.option(
-    "--base-model",
-    type=int,
-    help="Model ID to use for generating pseudo-labels. If not specified, pseudolabeling is disabled.",
-)
-@click.option(
-    "--pos-cutoff",
-    default=0.8,
-    help="Predicted score cutoff for positive pseudo-labels (default: 0.8).",
-)
-@click.option(
-    "--neg-cutoff",
-    default=0.2,
-    help="Predicted score cutoff for negative pseudo-labels (default: 0.2).",
-)
-@click.option("--pseudo-weight", default=0.5, help="Weight for pseudo-labeled data.")
-@click.option(
-    "--embeddings-table",
-    default="embeddings",
-    help="Name of the embeddings table to use.",
-)
-@click.option("--log-file", default=None, help="Log file.")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
+class TrainCommand(BaseCommand):
+    """Train XGBoost model on labeled data."""
+
+    name = 'train'
+    help = 'Train XGBoost model on labeled data'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add train-specific arguments."""
+        parser.add_argument(
+            '-o', '--output',
+            help='Output file path. Mutually exclusive with --name'
+        )
+        parser.add_argument(
+            '--name',
+            help='Model name for database registration. Mutually exclusive with --output'
+        )
+        parser.add_argument(
+            '-r', '--rounds',
+            type=int,
+            default=1000,
+            help='Number of boosting rounds'
+        )
+        parser.add_argument(
+            '--user-id', '-u',
+            action='append',
+            type=int,
+            help='User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users'
+        )
+        parser.add_argument(
+            '--embeddings-table',
+            default='embeddings',
+            help='Name of the embeddings table to use'
+        )
+        parser.add_argument(
+            '--pos-cutoff',
+            type=probability_float,
+            default=0.5,
+            help='Threshold for considering feeds as interested (positive labels)'
+        )
+        parser.add_argument(
+            '--neg-cutoff',
+            type=probability_float,
+            default=0.2,
+            help='Threshold for considering feeds as not interested (negative labels)'
+        )
+        parser.add_argument(
+            '--pseudo-weight',
+            type=probability_float,
+            default=0.5,
+            help='Weight for pseudo-labeled data'
+        )
+        parser.add_argument(
+            '--seed',
+            type=int,
+            default=42,
+            help='Random seed for reproducibility'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the train command."""
+        initialize_logging('train', args.log_file, args.quiet)
+        try:
+            main(
+                config=args.config,
+                output=args.output,
+                name=args.name,
+                rounds=args.rounds,
+                user_id=args.user_id or (),
+                embeddings_table=args.embeddings_table,
+                pos_cutoff=args.pos_cutoff,
+                neg_cutoff=args.neg_cutoff,
+                pseudo_weight=args.pseudo_weight,
+                seed=args.seed,
+                log_file=args.log_file,
+                quiet=args.quiet
+            )
+            return 0
+        except Exception as e:
+            log.error(f"Train failed: {e}")
+            return 1
+
+# Register the command
+registry.register(TrainCommand)
+
+
 def main(
     config,
     output,

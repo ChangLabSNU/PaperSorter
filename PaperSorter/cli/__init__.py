@@ -21,30 +21,10 @@
 # THE SOFTWARE.
 #
 
-import sys
-import importlib
-from .tasks import __all__ as alltasks
-from .cli.parser import main as cli_main
+"""Command-line interface infrastructure for PaperSorter."""
 
-def main():
-    """Main entry point for PaperSorter CLI."""
+from .base import BaseCommand, CommandRegistry
+from .context import CommandContext
+from .parser import create_parser
 
-    # Import and register all commands
-    from .cli.base import registry
-
-    for task in alltasks:
-        # Import the task module (this triggers registration for migrated commands)
-        try:
-            importlib.import_module(f".tasks.{task}", package="PaperSorter")
-        except ImportError as e:
-            print(f"Warning: Could not import task {task}: {e}", file=sys.stderr)
-            continue
-
-    # Run the CLI
-    return cli_main()
-
-if __name__ == "__main__":
-    sys.exit(main())
-
-# Export main for use as console script
-__all__ = ['main']
+__all__ = ['BaseCommand', 'CommandRegistry', 'CommandContext', 'create_parser']

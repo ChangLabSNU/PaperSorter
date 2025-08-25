@@ -27,17 +27,65 @@ from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..broadcast_channels import BroadcastChannels
 from ..feed_predictor import FeedPredictor
+from ..cli.base import BaseCommand, registry
 from ..log import log, initialize_logging
 import xgboost as xgb
 from datetime import datetime
 import pickle
-import click
+import argparse
+
 
 FEED_EPOCH = (1980, 1, 1)
 
 VENUE_UPDATE_BLACKLIST = {
     "Molecules and Cells",  # Molecular Cell (Cell Press) is incorrectly matched to this.
 }
+
+class UpdateCommand(BaseCommand):
+    """Fetch new articles and queue for broadcast."""
+
+    name = 'update'
+    help = 'Fetch new articles from feed sources and queue for broadcast'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add update-specific arguments."""
+        parser.add_argument(
+            '--batch-size',
+            type=int,
+            default=100,
+            help='Batch size for processing'
+        )
+        parser.add_argument(
+            '--limit-sources',
+            type=int,
+            help='Limit the number of sources to check (for testing)'
+        )
+        parser.add_argument(
+            '--check-interval-hours',
+            type=int,
+            default=6,
+            help='Only check sources updated more than N hours ago'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the update command."""
+        initialize_logging('update', args.log_file, args.quiet)
+        try:
+            main(
+                config=args.config,
+                batch_size=args.batch_size,
+                limit_sources=args.limit_sources,
+                check_interval_hours=args.check_interval_hours,
+                log_file=args.log_file,
+                quiet=args.quiet
+            )
+            return 0
+        except Exception as e:
+            log.error(f"Update failed: {e}")
+            return 1
+
+# Register the command
+registry.register(UpdateCommand)
 
 
 def batched(iterable, n):
@@ -273,7 +321,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
             except FileNotFoundError:
                 log.error(f"Model file not found: {model_file_path}")
                 channel_models[model_id] = None
-    
+
     if channels_without_model and not channel_models:
         log.error("No channels have valid models assigned. Cannot score feeds.")
         return
@@ -365,24 +413,6 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
         feeddb.commit()
 
 
-@click.option(
-    "--config", "-c", default="./config.yml", help="Database configuration file."
-)
-@click.option("--batch-size", default=100, help="Batch size for processing.")
-@click.option(
-    "--limit-sources",
-    type=int,
-    default=20,
-    help="Maximum number of feed sources to scan.",
-)
-@click.option(
-    "--check-interval-hours",
-    type=int,
-    default=6,
-    help="Only check sources not updated within this many hours.",
-)
-@click.option("--log-file", default=None, help="Log file.")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
     """Fetch new papers from configured RSS/Atom feeds and generate embeddings.
 

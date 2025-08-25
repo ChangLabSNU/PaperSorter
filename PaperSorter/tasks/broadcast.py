@@ -25,10 +25,59 @@ from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
 from ..notification import create_notification_provider, NotificationError
 from ..utils.broadcast_hours import is_broadcast_allowed
-import click
+from ..cli.base import BaseCommand, registry
 import re
 import yaml
+import argparse
 from datetime import datetime
+
+
+class BroadcastCommand(BaseCommand):
+    """Process broadcast queue and send notifications."""
+
+    name = 'broadcast'
+    help = 'Process broadcast queue and send notifications'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add broadcast-specific arguments."""
+        parser.add_argument(
+            '--limit',
+            type=int,
+            default=20,
+            help='Maximum number of items to process per channel'
+        )
+        parser.add_argument(
+            '--max-content-length',
+            type=int,
+            default=1000,
+            help='Maximum length of content in characters'
+        )
+        parser.add_argument(
+            '--clear-old-days',
+            type=int,
+            default=30,
+            help='Clear broadcast queue items older than this many days'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the broadcast command."""
+        initialize_logging('broadcast', args.log_file, args.quiet)
+        try:
+            main(
+                config=args.config,
+                limit=args.limit,
+                max_content_length=args.max_content_length,
+                clear_old_days=args.clear_old_days,
+                log_file=args.log_file,
+                quiet=args.quiet
+            )
+            return 0
+        except Exception as e:
+            log.error(f"Broadcast failed: {e}")
+            return 1
+
+# Register the command
+registry.register(BroadcastCommand)
 
 
 def normalize_item_for_display(item, max_content_length):
@@ -57,17 +106,6 @@ def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-@click.option("--config", "-c", default="./config.yml", help="Database configuration file.")
-@click.option(
-    "--max-content-length", default=400, help="Maximum length of the content."
-)
-@click.option(
-    "--clear-old-days",
-    default=30,
-    help="Clear processed items older than this many days.",
-)
-@click.option("--log-file", default=None, help="Log file.")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, max_content_length, clear_old_days, log_file, quiet):
     """Send notifications for high-scoring papers to configured channels.
 

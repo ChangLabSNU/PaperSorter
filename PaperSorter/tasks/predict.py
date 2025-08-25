@@ -25,15 +25,70 @@ from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..feed_predictor import FeedPredictor
 from ..log import log, initialize_logging
+from ..cli.base import BaseCommand, registry
 import xgboost as xgb
 import numpy as np
-import click
+import yaml
 import pickle
+import argparse
 import psycopg2
 import psycopg2.extras
 from psycopg2.extras import execute_batch
 from pgvector.psycopg2 import register_vector
-import yaml
+
+
+class PredictCommand(BaseCommand):
+    """Generate embeddings and predictions for articles."""
+
+    name = 'predict'
+    help = 'Generate embeddings and predictions for articles'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add predict-specific arguments."""
+        parser.add_argument(
+            '--count',
+            type=int,
+            default=500,
+            help='Number of recent papers to process (0 for all)'
+        )
+        parser.add_argument(
+            '--all',
+            dest='process_all',
+            action='store_true',
+            help='Process all papers without limit (equivalent to --count 0)'
+        )
+        parser.add_argument(
+            '--only-without-embeddings',
+            action='store_true',
+            help="Only process papers that don't have embeddings yet"
+        )
+        parser.add_argument(
+            '--batch-size',
+            type=int,
+            default=100,
+            help='Batch size for database operations and embedding generation'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the predict command."""
+        initialize_logging('predict', args.log_file, args.quiet)
+        try:
+            main(
+                config=args.config,
+                count=args.count,
+                process_all=args.process_all,
+                only_without_embeddings=args.only_without_embeddings,
+                batch_size=args.batch_size,
+                log_file=args.log_file,
+                quiet=args.quiet
+            )
+            return 0
+        except Exception as e:
+            log.error(f"Predict failed: {e}")
+            return 1
+
+# Register the command
+registry.register(PredictCommand)
 
 
 def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, batch_size):
@@ -57,15 +112,6 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     return embeddings
 
 
-@click.option(
-    "--config", "-c", default="./config.yml", help="Database configuration file."
-)
-@click.option("--count", default=500, help="Number of recent papers to process (0 for all).")
-@click.option("--all", "process_all", is_flag=True, help="Process all papers without limit (equivalent to --count 0).")
-@click.option("--only-without-embeddings", is_flag=True, help="Only process papers that don't have embeddings yet.")
-@click.option("--batch-size", default=100, help="Batch size for database operations and embedding generation.")
-@click.option("--log-file", default=None, help="Log file.")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
 def main(config, count, process_all, only_without_embeddings, batch_size, log_file, quiet):
     """Generate embeddings and predictions for articles in the database.
 

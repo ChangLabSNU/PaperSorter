@@ -21,17 +21,52 @@
 # THE SOFTWARE.
 #
 
-import click
 import psycopg2
 import yaml
+import argparse
 from ..log import log
 from ..data.schema import get_schema
+from ..cli.base import BaseCommand, registry
+from ..log import initialize_logging
 
 
-@click.option("--config", "-c", default="./config.yml", help="Config file")
-@click.option("--schema", default="papersorter", help="Database schema name")
-@click.option("--drop-existing", is_flag=True, help="Drop existing tables first")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress output messages")
+class InitCommand(BaseCommand):
+    """Initialize database tables and schema for PaperSorter."""
+
+    name = 'init'
+    help = 'Initialize database tables and schema for PaperSorter'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add init-specific arguments."""
+        parser.add_argument(
+            '--schema',
+            default='papersorter',
+            help='Database schema name'
+        )
+        parser.add_argument(
+            '--drop-existing',
+            action='store_true',
+            help='Drop existing tables first'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the init command."""
+        # Delegate to the existing main function
+        try:
+            main(
+                config=args.config,
+                schema=args.schema,
+                drop_existing=args.drop_existing,
+                quiet=args.quiet
+            )
+            return 0
+        except Exception:
+            return 1
+
+# Register the command
+registry.register(InitCommand)
+
+
 def main(config, schema, drop_existing, quiet):
     """Initialize database tables and schema for PaperSorter."""
 
@@ -43,13 +78,13 @@ def main(config, schema, drop_existing, quiet):
         cfg = yaml.safe_load(f)
 
     db_config = cfg["db"]
-    
+
     # Get embedding dimensions from config (default to 1536)
     embedding_dimensions = cfg.get("embedding_api", {}).get("dimensions", 1536)
-    
+
     # Get schema with configured embedding dimensions
     db_schema = get_schema(embedding_dimensions)
-    
+
     if not quiet:
         log.info(f"Using embedding dimensions: {embedding_dimensions}")
 
@@ -216,7 +251,3 @@ def main(config, schema, drop_existing, quiet):
     finally:
         cursor.close()
         conn.close()
-
-
-if __name__ == "__main__":
-    main()

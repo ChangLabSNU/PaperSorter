@@ -23,36 +23,75 @@
 
 """Test commands for PaperSorter system components."""
 
-import click
 import sys
 import yaml
 from typing import Optional
+import argparse
+from ..cli.base import BaseCommand, registry
 from ..utils.email import SMTPClient
 from ..log import initialize_logging
 
 
-@click.group()
-@click.option("--config", "-c", default="./config.yml", help="Path to configuration file")
-@click.option("--log-file", help="Path to log file")
-@click.option("--quiet", "-q", is_flag=True, help="Suppress informational output")
-@click.pass_context
-def main(ctx, config, log_file, quiet):
+class TestCommand(BaseCommand):
     """Test various PaperSorter system components."""
-    # Configure logging
-    initialize_logging("test", log_file, quiet)
 
-    # Store config path for subcommands
-    ctx.ensure_object(dict)
-    ctx.obj['config_path'] = config
-    ctx.obj['quiet'] = quiet
+    name = 'test'
+    help = 'Test various PaperSorter system components'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add test subcommands."""
+        subparsers = parser.add_subparsers(
+            dest='subcommand',
+            help='Available test commands'
+        )
+
+        # Add smtp subcommand
+        smtp_parser = subparsers.add_parser(
+            'smtp',
+            help='Test SMTP email configuration'
+        )
+        smtp_parser.add_argument(
+            '--recipient', '-r',
+            help='Test recipient email address'
+        )
+        smtp_parser.add_argument(
+            '--subject', '-s',
+            default='PaperSorter SMTP Test',
+            help='Test email subject'
+        )
+        smtp_parser.add_argument(
+            '--verbose', '-v',
+            action='store_true',
+            help='Show detailed connection information'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the test command."""
+        initialize_logging('test', args.log_file, args.quiet)
+
+        if args.subcommand == 'smtp':
+            try:
+                return test_smtp(
+                    config_path=args.config,
+                    recipient=args.recipient,
+                    subject=args.subject,
+                    verbose=args.verbose,
+                    quiet=args.quiet
+                )
+            except SystemExit as e:
+                return e.code if e.code else 1
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+        else:
+            print("Please specify a subcommand: smtp", file=sys.stderr)
+            return 1
+
+# Register the command
+registry.register(TestCommand)
 
 
-@main.command('smtp')
-@click.option('--recipient', '-r', help='Test recipient email address')
-@click.option('--subject', '-s', default='PaperSorter SMTP Test', help='Test email subject')
-@click.option('--verbose', '-v', is_flag=True, help='Show detailed connection information')
-@click.pass_context
-def smtp(ctx, recipient: Optional[str], subject: str, verbose: bool):
+def test_smtp(config_path: str, recipient: Optional[str], subject: str, verbose: bool, quiet: bool) -> int:
     """Test SMTP email configuration and optionally send a test email.
 
     Examples:
@@ -66,55 +105,54 @@ def smtp(ctx, recipient: Optional[str], subject: str, verbose: bool):
         papersorter test smtp -v
     """
     # Load configuration file
-    config_path = ctx.obj['config_path']
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
     except Exception as e:
-        click.echo(f"Error loading configuration from {config_path}: {e}", err=True)
-        sys.exit(1)
+        print(f"Error loading configuration from {config_path}: {e}", file=sys.stderr)
+        return 1
 
     # Check if SMTP is configured
     if 'smtp' not in config:
-        click.echo("Error: No SMTP configuration found in config file", err=True)
-        click.echo("\nPlease add SMTP configuration to your config.yml:", err=True)
-        click.echo("""
+        print("Error: No SMTP configuration found in config file", file=sys.stderr)
+        print("\nPlease add SMTP configuration to your config.yml:", file=sys.stderr)
+        print("""
 smtp:
   provider: gmail  # or outlook, yahoo, custom
   username: your-email@gmail.com
   password: your-app-password
-        """, err=True)
-        sys.exit(1)
+        """, file=sys.stderr)
+        return 1
 
     # Initialize SMTP client
     try:
         smtp_client = SMTPClient(config)
     except Exception as e:
-        click.echo(f"Error initializing SMTP client: {e}", err=True)
-        sys.exit(1)
+        print(f"Error initializing SMTP client: {e}", file=sys.stderr)
+        return 1
 
     # Show connection information if verbose
     if verbose:
         info = smtp_client.get_connection_info()
-        click.echo("\n=== SMTP Configuration ===")
-        click.echo(f"Host: {info['host']}")
-        click.echo(f"Port: {info['port']}")
-        click.echo(f"Encryption: {info['encryption']}")
-        click.echo(f"Authentication: {'Yes' if info['authentication'] else 'No'}")
+        print("\n=== SMTP Configuration ===")
+        print(f"Host: {info['host']}")
+        print(f"Port: {info['port']}")
+        print(f"Encryption: {info['encryption']}")
+        print(f"Authentication: {'Yes' if info['authentication'] else 'No'}")
         if info['username']:
-            click.echo(f"Username: {info['username']}")
-        click.echo(f"From Address: {info['from_address']}")
-        click.echo(f"From Name: {info['from_name']}")
-        click.echo()
+            print(f"Username: {info['username']}")
+        print(f"From Address: {info['from_address']}")
+        print(f"From Name: {info['from_name']}")
+        print()
 
     # Test connection
-    click.echo("Testing SMTP connection...")
+    print("Testing SMTP connection...")
     if smtp_client.test_connection():
-        click.echo("✓ SMTP connection successful")
+        print("✓ SMTP connection successful")
 
         # If recipient provided, send test email
         if recipient:
-            click.echo(f"\nSending test email to {recipient}...")
+            print(f"\nSending test email to {recipient}...")
 
             # Create test content
             html_content = f"""
@@ -150,43 +188,43 @@ Configuration details:
 
             # Send test email
             if smtp_client.send_email(recipient, subject, html_content, text_content):
-                click.echo(f"✓ Test email sent successfully to {recipient}")
-                click.echo("\nSMTP configuration is working correctly!")
+                print(f"✓ Test email sent successfully to {recipient}")
+                print("\nSMTP configuration is working correctly!")
+                return 0
             else:
-                click.echo("✗ Failed to send test email", err=True)
-                sys.exit(1)
+                print("✗ Failed to send test email", file=sys.stderr)
+                return 1
     else:
-        click.echo("✗ SMTP connection failed", err=True)
-        click.echo("\nPlease check your SMTP configuration:", err=True)
+        print("✗ SMTP connection failed", file=sys.stderr)
+        print("\nPlease check your SMTP configuration:", file=sys.stderr)
 
         # Provide helpful troubleshooting tips
         smtp_config = config.get('smtp', {})
         provider = smtp_config.get('provider')
 
         if provider == 'gmail':
-            click.echo("""
+            print("""
 Gmail troubleshooting:
 1. Enable 2-factor authentication in your Google account
 2. Generate an app-specific password at https://myaccount.google.com/apppasswords
 3. Use the app password (not your regular password) in the configuration
-            """, err=True)
+            """, file=sys.stderr)
         elif provider == 'outlook':
-            click.echo("""
+            print("""
 Outlook troubleshooting:
 1. Enable 2-factor authentication in your Microsoft account
 2. Generate an app password at https://account.microsoft.com/security
 3. Use the app password (not your regular password) in the configuration
-            """, err=True)
+            """, file=sys.stderr)
         elif provider == 'yahoo':
-            click.echo("""
+            print("""
 Yahoo troubleshooting:
 1. Enable 2-step verification in your Yahoo account
 2. Generate an app password at https://login.yahoo.com/myaccount/security
 3. Use the app password (not your regular password) in the configuration
-            """, err=True)
+            """, file=sys.stderr)
 
-        sys.exit(1)
+        return 1
 
-
-# Make the test command available as a task
-test = main
+    # If we get here without recipient, connection was successful
+    return 0

@@ -21,17 +21,110 @@
 # THE SOFTWARE.
 #
 
-import click
 import os
 import random
+import sys
 from datetime import datetime
 import pandas as pd
+import argparse
+from ..cli.base import BaseCommand, registry
+from ..cli.types import probability_float
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
 from ..utils.pubmed_sync import (
     parse_pubmed_directory_chunked,
     sync_and_parse_pubmed
 )
+
+
+class ImportCommand(BaseCommand):
+    """Import feeds from various sources."""
+
+    name = 'import'
+    help = 'Import feeds from various sources'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add import subcommands."""
+        subparsers = parser.add_subparsers(
+            dest='subcommand',
+            help='Available import sources'
+        )
+
+        # Add pubmed subcommand
+        pubmed_parser = subparsers.add_parser(
+            'pubmed',
+            help='Download recent PubMed update files and import to database'
+        )
+        pubmed_parser.add_argument(
+            '--files', '-n',
+            type=int,
+            default=10,
+            help='Number of recent update files to download (default: 10)'
+        )
+        pubmed_parser.add_argument(
+            '--chunksize', '-c',
+            type=int,
+            default=2000,
+            help='Number of articles per processing chunk (default: 2000)'
+        )
+        pubmed_parser.add_argument(
+            '--tmpdir', '-t',
+            help='Directory for downloaded files (default: $TMPDIR or ./tmp)'
+        )
+        pubmed_parser.add_argument(
+            '--parse-only', '-p',
+            help='Parse existing files in directory instead of downloading'
+        )
+        pubmed_parser.add_argument(
+            '--limit', '-l',
+            type=int,
+            help='Maximum number of articles to import'
+        )
+        pubmed_parser.add_argument(
+            '--sample-rate', '-s',
+            type=probability_float,
+            default=0.1,
+            help='Random sampling rate (0.0-1.0) to reduce total count while maintaining diversity (default: 0.1)'
+        )
+        pubmed_parser.add_argument(
+            '--seed',
+            type=int,
+            help='Random seed for reproducible sampling'
+        )
+        pubmed_parser.add_argument(
+            '--issn',
+            action='append',
+            help='Filter by ISSN (can specify multiple times)'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the import command."""
+        initialize_logging('import', args.log_file, args.quiet)
+
+        if args.subcommand == 'pubmed':
+            try:
+                do_import_pubmed(
+                    config_path=args.config,
+                    files=args.files,
+                    chunksize=args.chunksize,
+                    tmpdir=args.tmpdir,
+                    parse_only=args.parse_only,
+                    limit=args.limit,
+                    sample_rate=args.sample_rate,
+                    seed=args.seed,
+                    issn=tuple(args.issn) if args.issn else ()
+                )
+                return 0
+            except Exception as e:
+                log.error(f"Import failed: {e}")
+                return 1
+        else:
+            print("Please specify a subcommand: pubmed", file=sys.stderr)
+            return 1
+
+# Register the command
+registry.register(ImportCommand)
+
 
 def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[int, int]:
     """Insert articles from a DataFrame into the database, skipping existing ones."""
@@ -78,45 +171,7 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
     return inserted, skipped
 
 
-@click.group()
-@click.option("--config", default="./config.yml", help="Path to configuration file")
-@click.option("--log-file", help="Log file path")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress output")
-@click.pass_context
-def main(ctx, config, log_file, quiet):
-    """Import feeds from various sources."""
-    initialize_logging("import", log_file, quiet)
-    ctx.ensure_object(dict)
-    ctx.obj["config"] = config
-
-
-@main.command("pubmed")
-@click.option(
-    "--files", "-n", default=10, type=int, help="Number of recent update files to download (default: 10)"
-)
-@click.option(
-    "--chunksize", "-c", default=2000, type=int, help="Number of articles per processing chunk (default: 2000)"
-)
-@click.option(
-    "--tmpdir", "-t", help="Directory for downloaded files (default: $TMPDIR or ./tmp)"
-)
-@click.option(
-    "--parse-only", "-p", help="Parse existing files in directory instead of downloading"
-)
-@click.option(
-    "--limit", "-l", type=int, help="Maximum number of articles to import"
-)
-@click.option(
-    "--sample-rate", "-s", default=0.1, type=float, help="Random sampling rate (0.0-1.0) to reduce total count while maintaining diversity (default: 0.1)"
-)
-@click.option(
-    "--seed", type=int, help="Random seed for reproducible sampling"
-)
-@click.option(
-    "--issn", multiple=True, help="Filter by ISSN (can specify multiple times). Articles matching any specified ISSN will be included."
-)
-@click.pass_context
-def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate, seed, issn):
+def do_import_pubmed(config_path, files, chunksize, tmpdir, parse_only, limit, sample_rate, seed, issn):
     """Download recent PubMed update files and import to database.
 
     This command downloads the most recent PubMed update files from NCBI FTP
@@ -133,14 +188,12 @@ def import_pubmed(ctx, files, chunksize, tmpdir, parse_only, limit, sample_rate,
     can have multiple ISSNs (print and electronic), and matching any ISSN to any
     of the specified filters will include the article.
     """
-    config_path = ctx.obj["config"]
-
     log.info("Starting PubMed import")
 
     # Validate sampling rate
     if sample_rate is not None:
         if not 0.0 < sample_rate <= 1.0:
-            raise click.BadParameter("Sample rate must be between 0.0 and 1.0")
+            raise ValueError("Sample rate must be between 0.0 and 1.0")
         log.info(f"Using random sampling rate: {sample_rate}")
         if seed is not None:
             random.seed(seed)
