@@ -30,9 +30,20 @@ def read_long_description():
     with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
         return f.read()
 
+# Read version from __version__.py
+def get_version():
+    here = os.path.abspath(os.path.dirname(__file__))
+    version_file = os.path.join(here, 'PaperSorter', '__version__.py')
+    with open(version_file, encoding='utf-8') as f:
+        for line in f:
+            if line.startswith('__version__'):
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+    raise RuntimeError("Unable to find version string.")
+
 setup(
     name='papersorter',
-    version='0.3.0',
+    version=get_version(),
     description='Intelligent academic paper recommendation system with ML-powered filtering and Slack/Discord notifications',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
@@ -72,7 +83,15 @@ setup(
     package_data={
         'PaperSorter': [
             'templates/*.html',
-            'data/*.sql',
+            'templates/email/*.html',
+            'templates/email/*.txt',
+            'static/favicon.ico',
+            'static/manifest.json',
+            'static/css/*.css',
+            'static/css/components/.gitkeep',
+            'static/js/*.js',
+            'static/icons/*.png',
+            'data/*.py',
         ],
     },
     include_package_data=True,

@@ -2,7 +2,8 @@ include README.md
 include LICENSE
 include requirements.txt
 include pyproject.toml
-recursive-include PaperSorter/templates *.html
+recursive-include PaperSorter/templates *.html *.txt
+recursive-include PaperSorter/static *.css *.js *.ico *.json *.png .gitkeep
 recursive-include PaperSorter/data *.py
 recursive-include examples *
 global-exclude __pycache__
