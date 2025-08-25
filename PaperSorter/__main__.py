@@ -24,12 +24,14 @@
 import click
 import importlib
 from .tasks import __all__ as alltasks
+from .__version__ import __version__
 
 # Configure Click to use -h as an alias for --help
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
+@click.version_option(version=__version__, prog_name='PaperSorter')
 def main():
     pass
 
