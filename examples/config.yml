@@ -67,8 +67,9 @@ embedding_api:
   api_url: "https://api.openai.com/v1"
   # Optional: model name (defaults to text-embedding-3-large)
   model: "text-embedding-3-large"
-  # Embedding dimensions
-  dimensions: 3072
+  # Embedding dimensions (common values: 256, 768, 1536, 3072)
+  # Must match the output dimensions of your embedding model
+  dimensions: 1536
 
 # Summarization API configuration
 # Used for generating article summaries
