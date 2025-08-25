@@ -47,7 +47,8 @@
         <!-- General Search Interface -->
         <div id="generalSearchContainer" style="display: none;">
             <div class="search-interface">
-                <textarea id="generalSearchInput" placeholder="Search by title, abstract, or any text. Press Enter to search, Shift+Enter for new line." class="search-textarea" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); performGeneralSearch(); }"></textarea>
+                <textarea id="generalSearchInput" placeholder="Search by title, abstract, or any text.
+Tip: Longer text (e.g., full abstracts) provides better results for finding relevant matches. Press Enter to search, Shift+Enter for new line." class="search-textarea" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); performGeneralSearch(); }"></textarea>
                 <button onclick="performGeneralSearch()" class="btn btn-primary search-btn">🔍 Search</button>
             </div>
         </div>
