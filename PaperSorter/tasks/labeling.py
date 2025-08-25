@@ -61,7 +61,7 @@ def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_pa
         else:
             log.error("No preference labels found in the database")
             log.info("")
-            log.info("To create a labeling session, you need to first label some feeds.")
+            log.info("To create a labeling session, you need to first label some papers.")
             log.info("You can do this by:")
             log.info("  1. Running: papersorter serve")
             log.info("  2. Opening the web interface")
@@ -74,7 +74,7 @@ def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_pa
             log.info(f"After labeling at least {MIN_INTERESTED_FEEDS} papers as interested, run this command again.")
         return False, 0
 
-    # Check if we have enough interested feeds
+    # Check if we have enough interested papers
     if user_ids:
         cursor.execute("""
             SELECT COUNT(DISTINCT p.feed_id) as count
@@ -94,7 +94,7 @@ def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_pa
 
     if interested_count == 0:
         user_filter_msg = f" (for user IDs: {', '.join(map(str, user_ids))})" if user_ids else ""
-        log.error(f"No interested feeds found (with score >= {score_threshold}){user_filter_msg}")
+        log.error(f"No interested papers found (with score >= {score_threshold}){user_filter_msg}")
         log.info("")
         log.info(f"Found {total_preferences} total preference labels{user_filter_msg}, but none marked as interested.")
         log.info("Please label some feeds as 'Interested' in the web interface.")
@@ -107,9 +107,9 @@ def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_pa
 
     if interested_count < MIN_INTERESTED_FEEDS:
         user_filter_msg = f" (for user IDs: {', '.join(map(str, user_ids))})" if user_ids else ""
-        log.error(f"Not enough interested feeds found{user_filter_msg}. Need at least {MIN_INTERESTED_FEEDS}, found {interested_count}")
+        log.error(f"Not enough interested papers found{user_filter_msg}. Need at least {MIN_INTERESTED_FEEDS}, found {interested_count}")
         log.info("")
-        log.info(f"Please label more feeds as interested (score >= {score_threshold}) before creating a session.")
+        log.info(f"Please label more papers as interested (score >= {score_threshold}) before creating a session.")
         log.info("You need to:")
         log.info(f"  1. Label {MIN_INTERESTED_FEEDS - interested_count} more papers as interested")
         log.info("")
@@ -121,7 +121,7 @@ def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_pa
         return False, 0
 
     user_filter_msg = f" (for user IDs: {', '.join(map(str, user_ids))})" if user_ids else ""
-    log.info(f"Found {interested_count} interested feeds{user_filter_msg}")
+    log.info(f"Found {interested_count} interested papers{user_filter_msg}")
     return True, interested_count
 
 
@@ -185,7 +185,7 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids, max_age=0):
         cutoff_date = datetime.now() - timedelta(days=max_age)
         age_filter = "AND f.added >= %s"
         params.append(cutoff_date)
-        log.info(f"Filtering to feeds added after {cutoff_date.strftime('%Y-%m-%d')}")
+        log.info(f"Filtering to papers added after {cutoff_date.strftime('%Y-%m-%d')}")
 
     if user_ids:
         params.append(user_ids)
@@ -247,7 +247,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0):
     if max_age > 0:
         cutoff_date = datetime.now() - timedelta(days=max_age)
         age_filter = "AND f.added >= %s"
-        log.info(f"Filtering to feeds added after {cutoff_date.strftime('%Y-%m-%d')}")
+        log.info(f"Filtering to papers added after {cutoff_date.strftime('%Y-%m-%d')}")
 
     if user_ids:
         base_params = params + [user_ids]
@@ -265,7 +265,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0):
                 WHERE p.score >= %s AND p.user_id = ANY(%s)
             ),
             feed_distances AS (
-                -- Calculate minimum distance from each feed to any interested feed
+                -- Calculate minimum distance from each paper to any interested paper
                 SELECT
                     f.id,
                     f.external_id,
@@ -350,7 +350,7 @@ def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0):
 
 
 def sample_feeds_from_bins(all_feeds, sample_size, bins, base_model):
-    """Sample feeds from percentile-based bins with weighted distribution.
+    """Sample papers from percentile-based bins with weighted distribution.
 
     Returns:
         tuple: (selected_feed_ids: list, metric_name: str, selected_values: list)
@@ -411,14 +411,14 @@ def sample_feeds_from_bins(all_feeds, sample_size, bins, base_model):
             bin_mask = (values >= bin_edges[i]) & (values < bin_edges[i + 1])
         feeds_in_bin = np.sum(bin_mask)
         log.info(f"  Bin {i+1} ({metric_name} {abs(display_edges[i]):.4f}-{abs(display_edges[i+1]):.4f}): "
-                f"{samples_per_bin[i]} samples from {feeds_in_bin} feeds")
+                f"{samples_per_bin[i]} samples from {feeds_in_bin} papers")
     if actual_bins > 5:
         log.info(f"  ... ({actual_bins - 5} more bins)")
         # Count feeds in last bin
         bin_mask = (values >= bin_edges[-2]) & (values <= bin_edges[-1])
         feeds_in_bin = np.sum(bin_mask)
         log.info(f"  Bin {actual_bins} ({metric_name} {abs(display_edges[-2]):.4f}-{abs(display_edges[-1]):.4f}): "
-                f"{samples_per_bin[-1]} samples from {feeds_in_bin} feeds")
+                f"{samples_per_bin[-1]} samples from {feeds_in_bin} papers")
 
     log.info(f"Total samples to select: {samples_per_bin.sum()}")
 
@@ -441,13 +441,13 @@ def sample_feeds_from_bins(all_feeds, sample_size, bins, base_model):
             # Take all feeds from this bin if we don't have enough
             selected = bin_feed_ids.tolist()
             log.info(f"Bin {i+1} ({metric_name} {abs(display_edges[i]):.4f}-{abs(display_edges[i+1]):.4f}): "
-                    f"Selected all {len(selected)} feeds (requested {n_samples})")
+                    f"Selected all {len(selected)} papers (requested {n_samples})")
         else:
             # Random sample from this bin
             selected_indices = np.random.choice(len(bin_feed_ids), n_samples, replace=False)
             selected = bin_feed_ids[selected_indices].tolist()
             log.info(f"Bin {i+1} ({metric_name} {abs(display_edges[i]):.4f}-{abs(display_edges[i+1]):.4f}): "
-                    f"Selected {len(selected)} feeds from {len(bin_feed_ids)} available")
+                    f"Selected {len(selected)} papers from {len(bin_feed_ids)} available")
 
         selected_feed_ids.extend(selected)
 
@@ -560,7 +560,7 @@ def display_session_summary(stats, session_user_id, selected_values, metric_name
     else:
         log.info("="*60)
         log.info("Labeling session created successfully!")
-        log.info(f"Total feeds in session: {stats['total_feeds']}")
+        log.info(f"Total papers in session: {stats['total_feeds']}")
         log.info(f"User ID: {session_user_id}")
 
     # Show link to labeling interface
@@ -591,7 +591,7 @@ def main(ctx, config, log_file, quiet):
 @main.command("create")
 @click.option(
     "--sample-size", "-n", default=1000, type=int,
-    help="Total number of feeds to include in the labeling session (default: 1000)"
+    help="Total number of papers to include in the labeling session (default: 1000)"
 )
 @click.option(
     "--bins", "-b", default=10, type=int,
@@ -599,7 +599,7 @@ def main(ctx, config, log_file, quiet):
 )
 @click.option(
     "--score-threshold", default=0.5, type=float,
-    help="Preference score threshold for considering a feed as interested (default: 0.5)"
+    help="Preference score threshold for considering a paper as interested (default: 0.5)"
 )
 @click.option(
     "--user-id", "-u", multiple=True, type=int,
@@ -615,7 +615,7 @@ def main(ctx, config, log_file, quiet):
 )
 @click.option(
     "--max-age", default=0, type=int,
-    help="Maximum age of feeds in days. Only include feeds registered within this many days. 0 means no limit (default: 0)"
+    help="Maximum age of papers in days. Only include papers registered within this many days. 0 means no limit (default: 0)"
 )
 @click.pass_context
 def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age):
@@ -624,15 +624,15 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
     This command supports two modes:
 
     1. Distance-based sampling (default):
-       - Finds all feeds labeled as interested (score >= threshold)
-       - Calculates minimum cosine distance from each unlabeled feed to any interested feed
-       - Divides feeds into equal-sized bins based on distance
-       - Samples with bias toward closer feeds (4:1 ratio)
+       - Finds all papers labeled as interested (score >= threshold)
+       - Calculates minimum cosine distance from each unlabeled paper to any interested paper
+       - Divides papers into equal-sized bins based on distance
+       - Samples with bias toward closer papers (4:1 ratio)
 
     2. Model-based sampling (--base-model):
        - Uses predicted preference scores from the specified model
-       - Divides feeds into equal-sized bins based on predicted scores
-       - Samples with bias toward higher-scoring feeds (4:1 ratio)
+       - Divides papers into equal-sized bins based on predicted scores
+       - Samples with bias toward higher-scoring papers (4:1 ratio)
        - Does not require existing interested labels
 
     The labeling session is assigned to a user determined by:
@@ -685,7 +685,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
 
         # Log max_age filter if specified
         if max_age > 0:
-            log.info(f"Limiting to feeds registered within the last {max_age} days")
+            log.info(f"Limiting to papers registered within the last {max_age} days")
 
         # Check if we have any feeds with embeddings first
         cursor.execute("SELECT COUNT(*) as count FROM embeddings")
@@ -729,7 +729,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
             all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age)
 
         if not all_feeds:
-            log.error("No unlabeled feeds with embeddings found")
+            log.error("No unlabeled papers with embeddings found")
             log.info("")
 
             # Check if all feeds are already labeled
@@ -743,7 +743,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
             labeled_count = cursor.fetchone()["labeled"]
 
             if labeled_count >= total_with_embeddings and total_with_embeddings > 0:
-                log.info(f"All {total_with_embeddings} feeds with embeddings have already been labeled{user_filter_msg}.")
+                log.info(f"All {total_with_embeddings} papers with embeddings have already been labeled{user_filter_msg}.")
                 log.info("To create a new labeling session, you can:")
                 log.info("  1. Import more articles: papersorter import pubmed")
                 log.info("  2. Update from RSS feeds: papersorter update")
@@ -758,7 +758,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
             db.close()
             return
 
-        log.info(f"Found {len(all_feeds)} unlabeled feeds with embeddings")
+        log.info(f"Found {len(all_feeds)} unlabeled papers with embeddings")
 
         # Sample feeds from percentile-based bins
         selected_feed_ids, metric_name, selected_values = sample_feeds_from_bins(
@@ -766,7 +766,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
         )
 
         # Insert selected feeds into labeling_sessions table
-        log.info(f"Inserting {len(selected_feed_ids)} feeds into labeling session...")
+        log.info(f"Inserting {len(selected_feed_ids)} papers into labeling session...")
 
         # Determine which user_id to use for the labeling session
         session_user_id = determine_session_user(cursor, labeler_user_id, user_ids)

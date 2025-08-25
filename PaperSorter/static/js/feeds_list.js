@@ -1,5 +1,5 @@
-// Feeds List JavaScript
-// This file handles all the interactive functionality for the feeds list page
+// Papers List JavaScript
+// This file handles all the interactive functionality for the papers list page
 
 // Initialize configuration from template
 let currentPage = 1;
@@ -238,7 +238,7 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
     const channelId = document.getElementById('channelSelector')?.value || '';
 
     if (!append) {
-        container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading feeds...</div>';
+        container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading papers...</div>';
         lastDateShown = null;
         bookmarkInserted = false;
     }
@@ -310,9 +310,9 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
         }
 
     } catch (error) {
-        console.error('Failed to load feeds:', error);
+        console.error('Failed to load papers:', error);
         if (!append) {
-            container.innerHTML = '<div class="error">Failed to load feeds. Please try again.</div>';
+            container.innerHTML = '<div class="error">Failed to load papers. Please try again.</div>';
         }
     } finally {
         isLoading = false;
@@ -1136,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('generalSearchInput').value = searchQuery;
         performGeneralSearch();
     } else {
-        // Load initial feeds
+        // Load initial papers
         loadFeeds();
     }
 

@@ -4,7 +4,7 @@
 {% block header_title %}Event Logs{% endblock %}
 
 {% block header_actions %}
-    <a href="/" class="nav-link">← Back to Feeds</a>
+    <a href="/" class="nav-link">← Back to Papers</a>
     {{ super() }}
 {% endblock %}
 
@@ -293,8 +293,8 @@
 
         function renderEvent(event) {
             const feedLink = event.feed_id ?
-                `<a href="/similar/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown feed'}</a>` :
-                'No feed associated';
+                `<a href="/similar/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown paper'}</a>` :
+                'No paper associated';
 
             // Determine what to display based on event type
             let primaryInfo = '';
