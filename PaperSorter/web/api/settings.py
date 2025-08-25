@@ -653,12 +653,12 @@ def api_delete_model(model_id):
             (model_id,)
         )
         channel_count = cursor.fetchone()["count"]
-        
+
         if channel_count > 0:
             cursor.close()
             conn.close()
             return jsonify({
-                "success": False, 
+                "success": False,
                 "error": f"Cannot delete model: used by {channel_count} channel(s)"
             }), 400
 
@@ -693,13 +693,13 @@ def api_get_feed_sources():
                 FROM feeds
                 GROUP BY origin
             )
-            SELECT 
-                fs.id, 
-                fs.name, 
-                fs.source_type, 
-                fs.url, 
-                fs.added, 
-                fs.last_updated, 
+            SELECT
+                fs.id,
+                fs.name,
+                fs.source_type,
+                fs.url,
+                fs.added,
+                fs.last_updated,
                 fs.last_checked,
                 COALESCE(fc.count, 0) as feed_count
             FROM feed_sources fs

@@ -215,7 +215,7 @@ class FeedPredictor:
             if model_id not in channels_by_model:
                 channels_by_model[model_id] = []
             channels_by_model[model_id].append(channel)
-        
+
         if channels_without_model and not channels_by_model:
             log.error("No channels have valid models assigned. Cannot generate predictions.")
             return

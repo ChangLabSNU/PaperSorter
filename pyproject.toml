@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "papersorter"
-version = "0.3.0"
+version = "0.9.0"
 description = "Intelligent academic paper recommendation system with ML-powered filtering and Slack notifications"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -44,7 +44,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "click>=8.0",
     "feedparser>=6.0",
     "numpy>=1.20",
     "openai>=1.30",

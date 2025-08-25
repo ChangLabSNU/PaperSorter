@@ -50,14 +50,14 @@ def api_feeds():
     # Get feeds with all the necessary information
     # Filter preferences by current user
     user_id = current_user.id
-    
+
     # Get user's bookmark and use channel_id from request or fall back to primary channel
     cursor.execute("SELECT bookmark, primary_channel_id FROM users WHERE id = %s", (user_id,))
     user_result = cursor.fetchone()
     bookmark_id = user_result["bookmark"] if user_result else None
     # Use channel_id from request parameter, or fall back to user's primary channel
     channel_id = channel_id if channel_id else (user_result["primary_channel_id"] if user_result else None)
-    
+
     # Get the model_id from the selected channel, or fall back to user's default
     if channel_id:
         cursor.execute("SELECT model_id FROM channels WHERE id = %s", (channel_id,))
@@ -170,7 +170,7 @@ def api_share_feed(feed_id):
     user_id = current_user.id
     data = request.get_json() or {}
     action = data.get("action", "toggle")  # 'share', 'unshare', or 'toggle'
-    
+
     # Get channel_id from request or fall back to user's primary channel
     channel_id = data.get("channel_id")
     if not channel_id:
@@ -183,7 +183,7 @@ def api_share_feed(feed_id):
         # Validate channel
         if not channel_id:
             return jsonify({"success": False, "error": "No channel specified or configured"}), 400
-            
+
         # Check if the channel exists
         cursor.execute(
             "SELECT id FROM channels WHERE id = %s",
@@ -191,7 +191,7 @@ def api_share_feed(feed_id):
         )
         if not cursor.fetchone():
             return jsonify({"success": False, "error": "Channel not found"}), 404
-            
+
         # Check if already shared (exists in broadcasts table for this channel)
         cursor.execute(
             """
@@ -200,12 +200,12 @@ def api_share_feed(feed_id):
         """,
             (feed_id, channel_id),
         )
-        
+
         is_shared = cursor.fetchone() is not None
-        
+
         if action == "toggle":
             action = "unshare" if is_shared else "share"
-        
+
         if action == "unshare":
             # Remove from broadcasts table
             cursor.execute(
@@ -326,7 +326,7 @@ def api_similar_feeds(feed_id):
         # Get similar articles filtered by current user with default model
         conn = current_app.config["get_db_connection"]()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         # Get model_id from primary channel if it exists
         if current_user.primary_channel_id:
             cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
@@ -334,7 +334,7 @@ def api_similar_feeds(feed_id):
             model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
         else:
             model_id = get_user_model_id(conn, current_user)
-        
+
         # Use primary_channel_id for similar articles view
         similar_feeds = edb.find_similar(
             feed_id, limit=30, user_id=current_user.id, model_id=model_id,
