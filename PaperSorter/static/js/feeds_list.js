@@ -113,7 +113,7 @@ function createFeedElement(feed) {
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
                     ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
-                    <span class="feed-meta-item feed-date">${formatDate(feed.added || feed.published)}</span>
+                    <span class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</span>
                 </div>
             </div>`;
 
@@ -775,7 +775,7 @@ function displaySearchResults(results, searchQuery) {
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
                         ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
-                        <span class="feed-meta-item feed-date">${formatDate(result.added || result.published)}</span>
+                        <span class="feed-meta-item feed-date">${formatDate(result.published || result.added)}</span>
                     </div>
                 </div>
                 <div class="vote-badges-container">

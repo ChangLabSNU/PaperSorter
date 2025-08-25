@@ -851,7 +851,7 @@
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
                                 ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
-                                <div class="feed-meta-item feed-date">${formatDate(feed.added || feed.published)}</div>
+                                <div class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</div>
                             </div>
                         </div>
                         ${labels.length > 0 ? `<div class="feed-labels">${labels.join('')}</div>` : ''}
