@@ -23,6 +23,8 @@
 
 """Database schema definitions for PaperSorter."""
 
+import copy
+
 # Custom types
 CUSTOM_TYPES = {
     "preferences_source": {
@@ -31,8 +33,8 @@ CUSTOM_TYPES = {
     }
 }
 
-# Table definitions in dependency order
-TABLES = [
+# Table definitions template in dependency order
+TABLE_TEMPLATES = [
     {
         "name": "users",
         "columns": [
@@ -121,7 +123,7 @@ TABLES = [
         "name": "embeddings",
         "columns": [
             ("feed_id", "bigint PRIMARY KEY REFERENCES {schema}.feeds(id) ON DELETE CASCADE"),
-            ("embedding", "public.vector(1536)"),
+            ("embedding", "public.vector({embedding_dimensions})"),  # Will be replaced by get_tables()
         ]
     },
     {
@@ -187,6 +189,54 @@ TABLES = [
         ]
     },
 ]
+
+def get_tables(embedding_dimensions=1536):
+    """
+    Generate table definitions with specified embedding dimensions.
+    
+    Args:
+        embedding_dimensions (int): The dimension of embedding vectors (default: 1536)
+    
+    Returns:
+        list: Table definitions with embedding dimension applied
+    """
+    # Deep copy the templates to avoid modifying the originals
+    tables = copy.deepcopy(TABLE_TEMPLATES)
+    
+    # Find and update the embeddings table
+    for table in tables:
+        if table["name"] == "embeddings":
+            # Replace the embedding column definition with actual dimensions
+            for i, (col_name, col_def) in enumerate(table["columns"]):
+                if col_name == "embedding":
+                    table["columns"][i] = (col_name, f"public.vector({embedding_dimensions})")
+                    break
+            break
+    
+    return tables
+
+def get_schema(embedding_dimensions=1536):
+    """
+    Get database schema with configurable embedding dimensions.
+    
+    Args:
+        embedding_dimensions (int): The dimension of embedding vectors (default: 1536)
+    
+    Returns:
+        dict: Schema configuration with CUSTOM_TYPES, TABLES, INDEXES, and DROP_ORDER
+    
+    Raises:
+        ValueError: If embedding_dimensions is not a positive integer
+    """
+    if not isinstance(embedding_dimensions, int) or embedding_dimensions <= 0:
+        raise ValueError(f"Invalid embedding dimensions: {embedding_dimensions}. Must be a positive integer.")
+    
+    return {
+        "CUSTOM_TYPES": CUSTOM_TYPES,
+        "TABLES": get_tables(embedding_dimensions),
+        "INDEXES": INDEXES,
+        "DROP_ORDER": DROP_ORDER
+    }
 
 # Index definitions
 INDEXES = [

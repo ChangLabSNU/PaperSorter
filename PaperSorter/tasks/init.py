@@ -25,7 +25,7 @@ import click
 import psycopg2
 import yaml
 from ..log import log
-from ..data import schema as db_schema
+from ..data.schema import get_schema
 
 
 @click.option("--config", "-c", default="./config.yml", help="Config file")
@@ -43,6 +43,15 @@ def main(config, schema, drop_existing, quiet):
         cfg = yaml.safe_load(f)
 
     db_config = cfg["db"]
+    
+    # Get embedding dimensions from config (default to 1536)
+    embedding_dimensions = cfg.get("embedding_api", {}).get("dimensions", 1536)
+    
+    # Get schema with configured embedding dimensions
+    db_schema = get_schema(embedding_dimensions)
+    
+    if not quiet:
+        log.info(f"Using embedding dimensions: {embedding_dimensions}")
 
     # Connect to PostgreSQL
     conn = psycopg2.connect(
@@ -99,17 +108,17 @@ def main(config, schema, drop_existing, quiet):
         if drop_existing:
             if not quiet:
                 log.warning("Dropping existing tables...")
-            for table in db_schema.DROP_ORDER:
+            for table in db_schema["DROP_ORDER"]:
                 cursor.execute(f"DROP TABLE IF EXISTS {schema}.{table} CASCADE")
 
             # Drop custom types
-            for type_name in db_schema.CUSTOM_TYPES:
+            for type_name in db_schema["CUSTOM_TYPES"]:
                 cursor.execute(f"DROP TYPE IF EXISTS {schema}.{type_name} CASCADE")
 
         # Create custom types
         if not quiet:
             log.info("Creating custom types...")
-        for type_name, type_def in db_schema.CUSTOM_TYPES.items():
+        for type_name, type_def in db_schema["CUSTOM_TYPES"].items():
             if type_def["type"] == "ENUM":
                 values_str = ", ".join([f"'{v}'" for v in type_def["values"]])
                 cursor.execute(f"""
@@ -124,7 +133,7 @@ def main(config, schema, drop_existing, quiet):
         if not quiet:
             log.info("Creating tables...")
 
-        for table_def in db_schema.TABLES:
+        for table_def in db_schema["TABLES"]:
             table_name = table_def["name"]
 
             # Build column definitions
@@ -173,7 +182,7 @@ def main(config, schema, drop_existing, quiet):
         if not quiet:
             log.info("Creating indexes...")
 
-        for index_def in db_schema.INDEXES:
+        for index_def in db_schema["INDEXES"]:
             index_name = index_def["name"]
             table_name = index_def["table"]
             columns = ", ".join(index_def["columns"])
