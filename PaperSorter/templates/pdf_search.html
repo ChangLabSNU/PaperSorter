@@ -719,7 +719,7 @@
     <div class="pdf-header">
         <h1>🌌 Paper Connect</h1>
         <div class="pdf-header-actions">
-            <a href="/" class="nav-link">← Back to Feeds</a>
+            <a href="/" class="nav-link">← Back to Papers</a>
             <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
                 <span class="theme-icon">🌙</span>
             </button>
@@ -730,12 +730,15 @@
         <div class="pdf-column" id="pdfColumn">
             <div class="pdf-upload-area" id="pdfUploadArea">
                 <div class="upload-box">
-                    <h2>Upload PDF Document</h2>
+                    <h2>Open a PDF Document</h2>
                     <label for="pdfFileInput" class="pdf-file-input-label">
                         📄 Choose PDF File
                     </label>
                     <input type="file" id="pdfFileInput" accept=".pdf" hidden>
                     <div id="pdfFileName" class="pdf-file-name"></div>
+                    <p style="color: var(--text-meta); font-size: 13px;">
+                        Your PDF stays in your browser. Only selected text is sent for searching.
+                    </p>
                 </div>
             </div>
             <div id="pdfViewerContainer" class="pdf-viewer" style="display: none;">
@@ -1211,7 +1214,7 @@
                     <div class="feed-details" data-feed-id="${feed.rowid}" data-loaded="false">
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
-                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article" title="Open Article">🔗</a>` : ''}
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article" title="Open Paper">🔗</a>` : ''}
                             <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
                                     onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
                                     data-shared="${feed.shared ? 'true' : 'false'}"

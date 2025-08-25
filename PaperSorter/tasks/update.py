@@ -102,7 +102,7 @@ def update_feeds(
 ):
     """Update feeds from all configured sources."""
     log.info("Updating feeds...")
-    log.debug(f"Items in database: {len(feeddb)}")
+    log.debug(f"Papers in database: {len(feeddb)}")
 
     # Initialize RSS provider
     provider = RSSProvider(config)
@@ -111,17 +111,17 @@ def update_feeds(
     sources = provider.get_sources(
         source_type="rss", check_interval_hours=check_interval_hours
     )
-    log.info(f"Found {len(sources)} RSS sources to update")
+    log.info(f"Found {len(sources)} RSS feeds to update")
 
     # Apply source limit if specified
     if limit_sources and limit_sources < len(sources):
         sources = sources[:limit_sources]
-        log.info(f"Limiting to {limit_sources} sources")
+        log.info(f"Limiting to {limit_sources} feeds")
 
     all_new_items = []
 
     for source in sources:
-        log.info(f"Processing source: {source['name']}")
+        log.info(f"Processing feed: {source['name']}")
 
         # Validate source
         if not provider.validate_source(source):
@@ -244,8 +244,8 @@ def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
 def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
     unscored = feeddb.get_unscored_items()
 
-    log.info("Scoring new feeds...")
-    log.debug(f"Items to score: {len(unscored)}")
+    log.info("Scoring new papers...")
+    log.debug(f"Papers to score: {len(unscored)}")
 
     if not unscored:
         return
@@ -316,7 +316,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
                     feeddb.update_score(item_id, score, model_id)
                     iteminfo = feeddb[item_id]
                     log.info(
-                        f"New item: [{score:.2f}] {iteminfo['origin']} / "
+                        f"New paper: [{score:.2f}] {iteminfo['origin']} / "
                         f"{iteminfo['title']}"
                     )
 
@@ -402,7 +402,7 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
     embeddingdb = EmbeddingDatabase(config)
     channels = BroadcastChannels(config)
 
-    # Update feeds from RSS sources
+    # Update feeds from RSS feeds
     new_item_ids = update_feeds(
         feeddb,
         date_cutoff,

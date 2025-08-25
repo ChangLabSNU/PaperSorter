@@ -60,9 +60,9 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
 @click.option(
     "--config", "-c", default="./config.yml", help="Database configuration file."
 )
-@click.option("--count", default=500, help="Number of recent feeds to process (0 for all).")
-@click.option("--all", "process_all", is_flag=True, help="Process all feeds without limit (equivalent to --count 0).")
-@click.option("--only-without-embeddings", is_flag=True, help="Only process feeds that don't have embeddings yet.")
+@click.option("--count", default=500, help="Number of recent papers to process (0 for all).")
+@click.option("--all", "process_all", is_flag=True, help="Process all papers without limit (equivalent to --count 0).")
+@click.option("--only-without-embeddings", is_flag=True, help="Only process papers that don't have embeddings yet.")
 @click.option("--batch-size", default=100, help="Batch size for database operations and embedding generation.")
 @click.option("--log-file", default=None, help="Log file.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
@@ -74,7 +74,7 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
     """
     initialize_logging(task="predict", logfile=log_file, quiet=quiet)
 
-    # Handle --all flag: set count to 0 to process all feeds
+    # Handle --all flag: set count to 0 to process all papers
     if process_all:
         count = 0
 
@@ -103,11 +103,11 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
 
     # Process feeds in batches to avoid memory issues
     if only_without_embeddings:
-        log.info(f"Processing only feeds without embeddings in batches of {batch_size}...")
+        log.info(f"Processing only papers without embeddings in batches of {batch_size}...")
     elif count == 0:
-        log.info(f"Processing all feeds in batches of {batch_size}...")
+        log.info(f"Processing all papers in batches of {batch_size}...")
     else:
-        log.info(f"Processing {count} most recent feeds in batches of {batch_size}...")
+        log.info(f"Processing {count} most recent papers in batches of {batch_size}...")
 
     feeds_with_embeddings = []
     feeds_without_embeddings = []
@@ -173,16 +173,16 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
             break
 
     if total_processed == 0:
-        log.info("No feeds found")
+        log.info("No papers found")
         return
 
     log.info(
-        f"Processed {total_processed} feeds: {len(feeds_with_embeddings)} with embeddings, {len(feeds_without_embeddings)} without"
+        f"Processed {total_processed} papers: {len(feeds_with_embeddings)} with embeddings, {len(feeds_without_embeddings)} without"
     )
 
     # Generate embeddings for feeds that don't have them
     if feeds_without_embeddings:
-        log.info(f"Generating embeddings for {len(feeds_without_embeddings)} feeds...")
+        log.info(f"Generating embeddings for {len(feeds_without_embeddings)} papers...")
 
         # Process embedding generation in batches to avoid overwhelming the API
         feed_ids_without_embeddings = [f["id"] for f in feeds_without_embeddings]
@@ -254,11 +254,11 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
         feeds_to_predict = [fid for fid in feed_ids if fid not in already_predicted]
 
         if not feeds_to_predict:
-            log.info(f"All feeds already have predictions for model {model_id}")
+            log.info(f"All papers already have predictions for model {model_id}")
             continue
 
         log.info(
-            f"Found {len(feeds_to_predict)} feeds without predictions for model {model_id}"
+            f"Found {len(feeds_to_predict)} papers without predictions for model {model_id}"
         )
 
         try:

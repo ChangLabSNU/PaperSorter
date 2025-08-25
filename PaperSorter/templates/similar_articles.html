@@ -747,7 +747,7 @@
             <div class="combined-header-top">
                 <h1>Similar Articles</h1>
                 <div class="header-actions">
-                    <a href="/" class="nav-link">← Back to Feeds</a>
+                    <a href="/" class="nav-link">← Back to Papers</a>
                     <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
                         <span class="theme-icon">🌙</span>
                     </button>
@@ -789,7 +789,7 @@
         <div class="feeds-container">
             <div class="similarity-header">30 Most Similar Articles (Ordered by Similarity)</div>
             <div id="feeds-list">
-                <!-- Similar feeds will be loaded here -->
+                <!-- Similar papers will be loaded here -->
             </div>
             <div id="loading" class="loading">
                 <div class="loading-spinner"></div>
@@ -859,7 +859,7 @@
                     <div class="feed-details">
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
-                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Article</span></a>` : ''}
+                            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Paper</span></a>` : ''}
                             <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
                                     onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
                                     data-shared="${feed.shared ? 'true' : 'false'}"
@@ -906,7 +906,7 @@
                         document.getElementById('summary-section').style.display = 'block';
                     }
 
-                    // Display similar feeds
+                    // Display similar papers
                     const feedsList = document.getElementById('feeds-list');
                     feedsList.innerHTML = '';
 
@@ -920,8 +920,8 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading similar feeds:', error);
-                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--feedback-error-title-color);">Error loading similar articles</div>';
+                    console.error('Error loading similar papers:', error);
+                    document.getElementById('loading').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--feedback-error-title-color);">Error loading similar papers</div>';
                 });
         }
 
@@ -939,7 +939,7 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading feed content:', error);
+                    console.error('Error loading paper content:', error);
                     const abstractElement = detailsElement.querySelector('.feed-abstract');
                     abstractElement.textContent = 'Error loading content';
                     abstractElement.style.color = 'var(--feedback-error-title-color)';
@@ -1145,7 +1145,7 @@
             window.location.href = `/similar/${feedRowid}`;
         }
 
-        // Event delegation for feed item clicks
+        // Event delegation for paper clicks
         document.addEventListener('click', function(e) {
             if (e.target.closest('button') || e.target.closest('a')) return;
 
@@ -1181,7 +1181,7 @@
             summaryLoading.style.display = 'block';
             summaryText.innerHTML = '';
 
-            // Extract feed IDs from similar articles and include the source article
+            // Extract paper IDs from similar articles and include the source article
             const feedIds = [sourceFeedId, ...similarArticles.map(article => article.rowid)];
 
             // Call the summarization API with feed IDs including the source

@@ -22,7 +22,7 @@ This separation allows you to:
 
 Papers can be shared in multiple ways:
 
-1. **From the feed list**: Click the 📤 Share button on any paper
+1. **From the paper list**: Click the 📤 Share button on any paper
 2. **From search results**: Share interesting papers directly from search
 3. **From similar articles**: Share when browsing related papers
 4. **From PDF search**: Share papers discovered through Paper Connect

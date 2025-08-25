@@ -1,7 +1,7 @@
 {% extends "settings_base.html" %}
 
-{% block title %}Feed Sources - Settings - {{ site_name }}{% endblock %}
-{% block header_title %}📰 Feed Sources{% endblock %}
+{% block title %}Feeds - Settings - {{ site_name }}{% endblock %}
+{% block header_title %}📰 Feeds{% endblock %}
 
 {% block page_styles %}
         /* Feed source specific styles */
@@ -37,33 +37,33 @@
 
 {% block settings_content %}
     <div class="action-bar">
-            <h2>RSS Feed Sources</h2>
-            <button class="btn btn-primary" onclick="openAddModal()">+ Add Feed Source</button>
+            <h2>RSS Feeds</h2>
+            <button class="btn btn-primary" onclick="openAddModal()">+ Add Subscription</button>
         </div>
 
         <div id="sources-list">
-            <!-- Feed sources will be loaded here -->
+            <!-- Feed will be loaded here -->
             <div class="empty-state">
                 <div class="empty-state-icon">⏳</div>
-                <h3>Loading feed sources...</h3>
-                <p>Please wait while we fetch your configured feed sources</p>
+                <h3>Loading feeds...</h3>
+                <p>Please wait while we fetch your configured feeds</p>
             </div>
     </div>
 {% endblock %}
 
 {% block modals %}
-    <!-- Add/Edit Feed Source Modal -->
+    <!-- Add/Edit Feed Modal -->
     <div id="sourceModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modalTitle">Add Feed Source</h2>
+                <h2 id="modalTitle">Add Feed</h2>
                 <span class="close" onclick="closeModal()">&times;</span>
             </div>
             <form id="sourceForm" onsubmit="saveSource(event)">
                 <input type="hidden" id="sourceId">
                 <div class="form-group">
                     <label for="sourceName">Source Name</label>
-                    <input type="text" id="sourceName" required placeholder="e.g., Nature AI Research">
+                    <input type="text" id="sourceName" required placeholder="e.g., Molecular Cell">
                 </div>
                 <div class="form-group">
                     <label for="sourceType">Source Type</label>
@@ -78,7 +78,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Source</button>
+                    <button type="submit" class="btn btn-primary">Save Feed</button>
                 </div>
             </form>
         </div>
@@ -97,7 +97,7 @@
                     renderSources();
                 })
                 .catch(error => {
-                    console.error('Error loading feed sources:', error);
+                    console.error('Error loading feeds:', error);
                 });
         }
 
@@ -108,8 +108,8 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📰</div>
-                        <h3>No feed sources configured</h3>
-                        <p>Add a feed source to start collecting articles</p>
+                        <h3>No feeds configured</h3>
+                        <p>Add a feed to start collecting articles</p>
                     </div>
                 `;
                 return;
@@ -171,7 +171,7 @@
         }
 
         function openAddModal() {
-            document.getElementById('modalTitle').textContent = 'Add Feed Source';
+            document.getElementById('modalTitle').textContent = 'Add Feed';
             document.getElementById('sourceForm').reset();
             document.getElementById('sourceId').value = '';
             document.getElementById('sourceModal').style.display = 'block';
@@ -181,7 +181,7 @@
             const source = feedSources.find(s => s.id === id);
             if (!source) return;
 
-            document.getElementById('modalTitle').textContent = 'Edit Feed Source';
+            document.getElementById('modalTitle').textContent = 'Edit Feed';
             document.getElementById('sourceId').value = source.id;
             document.getElementById('sourceName').value = source.name;
             document.getElementById('sourceType').value = source.source_type;
@@ -232,8 +232,8 @@
                 }
             })
             .catch(error => {
-                console.error('Error saving feed source:', error);
-                alert('Failed to save feed source');
+                console.error('Error saving feed:', error);
+                alert('Failed to save feed');
             });
         }
 
@@ -257,8 +257,8 @@
                 }
             })
             .catch(error => {
-                console.error('Error deleting feed source:', error);
-                alert('Failed to delete feed source');
+                console.error('Error deleting feed:', error);
+                alert('Failed to delete feed');
             });
         }
 

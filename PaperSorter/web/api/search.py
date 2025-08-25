@@ -46,7 +46,7 @@ search_bp = Blueprint("search", __name__)
 @search_bp.route("/api/search", methods=["GET", "POST"])
 @login_required
 def api_search():
-    """API endpoint to search feeds by text similarity."""
+    """API endpoint to search papers by text similarity."""
     # Support both GET and POST methods
     if request.method == "POST":
         data = request.get_json()
@@ -81,7 +81,7 @@ def api_search():
             channel_id=current_user.primary_channel_id
         )
 
-        # Convert to format compatible with feeds list
+        # Convert to format compatible with papers list
         feeds = []
         for feed in search_results:
             feeds.append(
@@ -135,7 +135,7 @@ def api_search():
         return jsonify({"feeds": feeds, "short_name": short_name})
 
     except Exception as e:
-        log.error(f"Error searching feeds: {e}")
+        log.error(f"Error searching papers: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -148,7 +148,7 @@ def api_summarize():
         feed_ids = data.get("feed_ids", [])
 
         if not feed_ids:
-            return jsonify({"error": "No feed IDs provided"}), 400
+            return jsonify({"error": "No paper IDs provided"}), 400
 
         # Load summarization API configuration
         config_path = current_app.config["CONFIG_PATH"]

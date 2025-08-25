@@ -101,7 +101,7 @@ class EmbeddingDatabase:
             self.cursor.execute("SELECT id FROM feeds WHERE external_id = %s", (key,))
             result = self.cursor.fetchone()
             if not result:
-                raise KeyError(f"No feed found with external_id: {key}")
+                raise KeyError(f"No paper found with external_id: {key}")
 
             feed_id = result["id"]
             self.cursor.execute(
@@ -121,7 +121,7 @@ class EmbeddingDatabase:
                 self.cursor.execute("SELECT id FROM feeds WHERE external_id = %s", (k,))
                 result = self.cursor.fetchone()
                 if not result:
-                    raise KeyError(f"No feed found with external_id: {k}")
+                    raise KeyError(f"No paper found with external_id: {k}")
 
                 feed_id = result["id"]
                 self.cursor.execute(
@@ -147,7 +147,7 @@ class EmbeddingDatabase:
         self.cursor.execute("SELECT id FROM feeds WHERE external_id = %s", (key,))
         result = self.cursor.fetchone()
         if not result:
-            raise KeyError(f"No feed found with external_id: {key}")
+            raise KeyError(f"No paper found with external_id: {key}")
 
         feed_id = result["id"]
 

@@ -11,7 +11,7 @@
             <h1>Personal Settings</h1>
         </div>
         <div class="header-actions">
-            <a href="/" class="nav-link">← Back to Feeds</a>
+            <a href="/" class="nav-link">← Back to Papers</a>
             {% if current_user.is_authenticated %}
                 <button class="btn-theme-toggle" onclick="ThemeManager.toggleTheme()" title="Toggle dark/light mode">
                     <span class="theme-icon">🌙</span>
@@ -288,7 +288,7 @@
                 </option>
                 {% endfor %}
             </select>
-            <div class="help-text">Your default channel for viewing feeds</div>
+            <div class="help-text">Your default channel for viewing papers</div>
         </div>
     </div>
 

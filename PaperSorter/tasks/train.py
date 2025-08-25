@@ -198,18 +198,18 @@ def main(
         db.close()
 
     if not results:
-        log.error("No feeds with embeddings found")
+        log.error("No papers with embeddings found")
         if not output:
             db.close()
         return
 
-    log.info(f"Found {len(results)} feeds with embeddings")
+    log.info(f"Found {len(results)} papers with embeddings")
 
     # Log information about user coverage if multiple users
     if not user_ids or len(user_ids) > 1:
         feeds_with_labels = sum(1 for r in results if r["preference_score"] is not None)
         multi_user_feeds = sum(1 for r in results if r.get("user_count") is not None and r["user_count"] > 1)
-        log.info(f"Feeds with labels: {feeds_with_labels}, Multi-user labeled feeds: {multi_user_feeds}")
+        log.info(f"Papers with labels: {feeds_with_labels}, Multi-user labeled papers: {multi_user_feeds}")
 
     # Prepare data
     feed_ids = []

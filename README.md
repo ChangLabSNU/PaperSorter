@@ -193,7 +193,7 @@ papersorter train --name "Production Model v1"
 papersorter predict
 
 # 14. Set up notifications and regular operations
-# Configure channels, thresholds, and feed sources in the web interface
+# Configure channels, thresholds, and feeds in the web interface
 ```
 
 **Note**: Stage 2 (steps 10-13) can be omitted but is highly recommended as it:
@@ -437,7 +437,7 @@ PaperSorter can enrich article metadata using either Semantic Scholar or OpenAle
       email: "your_email@example.com"  # Must be valid
   ```
 
-Both providers will enrich your RSS feed articles with:
+Both providers will enrich your articles with:
 - Corrected author names
 - Journal/venue information
 - Full abstracts
@@ -464,7 +464,7 @@ All commands support:
 
 **update:**
 - `--batch-size N` - Processing batch size
-- `--limit-sources N` - Maximum number of feed sources to process
+- `--limit-sources N` - Maximum number of feeds to process
 - `--check-interval-hours N` - Hours between checks for the same feed
 
 **train:**
@@ -487,7 +487,7 @@ All commands support:
 
 The web interface (http://localhost:5001) provides:
 
-### Main Feed View
+### Main Paper View
 - Browse all articles with predictions
 - Interactive labeling (Interested/Not Interested)
 - Semantic article search
@@ -512,7 +512,7 @@ The web interface (http://localhost:5001) provides:
 - Create visual infographics for article collections
 
 ### Admin Settings
-- Manage feed sources
+- Manage feeds
 - Configure notification channels
 - View model performance
 - User management
@@ -566,7 +566,7 @@ PaperSorter consists of several key components that work together to fetch, anal
   │      ┌──────────────────────────┴─────────────────────────────────┐    │
   │      │              Web Interface (Flask Application)             │    │
   │      │  ┌─────────────────────────────────────────────────────┐   │    │
-  │      │  │ • Feed Display             • Article Labeling       │   │    │
+  │      │  │ • Paper List Display       • Paper Labeling         │   │    │
   │      │  │ • Search Interface         • Admin Settings         │   │    │
   │      │  └─────────────────────────────────────────────────────┘   │    │
   │      └─────────────────────▲─────────┬────────────────────────────┘    │
@@ -585,7 +585,7 @@ PaperSorter consists of several key components that work together to fetch, anal
 
 ### Key Components:
 
-- **Feed Provider System**: Modular architecture for different feed sources (RSS/Atom)
+- **RSS Feed System**: Modular architecture for different feed sources (RSS/Atom)
 - **Background Workflows**:
   - Update Task: Fetches articles, generates embeddings, manages broadcast queue
   - Train Task: Trains XGBoost model using labeled data

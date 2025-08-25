@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Feeds - {{ site_name }}{% endblock %}
+{% block title %}Papers - {{ site_name }}{% endblock %}
 
 {% block styles %}
-    <!-- Feeds List CSS -->
+    <!-- Papers List CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/feeds_list.css') }}">
 {% endblock %}
 
@@ -63,7 +63,7 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <button onclick="copySearchLink(event)" class="btn btn-primary">📋 Copy Link</button>
-                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
                 </div>
             </div>
 
@@ -105,7 +105,7 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
             <div class="search-interface">
                 <input type="text" id="semanticSearchInput" placeholder="Search for papers in scholarly database..." class="search-input" onkeydown="if(event.key === 'Enter') { searchSemanticScholar(event); }">
                 <button onclick="searchSemanticScholar(event)" class="btn btn-primary">🔍 Search</button>
-                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
             </div>
         </div>
 
@@ -115,7 +115,7 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                 <h2 id="searchResultsTitle">Scholarly Database Search Results</h2>
                 <div style="display: flex; gap: 10px;">
                     <button onclick="backToSearchInput()" class="btn btn-secondary">← Back to Search</button>
-                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Feed List</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
                 </div>
             </div>
             <div id="searchResults">
@@ -125,11 +125,11 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
 
         <div class="feeds-container" id="feedsContainer">
             <div id="feeds-list">
-                <!-- Feeds will be loaded here -->
+                <!-- Papers will be loaded here -->
             </div>
             <div id="loading" class="loading">
                 <div class="loading-spinner"></div>
-                Loading feeds...
+                Loading papers...
             </div>
         </div>
     </div>

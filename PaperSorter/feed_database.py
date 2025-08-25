@@ -174,7 +174,7 @@ class FeedDatabase:
         published=None,
         tldr=None,
     ):
-        """Insert a feed item directly with explicit fields."""
+        """Insert a paper item directly with explicit fields."""
         # Clean content
         if content:
             content = remove_html_tags(content)
@@ -302,7 +302,7 @@ class FeedDatabase:
             )
 
     def update_content(self, item_id, content):
-        """Update the content (abstract) field of a feed item."""
+        """Update the content (abstract) field of a paper item."""
         if isinstance(item_id, str):
             self.cursor.execute(
                 "UPDATE feeds SET content = %s WHERE external_id = %s", (content, item_id)
@@ -529,9 +529,9 @@ class FeedDatabase:
                 if self.titles_are_similar(queue_item["title"], recent["title"]):
                     is_duplicate = True
                     log.info(
-                        f"Removing duplicate from queue - Feed ID: {queue_item['feed_id']}, "
+                        f"Removing duplicate from queue - Paper ID: {queue_item['feed_id']}, "
                         f"Title: '{queue_item['title'][:80]}...' "
-                        f"(similar to previously broadcasted feed {recent['feed_id']})"
+                        f"(similar to previously broadcasted paper {recent['feed_id']})"
                     )
                     break
 

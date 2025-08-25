@@ -160,13 +160,13 @@ def api_feed_content(feed_id):
     if result:
         return jsonify(result)
     else:
-        return jsonify({"error": "Feed not found"}), 404
+        return jsonify({"error": "Paper not found"}), 404
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/share", methods=["POST"])
 @login_required
 def api_share_feed(feed_id):
-    """API endpoint to share/unshare a feed (add/remove from broadcast queue)."""
+    """API endpoint to share/unshare a paper (add/remove from broadcast queue)."""
     user_id = current_user.id
     data = request.get_json() or {}
     action = data.get("action", "toggle")  # 'share', 'unshare', or 'toggle'
@@ -241,7 +241,7 @@ def api_share_feed(feed_id):
 @feeds_bp.route("/api/feeds/<int:feed_id>/feedback", methods=["POST"])
 @login_required
 def api_feedback_feed(feed_id):
-    """API endpoint to set feedback (like/dislike) for a feed."""
+    """API endpoint to set feedback (like/dislike) for a paper."""
     user_id = current_user.id
     data = request.get_json()
     score = data.get("score")
@@ -308,14 +308,14 @@ def api_feedback_feed(feed_id):
 @feeds_bp.route("/similar/<int:feed_id>")
 @login_required
 def similar_articles(feed_id):
-    """Show articles similar to the given feed."""
+    """Show articles similar to the given paper."""
     return render_template("similar_articles.html", source_feed_id=feed_id)
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/similar")
 @login_required
 def api_similar_feeds(feed_id):
-    """API endpoint to get similar feeds."""
+    """API endpoint to get similar papers."""
     try:
         from ...embedding_database import EmbeddingDatabase
 
@@ -420,7 +420,7 @@ def handle_webhook_feedback(feed_id, score):
             cursor.close()
             conn.close()
             return render_template(
-                "feedback_error.html", message="Article not found"
+                "feedback_error.html", message="Paper not found"
             ), 404
 
         # Check if any recent preference exists (within 1 month)
@@ -497,10 +497,10 @@ def slack_interactivity():
                 related_feed_id = int(related_feed_id)
             except ValueError:
                 log.error(
-                    f"Invalid feed ID in Slack action: {payload['actions'][0]['value']}"
+                    f"Invalid paper ID in Slack action: {payload['actions'][0]['value']}"
                 )
                 return jsonify(
-                    {"response_type": "ephemeral", "text": "Invalid feed ID"}
+                    {"response_type": "ephemeral", "text": "Invalid paper ID"}
                 ), 400
         else:
             log.error(f"Invalid action format: {payload['actions'][0]['value']}")

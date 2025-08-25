@@ -65,7 +65,7 @@ class FeedPredictor:
             batch_size: Size of batches for API calls
 
         Returns:
-            List of feed IDs that successfully got embeddings
+            List of paper IDs that successfully got embeddings
         """
         if not self.openai_client:
             log.error("OpenAI client not configured")
@@ -89,7 +89,7 @@ class FeedPredictor:
                 feeds_needing_embeddings.append(feed_id)
 
         if not feeds_needing_embeddings:
-            log.info("All feeds already have embeddings")
+            log.info("All papers already have embeddings")
             return feed_ids
 
         successful_feeds = []
@@ -108,7 +108,7 @@ class FeedPredictor:
                     formatted_items.append(formatted_item)
                     feed_id_map[idx] = feed_id
                 else:
-                    log.warning(f"Could not get formatted item for feed {feed_id}")
+                    log.warning(f"Could not get formatted item for paper {feed_id}")
 
             if not formatted_items:
                 continue
@@ -171,13 +171,13 @@ class FeedPredictor:
         self, feed_ids, model_dir, force_rescore=False, batch_size=100
     ):
         """
-        Predict preferences for feeds and add high-scoring ones to broadcast queues.
-        Automatically generates embeddings for feeds that don't have them.
+        Predict preferences for papers and add high-scoring ones to broadcast queues.
+        Automatically generates embeddings for papers that don't have them.
 
         Args:
-            feed_ids: List of feed IDs to process (can be a single ID in a list)
+            feed_ids: List of paper IDs to process (can be a single ID in a list)
             model_dir: Directory containing model files
-            force_rescore: Whether to force re-scoring of already scored feeds
+            force_rescore: Whether to force re-scoring of already scored papers
             batch_size: Size of batches for embedding generation
         """
         if not feed_ids:
@@ -220,7 +220,7 @@ class FeedPredictor:
             log.error("No channels have valid models assigned. Cannot generate predictions.")
             return
 
-        # Get embeddings for feeds that have them
+        # Get embeddings for papers that have them
         embeddings_map = {}
         for feed_id in feeds_with_embeddings:
             self.embeddingdb.cursor.execute(
@@ -231,11 +231,11 @@ class FeedPredictor:
                 embeddings_map[feed_id] = np.array(result["embedding"])
             else:
                 log.warning(
-                    f"No embedding found for feed {feed_id} even after generation"
+                    f"No embedding found for paper {feed_id} even after generation"
                 )
 
         if not embeddings_map:
-            log.warning("No embeddings found for any of the provided feeds")
+            log.warning("No embeddings found for any of the provided papers")
             return
 
         # Process each model
@@ -277,7 +277,7 @@ class FeedPredictor:
                     feeds_to_predict = list(embeddings_map.keys())
 
                 if not feeds_to_predict:
-                    log.info(f"All feeds already have predictions for model {model_id}")
+                    log.info(f"All papers already have predictions for model {model_id}")
                     continue
 
                 # Prepare embeddings for prediction

@@ -190,8 +190,8 @@ def api_generate_poster():
         feed_ids = data.get("feed_ids", [])
 
         if not feed_ids:
-            log.error("No feed IDs provided in request")
-            return jsonify({"error": "No feed IDs provided"}), 400
+            log.error("No paper IDs provided in request")
+            return jsonify({"error": "No paper IDs provided"}), 400
 
         # Generate unique job ID
         job_id = str(uuid.uuid4())

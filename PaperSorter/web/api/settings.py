@@ -681,7 +681,7 @@ def api_delete_model(model_id):
 @settings_bp.route("/api/settings/feed-sources")
 @admin_required
 def api_get_feed_sources():
-    """Get all feed sources."""
+    """Get all feeds."""
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
