@@ -23,24 +23,63 @@
 
 """Web server task for PaperSorter."""
 
-import click
 from ..log import log, initialize_logging
 from ..web import create_app
+from ..cli.base import BaseCommand, registry
+import argparse
 
 
-@click.option(
-    "--config", "-c", default="./config.yml", help="Database configuration file."
-)
-@click.option("--host", default="0.0.0.0", help="Host to bind to.")
-@click.option("--port", default=5001, help="Port to bind to.")
-@click.option("--debug", is_flag=True, help="Enable debug mode.")
-@click.option("--log-file", default=None, help="Log file.")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress log output.")
-@click.option(
-    "--skip-authentication",
-    default=None,
-    help="Skip OAuth authentication and auto-login as specified admin user (DEVELOPMENT ONLY).",
-)
+class ServeCommand(BaseCommand):
+    """Serve web interface for article labeling."""
+
+    name = 'serve'
+    help = 'Serve web interface for article labeling and other tasks'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add serve-specific arguments."""
+        parser.add_argument(
+            '--host',
+            default='0.0.0.0',
+            help='Host to bind to'
+        )
+        parser.add_argument(
+            '--port',
+            type=int,
+            default=5001,
+            help='Port to bind to'
+        )
+        parser.add_argument(
+            '--debug',
+            action='store_true',
+            help='Enable debug mode'
+        )
+        parser.add_argument(
+            '--skip-authentication',
+            help='Skip OAuth authentication and auto-login as specified admin user (DEVELOPMENT ONLY)'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the serve command."""
+        initialize_logging('serve', args.log_file, args.quiet)
+        try:
+            main(
+                config=args.config,
+                host=args.host,
+                port=args.port,
+                debug=args.debug,
+                log_file=args.log_file,
+                quiet=args.quiet,
+                skip_authentication=args.skip_authentication
+            )
+            return 0
+        except Exception as e:
+            log.error(f"Serve failed: {e}")
+            return 1
+
+# Register the command
+registry.register(ServeCommand)
+
+
 def main(config, host, port, debug, log_file, quiet, skip_authentication):
     """Serve web interface for article labeling and other tasks."""
     initialize_logging(task="serve", logfile=log_file, quiet=quiet)

@@ -21,17 +21,123 @@
 # THE SOFTWARE.
 #
 
-import click
 import numpy as np
 import psycopg2
+import argparse
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import yaml
+import sys
 from datetime import datetime, timedelta
 from ..log import log, initialize_logging
+from ..cli.base import BaseCommand, registry
+from ..cli.types import probability_float
+
 
 # Module constants
 MIN_INTERESTED_FEEDS = 5  # Minimum number of interested feeds required to create session
+
+
+class LabelingCommand(BaseCommand):
+    """Manage labeling sessions for training data."""
+
+    name = 'labeling'
+    help = 'Manage labeling sessions for training data'
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add labeling subcommands."""
+        subparsers = parser.add_subparsers(
+            dest='subcommand',
+            help='Available labeling commands'
+        )
+
+        # Add create subcommand
+        create_parser = subparsers.add_parser(
+            'create',
+            help='Create a new labeling session with balanced sampling'
+        )
+        create_parser.add_argument(
+            '--sample-size', '-n',
+            type=int,
+            default=1000,
+            help='Total number of papers to include in the labeling session (default: 1000)'
+        )
+        create_parser.add_argument(
+            '--bins', '-b',
+            type=int,
+            default=10,
+            help='Number of distance/score bins for equal sampling (default: 10)'
+        )
+        create_parser.add_argument(
+            '--score-threshold',
+            type=probability_float,
+            default=0.5,
+            help='Preference score threshold for considering a paper as interested (default: 0.5)'
+        )
+        create_parser.add_argument(
+            '--user-id', '-u',
+            action='append',
+            type=int,
+            help='User ID(s) to filter preferences. Can be specified multiple times'
+        )
+        create_parser.add_argument(
+            '--labeler-user-id',
+            type=int,
+            help='User ID to assign the labeling session to'
+        )
+        create_parser.add_argument(
+            '--base-model',
+            type=int,
+            help='Model ID to use for score-based binning instead of distance-based'
+        )
+        create_parser.add_argument(
+            '--max-age',
+            type=int,
+            default=0,
+            help='Maximum age of papers in days. 0 means no limit (default: 0)'
+        )
+
+        # Add clear subcommand
+        clear_parser = subparsers.add_parser(
+            'clear',
+            help='Clear labeling session for a specific user'
+        )
+        clear_parser.add_argument(
+            '--labeler-user-id',
+            type=int,
+            required=True,
+            help='User ID whose labeling session to clear'
+        )
+
+    def handle(self, args: argparse.Namespace, context) -> int:
+        """Execute the labeling command."""
+        initialize_logging('labeling', args.log_file, args.quiet)
+
+        try:
+            if args.subcommand == 'create':
+                do_create_labeling_session(
+                    config_path=args.config,
+                    sample_size=args.sample_size,
+                    bins=args.bins,
+                    score_threshold=args.score_threshold,
+                    user_id=tuple(args.user_id) if args.user_id else (),
+                    labeler_user_id=args.labeler_user_id,
+                    base_model=args.base_model,
+                    max_age=args.max_age
+                )
+                return 0
+            elif args.subcommand == 'clear':
+                do_clear_labeling_session(args.config, args.labeler_user_id)
+                return 0
+            else:
+                print("Please specify a subcommand: create, clear", file=sys.stderr)
+                return 1
+        except Exception as e:
+            log.error(f"Labeling command failed: {e}")
+            return 1
+
+# Register the command
+registry.register(LabelingCommand)
 
 
 def check_prerequisites_for_distance_mode(cursor, user_ids, user_filter, user_params, score_threshold):
@@ -576,49 +682,10 @@ def display_session_summary(stats, session_user_id, selected_values, metric_name
         log.info("(Or use: papersorter serve --skip-authentication <username>)")
     log.info("="*60)
 
-@click.group()
-@click.option("--config", default="./config.yml", help="Path to configuration file")
-@click.option("--log-file", help="Log file path")
-@click.option("-q", "--quiet", is_flag=True, help="Suppress output")
-@click.pass_context
-def main(ctx, config, log_file, quiet):
-    """Manage labeling sessions for training data preparation."""
-    initialize_logging("labeling", log_file, quiet)
-    ctx.ensure_object(dict)
-    ctx.obj["config"] = config
+# Removed Click decorators - functions now called directly
 
 
-@main.command("create")
-@click.option(
-    "--sample-size", "-n", default=1000, type=int,
-    help="Total number of papers to include in the labeling session (default: 1000)"
-)
-@click.option(
-    "--bins", "-b", default=10, type=int,
-    help="Number of distance/score bins for equal sampling (default: 10)"
-)
-@click.option(
-    "--score-threshold", default=0.5, type=float,
-    help="Preference score threshold for considering a paper as interested (default: 0.5)"
-)
-@click.option(
-    "--user-id", "-u", multiple=True, type=int,
-    help="User ID(s) to filter preferences. Can be specified multiple times. If omitted, uses all users."
-)
-@click.option(
-    "--labeler-user-id", type=int,
-    help="User ID to assign the labeling session to. If omitted with single --user-id, uses that user. Otherwise uses oldest admin."
-)
-@click.option(
-    "--base-model", type=int,
-    help="Model ID to use for score-based binning instead of distance-based. When specified, uses predicted scores for sampling."
-)
-@click.option(
-    "--max-age", default=0, type=int,
-    help="Maximum age of papers in days. Only include papers registered within this many days. 0 means no limit (default: 0)"
-)
-@click.pass_context
-def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age):
+def do_create_labeling_session(config_path, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age):
     """Create a new labeling session with balanced sampling.
 
     This command supports two modes:
@@ -640,8 +707,6 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
     - --user-id if only one user_id is specified
     - The oldest admin user (lowest ID) otherwise
     """
-    config_path = ctx.obj["config"]
-
     # Load database configuration
     with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
@@ -810,13 +875,7 @@ def create_labeling_session(ctx, sample_size, bins, score_threshold, user_id, la
         db.close()
 
 
-@main.command("clear")
-@click.option(
-    "--labeler-user-id", type=int, required=True,
-    help="User ID whose labeling session to clear"
-)
-@click.pass_context
-def clear_labeling_session(ctx, labeler_user_id):
+def do_clear_labeling_session(config_path, labeler_user_id):
     """Clear labeling session for a specific user and show statistics.
 
     This command:
@@ -824,8 +883,6 @@ def clear_labeling_session(ctx, labeler_user_id):
     2. Shows statistics about labeled vs unlabeled items
     3. Removes all associated records from labeling_sessions table
     """
-    config_path = ctx.parent.params["config"]
-
     # Load database configuration
     with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
@@ -932,7 +989,8 @@ def clear_labeling_session(ctx, labeler_user_id):
         log.warning(f"This will permanently delete {stats['total_items']} items from the labeling session.")
         log.warning("Note: Labels already saved to preferences table will be preserved.")
 
-        if not click.confirm("Do you want to proceed with clearing this session?"):
+        response = input("Do you want to proceed with clearing this session? [y/N]: ")
+        if response.lower() != 'y':
             log.info("Operation cancelled.")
             cursor.close()
             db.close()

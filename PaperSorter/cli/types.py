@@ -21,30 +21,36 @@
 # THE SOFTWARE.
 #
 
-import sys
-import importlib
-from .tasks import __all__ as alltasks
-from .cli.parser import main as cli_main
+"""Type converter functions for argparse."""
 
-def main():
-    """Main entry point for PaperSorter CLI."""
+import argparse
+from typing import List
 
-    # Import and register all commands
-    from .cli.base import registry
 
-    for task in alltasks:
-        # Import the task module (this triggers registration for migrated commands)
-        try:
-            importlib.import_module(f".tasks.{task}", package="PaperSorter")
-        except ImportError as e:
-            print(f"Warning: Could not import task {task}: {e}", file=sys.stderr)
-            continue
+def positive_int(value: str) -> int:
+    """Validate positive integer."""
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"{value} must be a positive integer")
+    return ivalue
 
-    # Run the CLI
-    return cli_main()
 
-if __name__ == "__main__":
-    sys.exit(main())
+def probability_float(value: str) -> float:
+    """Validate probability value between 0 and 1."""
+    fvalue = float(value)
+    if not 0.0 <= fvalue <= 1.0:
+        raise argparse.ArgumentTypeError(f"{value} must be between 0.0 and 1.0")
+    return fvalue
 
-# Export main for use as console script
-__all__ = ['main']
+
+def comma_separated_list(value: str) -> List[str]:
+    """Parse comma-separated list."""
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def issn_list(value: str) -> str:
+    """Validate ISSN format (XXXX-XXXX)."""
+    value = value.strip()
+    if len(value) == 9 and value[4] == '-':
+        return value
+    raise argparse.ArgumentTypeError(f"{value} is not a valid ISSN format (XXXX-XXXX)")
