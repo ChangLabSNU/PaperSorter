@@ -51,6 +51,10 @@ def main(config, host, port, debug, log_file, quiet, skip_authentication):
         )
 
     log.info(f"Starting web server on {host}:{port}")
+    log.info(f"OAuth redirect URIs to configure:")
+    log.info(f"  - http://localhost:{port}/callback (for local testing)")
+    log.info(f"  - http://{host}:{port}/callback (if using {host})")
+    log.info(f"  - Your production URL/callback (if applicable)")
 
     app = create_app(config, skip_authentication=skip_authentication)
 

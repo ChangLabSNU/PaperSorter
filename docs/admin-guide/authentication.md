@@ -35,12 +35,12 @@ oauth:
 ### 2. Configure OAuth Consent Screen
 
 1. In the Google Cloud Console, go to "APIs & Services" > "OAuth consent screen"
-2. Choose "External" user type (unless you're using Google Workspace)
-3. Fill in the required information:
+2. Navigate to the "Audience" tab and choose "External" user type (unless you're using Google Workspace)
+3. Fill in the required information at the "Branding" tab: 
    - App name: PaperSorter
    - User support email: Your email
    - Developer contact information: Your email
-4. Add scopes: `openid`, `email`, `profile`
+4. Add the following non-sensitive scopes at the "Data Access" tab: `openid`, `email`, `profile`
 5. Save and continue
 
 ### 3. Create OAuth 2.0 Credentials
