@@ -66,7 +66,7 @@ def api_search():
         user_id = current_user.id
         conn = current_app.config["get_db_connection"]()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         # Get model_id from primary channel if it exists
         if current_user.primary_channel_id:
             cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
@@ -457,7 +457,7 @@ def api_scholarly_database_add():
         # The data is already parsed from the search endpoint, so we need to reconstruct it
         from ...providers.scholarly_database import ScholarlyArticle
         from datetime import datetime
-        
+
         # Extract authors - handle both string array and object array formats
         authors = []
         if article_data.get("authors"):
@@ -466,7 +466,7 @@ def api_scholarly_database_add():
                     authors.append(author)
                 elif isinstance(author, dict) and author.get("name"):
                     authors.append(author["name"])
-        
+
         # Extract publication date
         pub_date = None
         if article_data.get("publicationDate"):
@@ -479,7 +479,7 @@ def api_scholarly_database_add():
                 pub_date = datetime(int(article_data["year"]), 1, 1)
             except:
                 pass
-        
+
         # Extract venue/journal
         venue = article_data.get("venue")
         if not venue and article_data.get("journal"):
@@ -488,7 +488,7 @@ def api_scholarly_database_add():
                 venue = journal.get("name")
             else:
                 venue = journal
-        
+
         # Extract tldr
         tldr = None
         if article_data.get("tldr"):
@@ -497,7 +497,7 @@ def api_scholarly_database_add():
                 tldr = tldr_data.get("text")
             else:
                 tldr = tldr_data
-        
+
         # Create ScholarlyArticle object
         article = ScholarlyArticle(
             title=article_data.get("title", ""),
@@ -510,7 +510,7 @@ def api_scholarly_database_add():
             tldr=tldr,
             external_ids=article_data.get("external_ids", {})
         )
-        
+
         # Override the auto-generated unique_id if we have a specific one
         if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")

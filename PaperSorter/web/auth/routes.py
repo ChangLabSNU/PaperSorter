@@ -233,7 +233,7 @@ def google_callback():
                     VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
                     RETURNING id, username, is_admin, timezone, date_format
                 """,
-                    (email, "oauth", 
+                    (email, "oauth",
                      current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
                      current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
                 )
@@ -328,7 +328,7 @@ def github_callback():
                     VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
                     RETURNING id, username, is_admin, timezone, date_format
                 """,
-                    (email, "oauth", 
+                    (email, "oauth",
                      current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
                      current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
                 )

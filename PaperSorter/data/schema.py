@@ -193,16 +193,16 @@ TABLE_TEMPLATES = [
 def get_tables(embedding_dimensions=1536):
     """
     Generate table definitions with specified embedding dimensions.
-    
+
     Args:
         embedding_dimensions (int): The dimension of embedding vectors (default: 1536)
-    
+
     Returns:
         list: Table definitions with embedding dimension applied
     """
     # Deep copy the templates to avoid modifying the originals
     tables = copy.deepcopy(TABLE_TEMPLATES)
-    
+
     # Find and update the embeddings table
     for table in tables:
         if table["name"] == "embeddings":
@@ -212,25 +212,25 @@ def get_tables(embedding_dimensions=1536):
                     table["columns"][i] = (col_name, f"public.vector({embedding_dimensions})")
                     break
             break
-    
+
     return tables
 
 def get_schema(embedding_dimensions=1536):
     """
     Get database schema with configurable embedding dimensions.
-    
+
     Args:
         embedding_dimensions (int): The dimension of embedding vectors (default: 1536)
-    
+
     Returns:
         dict: Schema configuration with CUSTOM_TYPES, TABLES, INDEXES, and DROP_ORDER
-    
+
     Raises:
         ValueError: If embedding_dimensions is not a positive integer
     """
     if not isinstance(embedding_dimensions, int) or embedding_dimensions <= 0:
         raise ValueError(f"Invalid embedding dimensions: {embedding_dimensions}. Must be a positive integer.")
-    
+
     return {
         "CUSTOM_TYPES": CUSTOM_TYPES,
         "TABLES": get_tables(embedding_dimensions),
