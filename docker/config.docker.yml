@@ -1,0 +1,51 @@
+# PaperSorter Configuration Template for Docker
+# This file should be mounted as /app/config.yml in the container
+# Environment variables are expanded when needed
+
+db:
+  type: postgres
+  host: postgres  # Docker service name
+  database: ${POSTGRES_DB:-papersorter}
+  user: ${POSTGRES_USER:-papersorter}
+  password: ${POSTGRES_PASSWORD:-changeme}
+
+web:
+  site_name: ${SITE_NAME:-PaperSorter}
+  base_url: ${BASE_URL:-http://localhost}
+  flask_secret_key: ${FLASK_SECRET_KEY}
+
+oauth:
+  google:
+    client_id: ${GOOGLE_CLIENT_ID}
+    secret: ${GOOGLE_CLIENT_SECRET}
+  github:
+    client_id: ${GITHUB_CLIENT_ID}
+    secret: ${GITHUB_CLIENT_SECRET}
+  orcid:
+    client_id: ${ORCID_CLIENT_ID}
+    secret: ${ORCID_CLIENT_SECRET}
+    sandbox: false
+
+embedding_api:
+  api_key: ${OPENAI_API_KEY}
+  api_url: ${EMBEDDING_API_URL:-https://api.openai.com/v1}
+  model: ${EMBEDDING_MODEL:-text-embedding-3-large}
+  dimensions: ${EMBEDDING_DIMENSIONS}
+
+models:
+  path: /data/models
+
+storage:
+  ai_poster_dir: /data/posters
+
+summarization_api:
+  api_key: ${SUMMARIZATION_API_KEY}
+  api_url: ${SUMMARIZATION_API_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+  model: ${SUMMARIZATION_MODEL:-gemini-2.0-flash-thinking-exp-01-21}
+
+scholarly_database:
+  provider: ${SCHOLARLY_PROVIDER:-semantic_scholar}
+  semantic_scholar:
+    api_key: ${SEMANTIC_SCHOLAR_API_KEY}
+  openalex:
+    email: ${OPENALEX_EMAIL}

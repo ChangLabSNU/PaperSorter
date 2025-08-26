@@ -2,7 +2,34 @@
 
 Get PaperSorter up and running with optimal performance using our comprehensive two-stage training workflow.
 
-## Prerequisites
+## Docker Quick Start (15 minutes)
+
+```bash
+# 1. Clone and configure
+git clone https://github.com/ChangLabSNU/papersorter.git
+cd papersorter
+cp .env.example .env
+# Edit .env with your API keys
+
+# 2. Start services
+docker compose up -d
+
+# 3. Initialize database
+./papersorter-cli init
+
+# 4. Import sample data
+./papersorter-cli import pubmed --files 5
+
+# 5. Generate embeddings
+./papersorter-cli predict --count 1000
+
+# 6. Access web interface
+# Open http://localhost:5001
+```
+
+For the complete training workflow, continue below.
+
+## Prerequisites for Manual Installation
 
 - PostgreSQL 12+ with pgvector extension
 - Python 3.8+
@@ -16,24 +43,26 @@ Get PaperSorter up and running with optimal performance using our comprehensive 
 
 ```bash
 # Initialize database
-papersorter init
+./papersorter-cli init  # Docker
+papersorter init       # Manual
 
 # Import PubMed data with specific journal ISSNs for your field
 # Target: ~10,000 articles for good model training
 # Find ISSNs from JOURNALS file or https://www.ncbi.nlm.nih.gov/nlmcatalog/
 
 # Example for neuroscience/biology:
-papersorter import pubmed \
+# Docker:
+./papersorter-cli import pubmed \
   --issn 1476-4687 \  # Nature
   --issn 0036-8075 \  # Science
   --issn 1097-6256 \  # Nature Neuroscience
   --issn 0896-6273 \  # Neuron
   --files 20          # Download 20 recent update files
 
-# Example for computer science/AI:
+# Manual:
 papersorter import pubmed \
-  --issn 2640-3498 \  # Nature Machine Intelligence
-  --issn 1476-4687 \  # Nature
+  --issn 1476-4687 --issn 0036-8075 \
+  --issn 1097-6256 --issn 0896-6273 \
   --files 20
 ```
 
@@ -42,19 +71,25 @@ papersorter import pubmed \
 ```bash
 # Generate embeddings for ALL imported articles
 # This is essential for semantic search and training
-papersorter predict --all
 
+# Docker:
+./papersorter-cli predict --all
 # Alternative if you have limited API credits:
+./papersorter-cli predict --count 10000
+
+# Manual:
+papersorter predict --all
+# Alternative:
 papersorter predict --count 10000
 ```
 
 #### Step 3: Find Diverse Seed Papers (~10 minutes)
 
 ```bash
-# Start web interface
-papersorter serve --skip-authentication yourname@domain.com
+# Docker: Web interface already running at http://localhost:5001
 
-# Open browser to http://localhost:5001
+# Manual: Start web interface
+papersorter serve --skip-authentication yourname@domain.com
 ```
 
 **Critical: Label 5-10 diverse "interested" papers**
@@ -71,6 +106,11 @@ Use the search box to find papers across different aspects of your research:
 
 ```bash
 # Create labeling session with 100-200 papers similar to your interests
+
+# Docker:
+./papersorter-cli labeling create --sample-size 200
+
+# Manual:
 papersorter labeling create --sample-size 200
 
 # Output will show:
@@ -100,6 +140,11 @@ Tips for labeling:
 
 ```bash
 # Train your first model
+
+# Docker:
+./papersorter-cli train --name "Initial Model v1"
+
+# Manual:
 papersorter train --name "Initial Model v1"
 
 # The system will:
@@ -113,6 +158,11 @@ papersorter train --name "Initial Model v1"
 
 ```bash
 # Generate predictions for all papers
+
+# Docker:
+./papersorter-cli predict
+
+# Manual:
 papersorter predict
 
 # This will:
@@ -130,6 +180,11 @@ This stage significantly improves model generalization and prevents overfitting.
 ```bash
 # Create larger session based on model predictions
 # Uses your Initial Model (ID: 1) to select diverse papers
+
+# Docker:
+./papersorter-cli labeling create --base-model 1 --sample-size 1000
+
+# Manual:
 papersorter labeling create --base-model 1 --sample-size 1000
 
 # This selects papers across the prediction score spectrum:
@@ -156,6 +211,11 @@ Take breaks if needed - your progress is saved automatically.
 
 ```bash
 # Train refined model with full dataset
+
+# Docker:
+./papersorter-cli train --name "Production Model v1"
+
+# Manual:
 papersorter train --name "Production Model v1"
 
 # With ~1200 labeled papers, expect:
@@ -168,6 +228,11 @@ papersorter train --name "Production Model v1"
 
 ```bash
 # Generate predictions with refined model
+
+# Docker:
+./papersorter-cli predict
+
+# Manual:
 papersorter predict
 
 # Check model performance in web UI:
@@ -189,6 +254,12 @@ Broadcast Hours: 9-10  # Send between 9-10 AM
 ```
 
 #### Step 13: Schedule Regular Operations
+
+**Docker (Automatic)**: The scheduler container handles this automatically:
+- Update: Every 3 hours
+- Broadcast: Every hour
+
+**Manual Installation**: Add to crontab:
 
 ```bash
 # Add to crontab for automation
@@ -230,12 +301,22 @@ After completing both stages:
 ### Not enough papers imported
 ```bash
 # Import more files or reduce sampling rate
+
+# Docker:
+./papersorter-cli import pubmed --files 30 --sample-rate 0.2
+
+# Manual:
 papersorter import pubmed --files 30 --sample-rate 0.2
 ```
 
 ### Model performance is poor
 ```bash
 # Check label distribution
+
+# Docker:
+./papersorter-cli labeling stats
+
+# Manual:
 papersorter labeling stats
 
 # Need balance: aim for 30-40% interested papers
@@ -245,9 +326,13 @@ papersorter labeling stats
 ### Predictions seem random
 ```bash
 # Ensure embeddings exist for all papers
-papersorter predict --all --force
 
-# Retrain with more data
+# Docker:
+./papersorter-cli predict --all --force
+./papersorter-cli train --name "Improved Model" --rounds 1500
+
+# Manual:
+papersorter predict --all --force
 papersorter train --name "Improved Model" --rounds 1500
 ```
 

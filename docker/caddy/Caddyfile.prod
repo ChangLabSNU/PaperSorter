@@ -1,0 +1,73 @@
+# Caddyfile for PaperSorter
+# Production configuration with automatic HTTPS
+
+{$DOMAIN} {
+    # Automatic HTTPS with Let's Encrypt
+    tls {$EMAIL}
+
+    # Reverse proxy to PaperSorter web service
+    reverse_proxy web:5001 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # Health check
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+        
+        # Retry policy
+        lb_policy round_robin
+        lb_try_duration 10s
+        lb_try_interval 1s
+    }
+
+    # Compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:;"
+        -Server
+    }
+
+    # Logging
+    log {
+        output file /data/logs/caddy_access.log {
+            roll_size 100mb
+            roll_keep 10
+            roll_keep_for 2160h
+        }
+    }
+
+    # Handle errors
+    handle_errors {
+        @404 {
+            expression {http.error.status_code} == 404
+        }
+        respond @404 "Page not found" 404
+        respond "{http.error.status_code} {http.error.status_text}" {http.error.status_code}
+    }
+
+    # Larger uploads for file imports
+    request_body {
+        max_size 100MB
+    }
+
+    # Timeouts for long-running requests (training, imports)
+    timeouts {
+        read_body 5m
+        write 5m
+    }
+}
+
+# Redirect www to non-www
+www.{$DOMAIN} {
+    redir https://{$DOMAIN}{uri} permanent
+}

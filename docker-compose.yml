@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: papersorter-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-papersorter}
+      POSTGRES_USER: ${POSTGRES_USER:-papersorter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-papersorter}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PaperSorter Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: papersorter-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-papersorter}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-papersorter}
+      
+      # Application
+      PAPERSORTER_DATADIR: /data
+      PAPERSORTER_CONFIG: /app/config.yml
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      
+      # OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      ORCID_CLIENT_ID: ${ORCID_CLIENT_ID}
+      ORCID_CLIENT_SECRET: ${ORCID_CLIENT_SECRET}
+      
+      # APIs
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_API_URL: ${EMBEDDING_API_URL}
+      SUMMARIZATION_API_KEY: ${SUMMARIZATION_API_KEY}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY}
+      
+      # Site Configuration
+      SITE_NAME: ${SITE_NAME:-PaperSorter}
+      BASE_URL: ${BASE_URL:-http://localhost}
+    volumes:
+      - papersorter_data:/data
+      - ./config.yml:/app/config.yml:ro
+    networks:
+      - internal
+      - proxy
+    labels:
+      - "traefik.enable=false"  # Disable if using Traefik instead of Caddy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Scheduler for cron jobs
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    container_name: papersorter-scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Same environment as web container
+      DATABASE_URL: postgresql://${POSTGRES_USER:-papersorter}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-papersorter}
+      PAPERSORTER_DATADIR: /data
+      PAPERSORTER_CONFIG: /app/config.yml
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_API_URL: ${EMBEDDING_API_URL}
+    volumes:
+      - papersorter_data:/data
+      - ./config.yml:/app/config.yml:ro
+    networks:
+      - internal
+
+  # Caddy reverse proxy (for HTTPS)
+  caddy:
+    image: caddy:2-alpine
+    container_name: papersorter-proxy
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      EMAIL: ${ADMIN_EMAIL}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+    name: papersorter_postgres_data
+  papersorter_data:
+    name: papersorter_data
+  caddy_data:
+    name: papersorter_caddy_data
+  caddy_config:
+    name: papersorter_caddy_config
+
+networks:
+  internal:
+    name: papersorter_internal
+    internal: true
+  proxy:
+    name: papersorter_proxy

@@ -1,0 +1,54 @@
+# Caddyfile for PaperSorter
+# Development/default configuration
+
+{$DOMAIN:localhost} {
+    # Reverse proxy to PaperSorter web service
+    reverse_proxy web:5001 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # Health check
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
+
+    # Compression
+    encode gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Logging
+    log {
+        output file /data/logs/caddy_access.log {
+            roll_size 100mb
+            roll_keep 5
+            roll_keep_for 720h
+        }
+    }
+
+    # Handle errors
+    handle_errors {
+        respond "{http.error.status_code} {http.error.status_text}" {http.error.status_code}
+    }
+
+    # Larger uploads for file imports
+    request_body {
+        max_size 100MB
+    }
+
+    # Timeouts for long-running requests (training, imports)
+    timeouts {
+        read_body 5m
+        write 5m
+    }
+}

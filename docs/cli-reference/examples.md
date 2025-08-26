@@ -2,13 +2,37 @@
 
 This page provides practical examples and recipes for common PaperSorter workflows.
 
+## Docker vs Manual Commands
+
+All examples show both Docker and manual installation commands:
+- **Docker**: Use `./papersorter-cli` wrapper
+- **Manual**: Use `papersorter` directly
+
 ## Basic Operations
 
 ### Setting Up a New Installation
 
+#### Docker Setup
+```bash
+# 1. Start services
+docker compose up -d
+
+# 2. Initialize database
+./papersorter-cli init
+
+# 3. Import initial data
+./papersorter-cli import pubmed --files 10
+
+# 4. Generate embeddings
+./papersorter-cli predict --count 1000
+
+# 5. Web interface at http://localhost:5001
+```
+
+#### Manual Setup
 ```bash
 # 1. Initialize database
-papersorter test-db
+papersorter init
 
 # 2. Add your first feed
 papersorter add-feed "arXiv CS" "http://arxiv.org/rss/cs"
@@ -22,6 +46,18 @@ papersorter serve
 
 ### Daily Research Workflow
 
+#### With Docker (Automated)
+```bash
+# Everything runs automatically via scheduler container
+# Just check the web UI at http://localhost:5001
+
+# Manual operations if needed:
+./papersorter-cli update
+./papersorter-cli recent --limit 20
+./papersorter-cli broadcast
+```
+
+#### Manual Installation
 ```bash
 # Morning: Check new papers
 papersorter update
@@ -31,7 +67,7 @@ papersorter recent --limit 20
 papersorter serve
 
 # Evening: Retrain and notify
-papersorter train
+papersorter train --name "Daily Update"
 papersorter broadcast
 ```
 
@@ -40,29 +76,32 @@ papersorter broadcast
 ### Adding Multiple Feeds
 
 ```bash
-# Add multiple arXiv categories
+# Docker:
+for category in cs.LG cs.AI stat.ML; do
+    ./papersorter-cli add-feed "arXiv $category" \
+        "http://arxiv.org/rss/$category" \
+        --type rss
+done
+
+# Manual:
 for category in cs.LG cs.AI stat.ML; do
     papersorter add-feed "arXiv $category" \
         "http://arxiv.org/rss/$category" \
         --type rss
 done
-
-# Add conference proceedings
-papersorter add-feed "NeurIPS 2024" \
-    "https://proceedings.neurips.cc/rss/2024" \
-    --active
 ```
 
 ### Managing Feed Updates
 
 ```bash
-# Update specific feeds only
+# Docker:
+./papersorter-cli update --limit-sources 3
+./papersorter-cli update --force --check-interval-hours 0
+./papersorter-cli update --parallel --workers 8
+
+# Manual:
 papersorter update --limit-sources 3
-
-# Force update despite recent check
 papersorter update --force --check-interval-hours 0
-
-# Parallel updates for speed
 papersorter update --parallel --workers 8
 ```
 
@@ -84,15 +123,15 @@ papersorter remove-feed 5
 ### Initial Model Training
 
 ```bash
-# Check if ready to train
-papersorter stats
+# Docker:
+./papersorter-cli stats  # Check readiness
+# Web interface at http://localhost:5001 for labeling
+./papersorter-cli train --name "Initial Model" --rounds 100
 
-# Need at least 50 labeled papers with diversity
-# If not enough labels, use web interface:
-papersorter serve
-
-# Train first model
-papersorter train --rounds 100 --output models/initial.pkl
+# Manual:
+papersorter stats  # Check readiness
+papersorter serve  # For labeling
+papersorter train --name "Initial Model" --rounds 100
 ```
 
 ### Improving Model Performance
@@ -243,9 +282,60 @@ papersorter export papers --format csv --output papers.csv
 papersorter export model --output production_model.pkl
 ```
 
+## Docker-Specific Operations
+
+### Container Management
+
+```bash
+# View logs
+./papersorter-cli logs
+
+# Open shell in container
+./papersorter-cli shell
+
+# Database shell
+./papersorter-cli db-shell
+
+# Restart services
+./papersorter-cli restart
+
+# Check status
+./papersorter-cli status
+
+# Update Docker images
+./papersorter-cli update-image
+```
+
+### Docker Backups
+
+```bash
+# Backup database
+docker compose exec postgres pg_dump -U papersorter papersorter > backup.sql
+
+# Backup data volume
+docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/papersorter-data.tar.gz /data
+
+# Restore database
+docker compose exec -T postgres psql -U papersorter papersorter < backup.sql
+```
+
 ## Automation Scripts
 
-### Cron Setup
+### Docker (Automatic)
+
+Docker includes automatic scheduling via the scheduler container:
+- Update: Every 3 hours
+- Broadcast: Every hour
+- Predict: Every 6 hours
+
+To customize, edit `docker/cron/crontab` and rebuild:
+```bash
+docker compose build scheduler
+docker compose up -d scheduler
+```
+
+### Manual Cron Setup
 
 ```bash
 # Edit crontab

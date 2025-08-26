@@ -1,0 +1,78 @@
+# Git files
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation build
+docs/_build/
+docs/build/
+
+# Test and coverage
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+
+# Local data files
+*.db
+*.pkl
+*.npz
+*.log
+*.sqlite
+*.sqlite3
+
+# Docker files (don't copy these into the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Environment files
+.env
+.env.*
+
+# Local development directories
+qbio/
+pubmedsync/
+notebook/
+tmp/
+error.png
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Large data directories
+embeddings.db/
+models/
+logs/
+posters/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

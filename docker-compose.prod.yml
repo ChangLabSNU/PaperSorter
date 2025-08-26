@@ -1,0 +1,82 @@
+version: '3.8'
+
+# Production overrides for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    # Production database settings
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Add backup volume
+    volumes:
+      - postgres_backup:/backup
+
+  web:
+    # Production web settings
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    environment:
+      # Production settings
+      FLASK_ENV: production
+      LOG_LEVEL: warning
+    # Increase gunicorn workers/threads for production
+    command: ["gunicorn",
+              "--worker-class", "gthread",
+              "--workers", "1",
+              "--threads", "8",
+              "--bind", "0.0.0.0:5001",
+              "--access-logfile", "/data/logs/access.log",
+              "--error-logfile", "/data/logs/error.log",
+              "--log-level", "warning",
+              "--timeout", "120",
+              "--max-requests", "1000",
+              "--max-requests-jitter", "100",
+              "PaperSorter.web.app:create_app()"]
+
+  scheduler:
+    # Production scheduler settings
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  caddy:
+    # Production Caddy settings with proper domain
+    environment:
+      # These should be set in .env for production
+      DOMAIN: ${DOMAIN}
+      EMAIL: ${ADMIN_EMAIL}
+    # Mount production Caddyfile
+    volumes:
+      - ./docker/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  postgres_backup:
+    name: papersorter_postgres_backup
