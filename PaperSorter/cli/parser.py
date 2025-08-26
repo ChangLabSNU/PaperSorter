@@ -24,7 +24,6 @@
 """Main parser creation for PaperSorter CLI."""
 
 import argparse
-import sys
 from .base import registry
 from .context import CommandContext
 from ..__version__ import __version__

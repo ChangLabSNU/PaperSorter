@@ -12,16 +12,18 @@ The system consists of several key components:
 
 - **FeedDatabase** (`feed_database.py`): PostgreSQL-based storage for article metadata, user labels, and predictions
 - **EmbeddingDatabase** (`embedding_database.py`): PostgreSQL-based storage for article embedding vectors using pgvector extension
-- **Tasks** (`tasks/`): CLI commands implemented as Click commands
+- **Tasks** (`tasks/`): CLI commands implemented as argparse-based commands
   - `init`: Initialize database schema
   - `update`: Fetch new articles, generate embeddings, and queue items for broadcast
   - `import`: Import articles from external sources (currently supports PubMed)
     - `pubmed` subcommand: Downloads recent PubMed update files and imports with sampling
-  - `train`: Train XGBoost model on labeled data (requires --name or --output)
+  - `train`: Train XGBoost model on labeled data (requires --name for database registration)
   - `predict`: Generate embeddings and predictions for articles
   - `broadcast`: Process broadcast queue and send notifications to Slack
   - `serve`: Entry point for web interface (delegates to web package)
   - `test`: Test various system components
+  - `models`: Comprehensive model management (list, show, activate, delete, export, import)
+  - `labeling`: Create and manage labeling sessions for training data collection
 - **Web** (`web/`): Modular web interface implementation
   - `app.py`: Flask application factory
   - `main.py`: Main route handlers for feed list and labeling
@@ -105,6 +107,13 @@ papersorter broadcast  # Send notifications (respects per-channel broadcast hour
 papersorter serve      # Run web interface for labeling
 papersorter train --name "Improved Model v2"  # Retrain model
 papersorter predict    # Generate new predictions
+
+# Model management
+papersorter models list                      # List all models
+papersorter models show 1                    # Show model details
+papersorter models activate 2                # Switch active model
+papersorter models export 1 -o backup.pkl    # Export model for backup
+papersorter models validate                  # Check model integrity
 ```
 
 ### Development Commands

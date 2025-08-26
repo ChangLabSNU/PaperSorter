@@ -306,6 +306,43 @@ papersorter train --name "Team Model" --user-id 1 --user-id 2 --user-id 3
 papersorter train --name "Advanced Model" --rounds 500 --embeddings-table embeddings_v2
 ```
 
+### Model Management
+
+The `papersorter models` command provides comprehensive model management:
+
+```bash
+# List all models with their status
+papersorter models list
+papersorter models list --active-only
+papersorter models list --with-channels
+
+# Show detailed model information
+papersorter models show 1
+
+# Activate/deactivate models
+papersorter models activate 2
+papersorter models deactivate 1
+
+# Update model metadata
+papersorter models modify 1 --name "Production Model v2" --notes "Improved accuracy"
+
+# Export/import models for backup or sharing
+papersorter models export 1 -o model_backup.pkl
+papersorter models export 1 -o model_with_stats.pkl --include-predictions
+papersorter models import model_backup.pkl --name "Restored Model"
+
+# Validate model integrity
+papersorter models validate  # Check all models
+papersorter models validate 1  # Check specific model
+papersorter models validate --fix-orphans  # Clean up orphaned files
+
+# Delete models (with safety checks)
+papersorter models delete 1  # Prompts for confirmation
+papersorter models delete 1 --force  # Skip confirmation
+```
+
+Models are stored in the database with metadata and as pickle files in the configured model directory. Each model can be associated with different channels for multi-team support.
+
 ### 5. Deploy Web Interface for Production
 
 For production use, deploy the web interface with a proper WSGI server and HTTPS:
@@ -450,8 +487,10 @@ Both providers will enrich your articles with:
 - `papersorter init` - Initialize database schema
 - `papersorter update` - Fetch new articles and generate embeddings
 - `papersorter train` - Train or retrain the prediction model
+- `papersorter predict` - Generate predictions for articles
 - `papersorter broadcast` - Send notifications (Slack/Discord) for interesting articles
 - `papersorter serve` - Start the web interface for labeling and configuration
+- `papersorter models` - Manage trained models (list, show, activate, delete, export, import)
 
 ### Common Options
 
@@ -468,9 +507,26 @@ All commands support:
 - `--check-interval-hours N` - Hours between checks for the same feed
 
 **train:**
-- `-r, --rounds N` - XGBoost training rounds (default: 100)
-- `-o, --output PATH` - Model output file (default: model.pkl)
+- `--name NAME` - Model name for database registration (required)
+- `-r, --rounds N` - XGBoost training rounds (default: 1000)
+- `--user-id ID` - Train on specific user(s), can be repeated
 - `--embeddings-table NAME` - Embeddings table name (default: embeddings)
+
+**predict:**
+- `--count N` - Number of articles to process
+- `--all` - Process all articles without limit
+- `--force` - Force re-prediction even if predictions exist
+
+**models:**
+- `list` - List all models with status and statistics
+- `show ID` - Show detailed model information
+- `modify ID --name/--notes` - Update model metadata
+- `activate ID` - Activate a model
+- `deactivate ID` - Deactivate a model
+- `delete ID` - Delete a model (with safety checks)
+- `export ID -o FILE` - Export model with metadata
+- `import FILE` - Import model from file
+- `validate [ID]` - Validate model file integrity
 
 **broadcast:**
 - `--limit N` - Maximum items to process per channel

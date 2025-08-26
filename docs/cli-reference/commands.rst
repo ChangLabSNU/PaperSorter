@@ -58,25 +58,26 @@ Train XGBoost model on labeled papers.
 * ``--config PATH``: Path to configuration file
 * ``--log-file PATH``: Path to log file
 * ``-q, --quiet``: Suppress output
-* ``-r, --rounds INTEGER``: Number of XGBoost rounds (default: 100)
-* ``-o, --output PATH``: Output model file (default: ``model.pkl``)
+* ``--name NAME``: Model name for database registration (required)
+* ``-r, --rounds INTEGER``: Number of XGBoost rounds (default: 1000)
+* ``--user-id ID``: Train on specific user(s), can be repeated
 * ``--embeddings-table TEXT``: Embeddings table name (default: ``embeddings``)
-* ``--filter TEXT``: SQL WHERE clause to filter training data
-* ``--test-size FLOAT``: Test set proportion (default: 0.2)
-* ``--random-state INTEGER``: Random seed for reproducibility
+* ``--pos-cutoff FLOAT``: Threshold for positive labels (default: 0.5)
+* ``--neg-cutoff FLOAT``: Threshold for negative labels (default: 0.2)
+* ``--pseudo-weight FLOAT``: Weight for pseudo-labeled data (default: 0.5)
 
 **Example:**
 
 .. code-block:: bash
 
-   # Train with defaults
-   papersorter train
+   # Train on all users
+   papersorter train --name "Production Model v1"
+
+   # Train on specific users
+   papersorter train --name "User Model" --user-id 1 --user-id 2
 
    # Train with more rounds
-   papersorter train --rounds 500 --output models/better_model.pkl
-
-   # Train on specific papers
-   papersorter train --filter "published > '2024-01-01'"
+   papersorter train --name "Accurate Model" --rounds 2000
 
 broadcast
 ~~~~~~~~~
@@ -220,6 +221,64 @@ Search papers by keyword.
 
    # Semantic search
    papersorter search "neural networks" --semantic
+
+models
+~~~~~~
+
+Manage trained models.
+
+.. code-block:: bash
+
+   papersorter models SUBCOMMAND [OPTIONS]
+
+**Subcommands:**
+
+* ``list``: List all models
+* ``show ID``: Show detailed model information
+* ``modify ID``: Update model metadata
+* ``activate ID``: Activate a model
+* ``deactivate ID``: Deactivate a model
+* ``delete ID``: Delete a model
+* ``export ID``: Export model to file
+* ``import FILE``: Import model from file
+* ``validate [ID]``: Validate model files
+
+**List Options:**
+
+* ``--active-only``: Show only active models
+* ``--inactive-only``: Show only inactive models
+* ``--with-channels``: Include associated channels
+* ``--format {table,json}``: Output format
+
+**Export Options:**
+
+* ``-o, --output FILE``: Output file path (required)
+* ``--include-predictions``: Include prediction statistics
+
+**Import Options:**
+
+* ``--name NAME``: Override model name
+* ``--notes NOTES``: Override model notes
+* ``--activate``: Activate model after import
+
+**Example:**
+
+.. code-block:: bash
+
+   # List all models
+   papersorter models list
+
+   # Show model details
+   papersorter models show 1
+
+   # Export model for backup
+   papersorter models export 1 -o backup.pkl
+
+   # Import model
+   papersorter models import backup.pkl --name "Restored Model"
+
+   # Validate all models
+   papersorter models validate
 
 Management Commands
 -------------------
@@ -449,7 +508,7 @@ Compare multiple models.
 predict
 ~~~~~~~
 
-Get predictions for specific papers.
+Generate embeddings and predictions for articles.
 
 .. code-block:: bash
 
@@ -457,9 +516,9 @@ Get predictions for specific papers.
 
 **Options:**
 
-* ``--paper-id INTEGER``: Specific paper ID
-* ``--recent INTEGER``: Predict for N recent papers
-* ``--unlabeled``: Predict for unlabeled papers only
+* ``--count N``: Number of articles to process
+* ``--all``: Process all articles without limit
+* ``--force``: Force re-prediction even if predictions exist
 
 retrain
 ~~~~~~~

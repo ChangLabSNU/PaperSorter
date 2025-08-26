@@ -27,7 +27,6 @@ import argparse
 from ..log import log
 from ..data.schema import get_schema
 from ..cli.base import BaseCommand, registry
-from ..log import initialize_logging
 
 
 class InitCommand(BaseCommand):

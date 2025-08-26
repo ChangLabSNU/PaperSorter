@@ -30,7 +30,6 @@ def main():
     """Main entry point for PaperSorter CLI."""
 
     # Import and register all commands
-    from .cli.base import registry
 
     for task in alltasks:
         # Import the task module (this triggers registration for migrated commands)
