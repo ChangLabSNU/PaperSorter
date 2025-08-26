@@ -67,13 +67,29 @@ GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
 
 # Embedding API (required)
-OPENAI_API_KEY=your-api-key
+EMBEDDING_API_KEY=your-api-key
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_DIMENSIONS=1536  # Optional: for pgvector indexing
 # Or custom endpoint:
 EMBEDDING_API_URL=https://your-api.com/v1
+
+# Summarization API
+SUMMARIZATION_API_KEY=your-api-key
+SUMMARIZATION_MODEL=gemini-2.0-flash-thinking-exp-01-21
+
+# Email notifications (optional)
+SMTP_PROVIDER=gmail  # Or: outlook, custom
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password  # Use app-specific password
+EMAIL_FROM=papersorter@example.com
+EMAIL_SUBJECT_TEMPLATE=Research Papers Digest - {date:%Y-%m-%d}
 
 # Production domain
 DOMAIN=papersorter.example.com
 ADMIN_EMAIL=admin@example.com
+
+# Admin users (comma-separated)
+ADMIN_USERS=admin@example.com,researcher@university.edu
 ```
 
 ### Data Persistence

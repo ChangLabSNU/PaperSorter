@@ -2,6 +2,10 @@
 # This file should be mounted as /app/config.yml in the container
 # Environment variables are expanded when needed
 
+admin_users:
+  # Auto-promoted admin users (comma-separated in env var)
+  # ${ADMIN_USERS}
+
 db:
   type: postgres
   host: postgres  # Docker service name
@@ -13,6 +17,8 @@ web:
   site_name: ${SITE_NAME:-PaperSorter}
   base_url: ${BASE_URL:-http://localhost}
   flask_secret_key: ${FLASK_SECRET_KEY}
+  default_timezone: ${DEFAULT_TIMEZONE:-UTC}
+  default_date_format: ${DEFAULT_DATE_FORMAT:-MMM D, YYYY}
 
 oauth:
   google:
@@ -27,7 +33,7 @@ oauth:
     sandbox: false
 
 embedding_api:
-  api_key: ${OPENAI_API_KEY}
+  api_key: ${EMBEDDING_API_KEY}
   api_url: ${EMBEDDING_API_URL:-https://api.openai.com/v1}
   model: ${EMBEDDING_MODEL:-text-embedding-3-large}
   dimensions: ${EMBEDDING_DIMENSIONS}
@@ -45,7 +51,22 @@ summarization_api:
 
 scholarly_database:
   provider: ${SCHOLARLY_PROVIDER:-semantic_scholar}
+  match_date_tolerance_days: ${MATCH_DATE_TOLERANCE_DAYS:-60}
   semantic_scholar:
     api_key: ${SEMANTIC_SCHOLAR_API_KEY}
   openalex:
     email: ${OPENALEX_EMAIL}
+
+smtp:
+  provider: ${SMTP_PROVIDER:-custom}
+  host: ${SMTP_HOST}
+  port: ${SMTP_PORT:-587}
+  username: ${SMTP_USERNAME}
+  password: ${SMTP_PASSWORD}
+  encryption: ${SMTP_ENCRYPTION:-tls}
+  timeout: ${SMTP_TIMEOUT:-30}
+
+email:
+  from_address: ${EMAIL_FROM:-papersorter@example.com}
+  from_name: ${EMAIL_FROM_NAME:-PaperSorter Newsletter}
+  subject_template: ${EMAIL_SUBJECT_TEMPLATE:-Research Papers Digest - {date:%Y-%m-%d}}
