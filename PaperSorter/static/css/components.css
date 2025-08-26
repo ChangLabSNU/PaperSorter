@@ -584,11 +584,15 @@ select.form-control {
 }
 
 .modal-header {
-  padding: var(--spacing-lg);
-  border-bottom: 1px solid var(--border-light);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .modal-title {
@@ -610,24 +614,20 @@ select.form-control {
   gap: var(--spacing-sm);
 }
 
-.modal-close {
+.modal-close,
+.close {
   background: none;
   border: none;
-  font-size: var(--font-size-xxl);
+  font-size: 28px;
+  font-weight: bold;
   color: var(--text-meta);
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
+  transition: color var(--transition-base);
 }
 
-.modal-close:hover {
-  background-color: var(--bg-hover);
+.modal-close:hover,
+.close:hover {
   color: var(--text-primary);
 }
 
