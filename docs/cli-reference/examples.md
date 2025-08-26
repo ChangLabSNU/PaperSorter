@@ -15,7 +15,7 @@ All examples show both Docker and manual installation commands:
 #### Docker Setup
 ```bash
 # 1. Start services
-docker compose up -d
+docker-compose up -d
 
 # 2. Initialize database
 ./papersorter-cli init
@@ -310,14 +310,14 @@ papersorter export model --output production_model.pkl
 
 ```bash
 # Backup database
-docker compose exec postgres pg_dump -U papersorter papersorter > backup.sql
+docker-compose exec postgres pg_dump -U papersorter papersorter > backup.sql
 
 # Backup data volume
 docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
   alpine tar czf /backup/papersorter-data.tar.gz /data
 
 # Restore database
-docker compose exec -T postgres psql -U papersorter papersorter < backup.sql
+docker-compose exec -T postgres psql -U papersorter papersorter < backup.sql
 ```
 
 ## Automation Scripts
@@ -331,8 +331,8 @@ Docker includes automatic scheduling via the scheduler container:
 
 To customize, edit `docker/cron/crontab` and rebuild:
 ```bash
-docker compose build scheduler
-docker compose up -d scheduler
+docker-compose build scheduler
+docker-compose up -d scheduler
 ```
 
 ### Manual Cron Setup

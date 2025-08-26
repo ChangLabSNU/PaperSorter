@@ -16,7 +16,7 @@ cp .env.example .env
 # Edit .env with your API keys and settings
 
 # Start all services
-docker compose up -d
+docker-compose up -d
 
 # Initialize database
 ./papersorter-cli init
@@ -287,29 +287,29 @@ maintenance_work_mem = 64MB
 #### Services won't start
 ```bash
 # Check logs
-docker compose logs
+docker-compose logs
 
 # Verify environment
-docker compose config
+docker-compose config
 
 # Rebuild if needed
-docker compose build --no-cache
-docker compose up -d
+docker-compose build --no-cache
+docker-compose up -d
 ```
 
 #### Permission issues
 ```bash
 # Fix ownership (container runs as UID 1000)
-docker compose exec web chown -R papersorter:papersorter /data
+docker-compose exec web chown -R papersorter:papersorter /data
 ```
 
 #### Database connection issues
 ```bash
 # Check database is running
-docker compose ps postgres
+docker-compose ps postgres
 
 # Test connection
-docker compose exec web pg_isready -h postgres
+docker-compose exec web pg_isready -h postgres
 ```
 
 ### Production Deployment
@@ -318,7 +318,7 @@ For production deployments with Docker:
 
 ```bash
 # Use production compose file
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 See [Docker Guide](../../DOCKER.md) for detailed production setup.

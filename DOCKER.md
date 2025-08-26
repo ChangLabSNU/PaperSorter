@@ -26,7 +26,7 @@ cp docker/config.docker.yml config.yml
 # Edit config.yml if needed (optional)
 
 # Start all services
-docker compose up -d
+docker-compose up -d
 
 # Initialize the database
 ./papersorter-cli init
@@ -139,8 +139,8 @@ The scheduler container runs these tasks automatically:
 To modify the schedule, edit `docker/cron/crontab` and rebuild:
 
 ```bash
-docker compose build scheduler
-docker compose up -d scheduler
+docker-compose build scheduler
+docker-compose up -d scheduler
 ```
 
 ## Production Deployment
@@ -149,7 +149,7 @@ docker compose up -d scheduler
 
 ```bash
 # Use both base and production compose files
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 ### SSL/HTTPS Setup
@@ -181,7 +181,7 @@ Adjust in `docker-compose.prod.yml` as needed.
 
 ```bash
 # Backup database
-docker compose exec postgres pg_dump -U papersorter papersorter > backup.sql
+docker-compose exec postgres pg_dump -U papersorter papersorter > backup.sql
 
 # Backup data volume
 docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
@@ -192,7 +192,7 @@ docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
 
 ```bash
 # Restore database
-docker compose exec -T postgres psql -U papersorter papersorter < backup.sql
+docker-compose exec -T postgres psql -U papersorter papersorter < backup.sql
 
 # Restore data volume
 docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
@@ -206,19 +206,19 @@ docker run --rm -v papersorter_data:/data -v $(pwd):/backup \
 git pull
 
 # Rebuild images
-docker compose build --no-cache
+docker-compose build --no-cache
 
 # Restart services
-docker compose down
-docker compose up -d
+docker-compose down
+docker-compose up -d
 ```
 
 ### Monitoring
 
 ```bash
 # View logs
-docker compose logs -f web
-docker compose logs -f scheduler
+docker-compose logs -f web
+docker-compose logs -f scheduler
 
 # Check health
 curl http://localhost:5001/health
@@ -233,44 +233,44 @@ docker stats
 
 ```bash
 # Check logs
-docker compose logs
+docker-compose logs
 
 # Verify environment
-docker compose config
+docker-compose config
 
 # Reset everything (WARNING: deletes data)
-docker compose down -v
-docker compose up -d
+docker-compose down -v
+docker-compose up -d
 ```
 
 ### Database connection issues
 
 ```bash
 # Check database is running
-docker compose ps postgres
+docker-compose ps postgres
 
 # Test connection
-docker compose exec web pg_isready -h postgres
+docker-compose exec web pg_isready -h postgres
 
 # Check credentials
-docker compose exec web env | grep DATABASE_URL
+docker-compose exec web env | grep DATABASE_URL
 ```
 
 ### Permission issues
 
 ```bash
 # Fix ownership (runs as UID 1000)
-docker compose exec web chown -R papersorter:papersorter /data
+docker-compose exec web chown -R papersorter:papersorter /data
 ```
 
 ### SSL certificate issues
 
 ```bash
 # Check Caddy logs
-docker compose logs caddy
+docker-compose logs caddy
 
 # Manual certificate renewal
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+docker-compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
 ## Advanced Configuration
@@ -302,7 +302,7 @@ For development with hot-reload:
 
 ```bash
 # Mount source code
-docker compose run --rm -v $(pwd)/PaperSorter:/app/PaperSorter web bash
+docker-compose run --rm -v $(pwd)/PaperSorter:/app/PaperSorter web bash
 
 # Inside container
 python -m PaperSorter.web.app
