@@ -2,6 +2,7 @@
 # Development/default configuration
 
 {$DOMAIN:localhost} {
+    # Disable automatic HTTPS redirect for development
     # Reverse proxy to PaperSorter web service
     reverse_proxy web:5001 {
         header_up X-Real-IP {remote_host}
@@ -44,11 +45,5 @@
     # Larger uploads for file imports
     request_body {
         max_size 100MB
-    }
-
-    # Timeouts for long-running requests (training, imports)
-    timeouts {
-        read_body 5m
-        write 5m
     }
 }

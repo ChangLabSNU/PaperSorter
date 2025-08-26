@@ -59,4 +59,4 @@ CMD ["gunicorn", \
      "--error-logfile", "/data/logs/error.log", \
      "--log-level", "info", \
      "--timeout", "120", \
-     "PaperSorter.web.app:create_app()"]
+     "docker.scripts.wsgi:app"]
