@@ -1,0 +1,51 @@
+# PaperSorter Scheduler Image (for cron jobs)
+FROM python:3.11-slim
+
+# Install system dependencies including cron
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    postgresql-client \
+    cron \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt pyproject.toml setup.py ./
+COPY PaperSorter/__version__.py ./PaperSorter/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY . .
+
+# Install PaperSorter package
+RUN pip install --no-cache-dir -e .
+
+# Create non-root user (same UID as main container)
+RUN useradd -m -u 1000 papersorter && \
+    mkdir -p /data/logs /data/models /data/posters && \
+    chown -R papersorter:papersorter /app /data
+
+# Copy cron configuration
+COPY docker/cron/crontab /etc/cron.d/papersorter-cron
+
+# Set permissions for cron file
+RUN chmod 0644 /etc/cron.d/papersorter-cron && \
+    crontab -u papersorter /etc/cron.d/papersorter-cron
+
+# Copy entrypoint script
+COPY docker/scripts/scheduler-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set environment variables
+ENV PAPERSORTER_DATADIR=/data \
+    PAPERSORTER_CONFIG=/app/config.yml \
+    PYTHONUNBUFFERED=1
+
+# Run cron in foreground
+CMD ["/entrypoint.sh"]

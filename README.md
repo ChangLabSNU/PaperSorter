@@ -20,16 +20,46 @@ PaperSorter is an intelligent academic paper recommendation system that helps re
 
 ## Installation
 
-Install PaperSorter using pip:
+### Option 1: Docker (Recommended)
+
+The easiest way to get started with PaperSorter is using Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/ChangLabSNU/PaperSorter.git
+cd PaperSorter
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and settings
+
+# Start all services
+docker compose up -d
+
+# Initialize database
+./papersorter-cli init
+
+# Check service status
+./papersorter-cli status
+```
+
+The application will be available at:
+- Local: http://localhost:5001
+- Production: https://your-domain.com (automatic HTTPS)
+
+For detailed Docker setup, see [DOCKER.md](DOCKER.md).
+
+### Option 2: Manual Installation
+
+For development or custom deployments:
 
 ```bash
 git clone https://github.com/ChangLabSNU/PaperSorter.git
-
 cd PaperSorter
 pip install -e .
 ```
 
-### System Requirements
+#### System Requirements
 
 - Python 3.8+
 - PostgreSQL 12+ with pgvector extension
@@ -37,7 +67,24 @@ pip install -e .
 
 ## Configuration
 
-Create a configuration file at `config.yml` (or specify with `--config`). See `examples/config.yml` for a complete example:
+### Docker Configuration
+
+For Docker installations, configure via `.env` file:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+Key settings in `.env`:
+- Database credentials
+- OAuth client IDs and secrets
+- API keys for embeddings and summarization
+- Domain and email for HTTPS
+
+### Manual Configuration
+
+For manual installations, create `config.yml` (or specify with `--config`). See `examples/config.yml` for a complete example:
 
 ```yaml
 # Admin users - automatically promoted to admin on login (never demoted)
@@ -100,9 +147,17 @@ scholarly_database:
 
 ## Database Setup
 
-### 1. Create PostgreSQL Database
+### Docker Setup (Automatic)
 
-First, create a database and user for PaperSorter:
+Docker automatically sets up PostgreSQL with pgvector. Just run:
+
+```bash
+./papersorter-cli init
+```
+
+### Manual Database Setup
+
+#### 1. Create PostgreSQL Database
 
 ```bash
 # As PostgreSQL superuser:
@@ -122,7 +177,7 @@ Alternatively, if you have an existing database:
 sudo -u postgres psql -d your_database -c "CREATE EXTENSION vector;"
 ```
 
-### 2. Initialize Database Schema
+#### 2. Initialize Database Schema
 
 ```bash
 papersorter init
@@ -143,17 +198,25 @@ For optimal model performance, follow this comprehensive workflow that uses a tw
 #### Stage 1: Initial Model Training (Similarity-based)
 
 ```bash
-# 1. Initialize database
-papersorter init
+# 1. Initialize database (use ./papersorter-cli for Docker)
+papersorter init  # or ./papersorter-cli init
 
 # 2. Import PubMed data with specific ISSNs for your field (target ~10,000 articles)
 # Find relevant journal ISSNs from the JOURNALS file or PubMed
+# Docker:
+./papersorter-cli import pubmed --issn 1476-4687 --issn 0036-8075 --issn 1097-6256 --files 20
+# Manual:
 papersorter import pubmed --issn 1476-4687 --issn 0036-8075 --issn 1097-6256 --files 20
 
 # 3. Generate embeddings for all imported articles (essential for search and training)
+# Docker:
+./papersorter-cli predict --all  # or --count 10000
+# Manual:
 papersorter predict --all  # or --count 10000
 
 # 4. Start web interface
+# Docker: Already running at http://localhost:5001
+# Manual:
 papersorter serve --skip-authentication yourname@domain.com
 
 # 5. Find and label 5-10 diverse "interested" papers using semantic search
@@ -163,6 +226,9 @@ papersorter serve --skip-authentication yourname@domain.com
 # - Mark 5-10 papers as "Interested" (diversity is crucial!)
 
 # 6. Create first labeling session based on similarity to interested papers
+# Docker:
+./papersorter-cli labeling create --sample-size 200
+# Manual:
 papersorter labeling create --sample-size 200
 
 # 7. Complete the labeling session in the web interface
@@ -170,9 +236,15 @@ papersorter labeling create --sample-size 200
 # - Label all 200 papers as "Interested" or "Not Interested"
 
 # 8. Train your initial model
+# Docker:
+./papersorter-cli train --name "Initial Model v1"
+# Manual:
 papersorter train --name "Initial Model v1"
 
 # 9. Generate predictions with the initial model
+# Docker:
+./papersorter-cli predict
+# Manual:
 papersorter predict
 ```
 
@@ -180,6 +252,9 @@ papersorter predict
 
 ```bash
 # 10. Create second labeling session based on model predictions
+# Docker:
+./papersorter-cli labeling create --base-model 1 --sample-size 1000
+# Manual:
 papersorter labeling create --base-model 1 --sample-size 1000
 
 # 11. Complete the second labeling session
@@ -187,9 +262,15 @@ papersorter labeling create --base-model 1 --sample-size 1000
 # - Label all 1000 papers (this refines the model significantly)
 
 # 12. Train improved model with larger dataset
+# Docker:
+./papersorter-cli train --name "Production Model v1"
+# Manual:
 papersorter train --name "Production Model v1"
 
 # 13. Generate final predictions
+# Docker:
+./papersorter-cli predict
+# Manual:
 papersorter predict
 
 # 14. Set up notifications and regular operations
@@ -207,13 +288,16 @@ papersorter predict
 
 ```bash
 # Initialize database
-papersorter init
+./papersorter-cli init  # Docker
+papersorter init       # Manual
 
 # Import from PubMed (recommended for initial data)
-papersorter import pubmed  # Downloads 10 recent files, 10% sampling
+./papersorter-cli import pubmed  # Docker: Downloads 10 recent files, 10% sampling
+papersorter import pubmed       # Manual
 
 # OR fetch from configured RSS feeds
-papersorter update
+./papersorter-cli update  # Docker
+papersorter update       # Manual
 ```
 
 #### 2. Generate Embeddings
@@ -222,7 +306,8 @@ For initial setup, generate embeddings for many articles:
 
 ```bash
 # Generate embeddings for up to 10,000 articles
-papersorter predict --count 10000
+./papersorter-cli predict --count 10000  # Docker
+papersorter predict --count 10000       # Manual
 ```
 
 This step is crucial as it creates the vector representations needed for:
@@ -235,6 +320,8 @@ This step is crucial as it creates the vector representations needed for:
 Start the web interface:
 
 ```bash
+# Docker: Already running at http://localhost:5001
+# Manual:
 papersorter serve
 # Or for development without OAuth:
 papersorter serve --skip-authentication yourname@domain.com
@@ -427,7 +514,17 @@ Discord notifications include:
 
 ### 7. Regular Operation
 
-Set up these commands to run periodically (e.g., via cron):
+#### Docker (Automatic Scheduling)
+
+Docker includes a scheduler container that automatically runs:
+- **Update**: Every 3 hours (fetch new articles)
+- **Broadcast**: Every hour (send notifications)
+
+No additional setup required - these run automatically when Docker is running.
+
+#### Manual Setup (Cron)
+
+For manual installations, set up cron jobs:
 
 ```bash
 # Fetch new articles and generate predictions (every 3 hours)

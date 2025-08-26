@@ -278,3 +278,18 @@ def user_settings():
     conn.close()
 
     return render_template("user_settings.html", user_data=user_data, channels=channels)
+
+
+@main_bp.route("/health")
+def health_check():
+    """Health check endpoint for Docker/monitoring."""
+    try:
+        # Check database connection
+        conn = current_app.config["get_db_connection"]()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "healthy", "service": "papersorter"}), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 503

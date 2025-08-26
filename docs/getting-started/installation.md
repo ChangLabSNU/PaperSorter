@@ -2,15 +2,45 @@
 
 This guide will walk you through installing PaperSorter and its dependencies.
 
+## Quick Start with Docker (Recommended)
+
+The easiest way to install PaperSorter is using Docker, which handles all dependencies automatically:
+
+```bash
+# Clone the repository
+git clone https://github.com/ChangLabSNU/papersorter.git
+cd papersorter
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and settings
+
+# Start all services
+docker compose up -d
+
+# Initialize database
+./papersorter-cli init
+
+# Check status
+./papersorter-cli status
+```
+
+That's it! PaperSorter is now running at http://localhost:5001
+
+For detailed Docker configuration, see [Docker Installation Guide](../../DOCKER.md).
+
 ## System Requirements
 
-### Hardware Requirements
+### For Docker Installation
+- **Docker**: Docker Engine 20.10+ and Docker Compose v2
+- **RAM**: 4GB minimum, 8GB+ recommended
+- **Storage**: 10GB+ for database and models
+- **Network**: Stable internet connection
+
+### For Manual Installation
 - **CPU**: 2+ cores recommended
 - **RAM**: 4GB minimum, 8GB+ recommended
 - **Storage**: 10GB+ for database and models
-- **Network**: Stable internet connection for fetching papers
-
-### Software Requirements
 - **Python**: 3.9 or higher
 - **PostgreSQL**: 12 or higher with pgvector extension
 - **Git**: For cloning the repository
@@ -20,12 +50,12 @@ This guide will walk you through installing PaperSorter and its dependencies.
 - macOS (11.0+)
 - Windows (WSL2 recommended)
 
-## Quick Installation
+## Manual Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/papersorter.git
+git clone https://github.com/ChangLabSNU/papersorter.git
 cd papersorter
 ```
 
@@ -169,7 +199,23 @@ pip install -r docs/requirements.txt
 
 ## Verification
 
-### 1. Check Installation
+### Docker Installation
+
+```bash
+# Check service status
+./papersorter-cli status
+
+# Test database connection
+./papersorter-cli test-db
+
+# View logs
+./papersorter-cli logs
+
+# Test embedding API
+./papersorter-cli test-embedding --text "Test embedding generation"
+```
+
+### Manual Installation
 
 ```bash
 # Verify PaperSorter is installed
@@ -177,28 +223,12 @@ papersorter --version
 
 # List available commands
 papersorter --help
-```
 
-### 2. Test Database Connection
-
-```bash
 # Test database connection
 papersorter test-db
 
-# Or manually with Python
-python -c "from PaperSorter.feed_database import FeedDatabase; \
-          db = FeedDatabase(); \
-          print('Database connection successful!')"
-```
-
-### 3. Test API Keys
-
-```bash
 # Test embedding API
 papersorter test-embedding --text "Test embedding generation"
-
-# Test other APIs if configured
-papersorter test-apis
 ```
 
 ## Troubleshooting
@@ -252,23 +282,53 @@ maintenance_work_mem = 64MB
 
 ## Platform-Specific Notes
 
-### Docker Installation
+### Docker Troubleshooting
 
-```dockerfile
-# Dockerfile available in repository
-docker build -t papersorter .
-docker run -v $(pwd)/config.yml:/app/config.yml papersorter
+#### Services won't start
+```bash
+# Check logs
+docker compose logs
+
+# Verify environment
+docker compose config
+
+# Rebuild if needed
+docker compose build --no-cache
+docker compose up -d
 ```
 
-### Kubernetes Deployment
+#### Permission issues
+```bash
+# Fix ownership (container runs as UID 1000)
+docker compose exec web chown -R papersorter:papersorter /data
+```
 
-See the `admin-guide/deployment` section for Kubernetes manifests and Helm charts.
+#### Database connection issues
+```bash
+# Check database is running
+docker compose ps postgres
+
+# Test connection
+docker compose exec web pg_isready -h postgres
+```
+
+### Production Deployment
+
+For production deployments with Docker:
+
+```bash
+# Use production compose file
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+See [Docker Guide](../../DOCKER.md) for detailed production setup.
 
 ### Cloud Deployments
 
 - **AWS**: Use RDS for PostgreSQL with pgvector
-- **Google Cloud**: Cloud SQL PostgreSQL with pgvector
-- **Azure**: Azure Database for PostgreSQL with extensions
+- **Google Cloud**: Use Cloud SQL with pgvector extension
+- **Azure**: Use Azure Database for PostgreSQL with extensions
+- **DigitalOcean**: Use Managed PostgreSQL with pgvector
 
 ## Next Steps
 

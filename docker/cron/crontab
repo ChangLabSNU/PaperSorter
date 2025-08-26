@@ -1,0 +1,24 @@
+# PaperSorter Cron Schedule
+# This file is installed in the scheduler container
+
+# Environment setup
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Load environment variables
+# Note: The scheduler-entrypoint.sh script writes env vars to /etc/environment
+
+# Update task - Fetch new papers and generate embeddings
+# Run every 3 hours
+0 */3 * * * . /etc/environment && cd /app && papersorter update --config /app/config.yml --log-file /data/logs/cron-update.log --quiet >> /data/logs/cron.log 2>&1
+
+# Broadcast task - Send notifications for high-scoring papers
+# Run every hour (respects per-channel broadcast hours configured in web interface)
+0 * * * * . /etc/environment && cd /app && papersorter broadcast --config /app/config.yml --log-file /data/logs/cron-broadcast.log --quiet >> /data/logs/cron.log 2>&1
+
+# Cleanup old logs - Remove logs older than 30 days
+# Run daily at 3 AM
+0 3 * * * find /data/logs -name "*.log*" -mtime +30 -delete >> /data/logs/cron.log 2>&1
+
+# Health check - Write timestamp to verify cron is running
+*/5 * * * * echo "Cron health check: $(date)" > /data/logs/cron-health.txt
