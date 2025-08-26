@@ -75,6 +75,19 @@
                     <small>Timezone for date/time display</small>
                 </div>
                 <div class="form-group">
+                    <label for="userDateFormat">Date Format</label>
+                    <select id="userDateFormat" required>
+                        <option value="YYYY-MM-DD">2024-12-31</option>
+                        <option value="MMM D, YYYY">Dec 31, 2024</option>
+                        <option value="D MMM YYYY">31 Dec 2024</option>
+                        <option value="DD/MM/YYYY">31/12/2024</option>
+                        <option value="MM/DD/YYYY">12/31/2024</option>
+                        <option value="YYYY年M月D日">2024年12月31日</option>
+                        <option value="D. MMM YYYY">31. Dec 2024</option>
+                    </select>
+                    <small>How dates will be displayed throughout the site</small>
+                </div>
+                <div class="form-group">
                     <label for="userIsAdmin">
                         <input type="checkbox" id="userIsAdmin" style="width: auto; margin-right: 8px;">
                         Administrator privileges
@@ -170,6 +183,7 @@
             document.getElementById('userName').value = user.username;
             document.getElementById('userPassword').value = '';
             document.getElementById('userTimezone').value = user.timezone || 'Asia/Seoul';
+            document.getElementById('userDateFormat').value = user.date_format || 'YYYY-MM-DD';
             document.getElementById('userIsAdmin').checked = user.is_admin || false;
             document.getElementById('userModal').style.display = 'block';
         }
@@ -185,6 +199,7 @@
             const data = {
                 username: document.getElementById('userName').value,
                 timezone: document.getElementById('userTimezone').value,
+                date_format: document.getElementById('userDateFormat').value,
                 is_admin: document.getElementById('userIsAdmin').checked
             };
 
