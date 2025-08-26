@@ -11,7 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check if docker compose is available
+# Check if docker-compose is available
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}Error: Docker is not installed or not in PATH${NC}"
     exit 1
@@ -25,10 +25,10 @@ if [ ! -f "docker-compose.yml" ]; then
 fi
 
 # Check if the web container is running
-if ! docker compose ps --services --filter "status=running" | grep -q "^web$"; then
+if ! docker-compose ps --services --filter "status=running" | grep -q "^web$"; then
     echo -e "${YELLOW}Warning: PaperSorter web container is not running${NC}"
     echo "Starting services..."
-    docker compose up -d
+    docker-compose up -d
     
     # Wait for services to be ready
     echo "Waiting for services to be ready..."
@@ -36,7 +36,7 @@ if ! docker compose ps --services --filter "status=running" | grep -q "^web$"; t
     
     # Wait for database to be ready
     for i in {1..30}; do
-        if docker compose exec -T web pg_isready -h postgres -U papersorter &> /dev/null; then
+        if docker-compose exec -T web pg_isready -h postgres -U papersorter &> /dev/null; then
             echo -e "${GREEN}Services are ready!${NC}"
             break
         fi
@@ -54,33 +54,33 @@ fi
 case "$1" in
     "logs")
         # Show logs from web container
-        docker compose logs -f web
+        docker-compose logs -f web
         ;;
     "shell")
         # Open interactive shell in web container
-        docker compose exec web bash
+        docker-compose exec web bash
         ;;
     "db-shell")
         # Open PostgreSQL shell
-        docker compose exec postgres psql -U papersorter papersorter
+        docker-compose exec postgres psql -U papersorter papersorter
         ;;
     "status")
         # Show status of all services
-        docker compose ps
+        docker-compose ps
         ;;
     "restart")
         # Restart all services
-        docker compose restart
+        docker-compose restart
         ;;
     "update-image")
         # Rebuild and update Docker images
         echo "Rebuilding PaperSorter images..."
-        docker compose build --no-cache
-        docker compose up -d
+        docker-compose build --no-cache
+        docker-compose up -d
         ;;
     *)
         # Pass through to papersorter command in container
         # Use -T flag to disable TTY allocation for non-interactive commands
-        docker compose exec -T web papersorter "$@"
+        docker-compose exec -T web papersorter "$@"
         ;;
 esac

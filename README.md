@@ -34,7 +34,7 @@ cp .env.example .env
 # Edit .env with your API keys and settings
 
 # Start all services
-docker compose up -d
+docker-compose up -d
 
 # Initialize database
 ./papersorter-cli init
