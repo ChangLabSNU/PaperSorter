@@ -8,4 +8,5 @@ __all__ = [
     "test",
     "import",
     "labeling",
+    "models",
 ]

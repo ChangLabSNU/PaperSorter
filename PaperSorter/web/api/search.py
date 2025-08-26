@@ -472,12 +472,12 @@ def api_scholarly_database_add():
         if article_data.get("publicationDate"):
             try:
                 pub_date = datetime.fromisoformat(article_data["publicationDate"])
-            except:
+            except (ValueError, TypeError):
                 pass
         elif article_data.get("year"):
             try:
                 pub_date = datetime(int(article_data["year"]), 1, 1)
-            except:
+            except (ValueError, TypeError):
                 pass
 
         # Extract venue/journal

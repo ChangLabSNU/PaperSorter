@@ -167,7 +167,6 @@ def api_feed_content(feed_id):
 @login_required
 def api_share_feed(feed_id):
     """API endpoint to share/unshare a paper (add/remove from broadcast queue)."""
-    user_id = current_user.id
     data = request.get_json() or {}
     action = data.get("action", "toggle")  # 'share', 'unshare', or 'toggle'
 

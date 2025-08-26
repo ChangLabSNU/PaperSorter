@@ -24,7 +24,6 @@
 """Base command class and registry for PaperSorter CLI."""
 
 import argparse
-import sys
 from abc import ABC, abstractmethod
 from typing import Dict, Type, Optional, Any
 

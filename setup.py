@@ -21,101 +21,11 @@
 # THE SOFTWARE.
 #
 
-from setuptools import setup, find_packages
-import os
+"""
+Minimal setup.py for backward compatibility.
+All configuration is now in pyproject.toml.
+"""
 
-# Read the README file for long description
-def read_long_description():
-    here = os.path.abspath(os.path.dirname(__file__))
-    with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-        return f.read()
+from setuptools import setup
 
-# Read version from __version__.py
-def get_version():
-    here = os.path.abspath(os.path.dirname(__file__))
-    version_file = os.path.join(here, 'PaperSorter', '__version__.py')
-    with open(version_file, encoding='utf-8') as f:
-        for line in f:
-            if line.startswith('__version__'):
-                delim = '"' if '"' in line else "'"
-                return line.split(delim)[1]
-    raise RuntimeError("Unable to find version string.")
-
-setup(
-    name='papersorter',
-    version=get_version(),
-    description='Intelligent academic paper recommendation system with ML-powered filtering and Slack/Discord notifications',
-    author='Hyeshik Chang',
-    author_email='hyeshik@snu.ac.kr',
-    url='https://github.com/ChangLabSNU/papersorter',
-    download_url='https://github.com/ChangLabSNU/papersorter/releases',
-    long_description=read_long_description(),
-    long_description_content_type='text/markdown',
-    keywords=[
-        'academic papers',
-        'machine learning',
-        'RSS feed',
-        'research tools',
-        'paper recommendation',
-        'slack integration',
-        'discord integration',
-        'scientific literature'
-    ],
-    license='MIT',
-    classifiers=[
-        'Development Status :: 4 - Beta',
-        'Environment :: Console',
-        'Environment :: Web Environment',
-        'Intended Audience :: Education',
-        'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Topic :: Scientific/Engineering',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence',
-        'Topic :: Scientific/Engineering :: Information Analysis',
-    ],
-    packages=find_packages(exclude=['tests*', 'notebook*', 'tools*', 'old*']),
-    package_data={
-        'PaperSorter': [
-            'templates/*.html',
-            'templates/email/*.html',
-            'templates/email/*.txt',
-            'static/favicon.ico',
-            'static/manifest.json',
-            'static/css/*.css',
-            'static/css/components/.gitkeep',
-            'static/js/*.js',
-            'static/icons/*.png',
-            'data/*.py',
-        ],
-    },
-    include_package_data=True,
-    python_requires='>=3.8',
-    entry_points={
-        'console_scripts': [
-            'papersorter = PaperSorter.__main__:main',
-        ],
-    },
-    install_requires=[
-        'feedparser >= 6.0',
-        'numpy >= 1.20',
-        'openai >= 1.30',
-        'pandas >= 2.0',
-        'psycopg2-binary >= 2.9',
-        'pgvector >= 0.2.0',
-        'PyYAML >= 6.0',
-        'requests >= 2.7.0',
-        'scikit-learn >= 1.4',
-        'scipy >= 1.10',
-        'xgboost > 2.0',
-        'Flask >= 2.0',
-        'Flask-Login >= 0.6.0',
-        'Authlib >= 1.2.0',
-        'markdown2 >= 2.4.0',
-    ],
-)
+setup()

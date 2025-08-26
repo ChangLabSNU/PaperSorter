@@ -24,7 +24,7 @@
 """Command context management for PaperSorter CLI."""
 
 import yaml
-from typing import Optional, Any
+from typing import Optional
 
 
 class CommandContext:
