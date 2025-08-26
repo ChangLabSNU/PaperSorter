@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   # PostgreSQL with pgvector extension
@@ -81,7 +81,7 @@ services:
       ADMIN_USERS: ${ADMIN_USERS}
     volumes:
       - papersorter_data:/data
-      - ./config.yml:/app/config.yml:ro
+      - ./docker/config.docker.yml:/app/config.yml:ro
     networks:
       - internal
       - proxy
@@ -135,7 +135,7 @@ services:
       EMAIL_SUBJECT_TEMPLATE: ${EMAIL_SUBJECT_TEMPLATE}
     volumes:
       - papersorter_data:/data
-      - ./config.yml:/app/config.yml:ro
+      - ./docker/config.docker.yml:/app/config.yml:ro
     networks:
       - internal
 

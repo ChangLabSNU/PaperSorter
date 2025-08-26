@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 # Production overrides for docker-compose.yml
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
