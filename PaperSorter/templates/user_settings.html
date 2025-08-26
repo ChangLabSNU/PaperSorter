@@ -149,36 +149,64 @@
 
     .success-message,
     .error-message {
+        position: fixed;
+        top: 20px;
+        right: 20px;
         padding: 12px 16px;
         border-radius: 6px;
-        margin-bottom: 20px;
-        display: none;
+        display: flex;
         align-items: center;
         gap: 10px;
+        z-index: 10000;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 350px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(100%);
+        transition: none;
     }
 
     .success-message {
         background: var(--bg-active);
         color: var(--color-success);
+        border: 1px solid var(--color-success);
     }
 
     .error-message {
         background: var(--bg-inactive);
         color: var(--color-danger);
+        border: 1px solid var(--color-danger);
     }
 
     .success-message.show,
     .error-message.show {
-        display: flex;
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0);
+        transition: all 0.3s ease-out;
+    }
+
+    .success-message.hiding,
+    .error-message.hiding {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(100%);
+        transition: all 0.3s ease-out;
+    }
+
+    @media (max-width: 768px) {
+        .success-message,
+        .error-message {
+            right: 10px;
+            left: 10px;
+            max-width: calc(100% - 20px);
+        }
     }
 </style>
 {% endblock %}
 
 {% block main_container %}
-<div class="container-narrow">
-    <main id="main-content">
-        {% block content %}
-
+<!-- Toast messages positioned outside main content -->
 <div class="success-message" id="successMessage">
     <span>✅</span>
     <span>Settings saved successfully!</span>
@@ -188,6 +216,10 @@
     <span>❌</span>
     <span id="errorText">Failed to save settings</span>
 </div>
+
+<div class="container-narrow">
+    <main id="main-content">
+        {% block content %}
 
 <form id="settingsForm">
     <!-- Account Information -->
@@ -323,12 +355,19 @@
 
             if (response.ok) {
                 // Show success message
-                document.getElementById('successMessage').classList.add('show');
-                document.getElementById('errorMessage').classList.remove('show');
+                const successMsg = document.getElementById('successMessage');
+                const errorMsg = document.getElementById('errorMessage');
+
+                successMsg.classList.remove('hiding');
+                successMsg.classList.add('show');
+                errorMsg.classList.remove('show');
 
                 // Hide success message after 3 seconds
                 setTimeout(() => {
-                    document.getElementById('successMessage').classList.remove('show');
+                    successMsg.classList.add('hiding');
+                    setTimeout(() => {
+                        successMsg.classList.remove('show', 'hiding');
+                    }, 300);
                 }, 3000);
 
                 // Save theme preference (handled by ThemeManager)
@@ -339,13 +378,20 @@
             }
         } catch (error) {
             // Show error message
+            const errorMsg = document.getElementById('errorMessage');
+            const successMsg = document.getElementById('successMessage');
+
             document.getElementById('errorText').textContent = error.message;
-            document.getElementById('errorMessage').classList.add('show');
-            document.getElementById('successMessage').classList.remove('show');
+            errorMsg.classList.remove('hiding');
+            errorMsg.classList.add('show');
+            successMsg.classList.remove('show');
 
             // Hide error message after 5 seconds
             setTimeout(() => {
-                document.getElementById('errorMessage').classList.remove('show');
+                errorMsg.classList.add('hiding');
+                setTimeout(() => {
+                    errorMsg.classList.remove('show', 'hiding');
+                }, 300);
             }, 5000);
         }
     });
