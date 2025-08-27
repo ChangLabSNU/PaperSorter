@@ -524,7 +524,16 @@ def api_scholarly_database_add():
         # Check if item already exists
         if item not in db:
             # Add the item without starring
-            feed_id = db.insert_item(item, shared=0)
+            feed_id = db.insert_feed_item(
+                external_id=item.external_id,
+                title=item.title,
+                content=item.content,
+                author=item.author,
+                origin=item.origin,
+                link=item.link,
+                published=item.published.timestamp() if hasattr(item.published, 'timestamp') else item.published,
+                tldr=None
+            )
             db.commit()
 
             # Generate embeddings and predict preferences
