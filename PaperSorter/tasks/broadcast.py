@@ -112,7 +112,6 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     Processes the broadcast queue and sends notifications to Slack/Discord channels
     based on their score thresholds and broadcast hours.
     """
-    initialize_logging(task="broadcast", logfile=log_file, quiet=quiet)
 
     # Load configuration to get base URL
     with open(config, "r") as f:

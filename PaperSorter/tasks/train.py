@@ -141,7 +141,6 @@ def main(
     Trains a machine learning model to predict user interest in papers based on
     their labeled preferences. Supports initial training with only positive labels.
     """
-    initialize_logging(task="train", logfile=log_file, quiet=quiet)
 
     # Validate output/name options
     if output and name:

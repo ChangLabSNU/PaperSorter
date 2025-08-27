@@ -82,7 +82,6 @@ registry.register(ServeCommand)
 
 def main(config, host, port, debug, log_file, quiet, skip_authentication):
     """Serve web interface for article labeling and other tasks."""
-    initialize_logging(task="serve", logfile=log_file, quiet=quiet)
 
     if skip_authentication:
         log.warning(
