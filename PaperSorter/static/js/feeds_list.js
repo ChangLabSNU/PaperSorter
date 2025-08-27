@@ -271,16 +271,21 @@ async function loadFeeds(page = 1, append = false, searchingForBookmark = false)
             updateBookmarkButton();
         }
 
-        data.feeds.forEach(feed => {
+        data.feeds.forEach((feed, index) => {
             const feedDate = formatDate(feed.added || feed.published);
 
             // Check if we need to insert bookmark divider
             if (!bookmarkInserted && bookmarkId && feed.rowid === bookmarkId) {
-                // Insert bookmark divider before this feed (this is where user was)
                 const divider = document.createElement('div');
-                divider.className = 'bookmark-divider';
+                if (index === 0) {
+                    // At the top - use the special top class for just the blue bar
+                    divider.className = 'bookmark-divider-top';
+                } else {
+                    // Not at the top - use regular bookmark divider with text
+                    divider.className = 'bookmark-divider';
+                    divider.innerHTML = 'You were here';
+                }
                 divider.id = 'bookmarkDivider';
-                divider.innerHTML = 'You were here';
                 container.appendChild(divider);
                 bookmarkInserted = true;
             }
@@ -1097,6 +1102,70 @@ async function generatePoster(papers) {
         posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
     }
 }
+
+// Track the first feed ID for bookmark updates
+let firstFeedId = null;
+let bookmarkUpdateTimer = null;
+
+// Function to update bookmark position
+function updateBookmarkPosition() {
+    // Simply get the first feed item in the list
+    const firstFeedItem = document.querySelector('.feed-item');
+    
+    if (firstFeedItem) {
+        const feedId = parseInt(firstFeedItem.dataset.feedId);
+        if (feedId && feedId !== firstFeedId) {
+            firstFeedId = feedId;
+
+            // Debounce bookmark updates
+            clearTimeout(bookmarkUpdateTimer);
+            bookmarkUpdateTimer = setTimeout(() => {
+                fetch('/api/user/bookmark', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        feed_id: firstFeedId
+                    })
+                }).catch(error => {
+                    console.error('Failed to update bookmark:', error);
+                });
+            }, 2000); // Wait 2 seconds before updating
+        }
+    }
+}
+
+// Update bookmark on scroll
+window.addEventListener('scroll', updateBookmarkPosition);
+
+// Update bookmark when leaving the page
+window.addEventListener('beforeunload', function() {
+    const firstFeedItem = document.querySelector('.feed-item');
+    if (firstFeedItem) {
+        const feedId = parseInt(firstFeedItem.dataset.feedId);
+        if (feedId) {
+            // Use sendBeacon for reliable updates when leaving
+            const data = JSON.stringify({ feed_id: feedId });
+            navigator.sendBeacon('/api/user/bookmark', new Blob([data], { type: 'application/json' }));
+        }
+    }
+});
+
+// Also save bookmark when visibility changes (mobile backgrounding, tab switching)
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        const firstFeedItem = document.querySelector('.feed-item');
+        if (firstFeedItem) {
+            const feedId = parseInt(firstFeedItem.dataset.feedId);
+            if (feedId) {
+                // Use sendBeacon for reliable updates when tab becomes hidden
+                const data = JSON.stringify({ feed_id: feedId });
+                navigator.sendBeacon('/api/user/bookmark', new Blob([data], { type: 'application/json' }));
+            }
+        }
+    }
+});
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
