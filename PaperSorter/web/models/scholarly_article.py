@@ -57,11 +57,6 @@ class ScholarlyArticleItem(FeedItem):
             published=published_datetime,
         )
 
-        # Store additional attributes for compatibility
-        self.href = self.link
-        self.mediaUrl = self.link
-        self.item_id = self.external_id  # Alias for database compatibility
-
         # Store raw article for access to all fields
         self.raw_article = article
 

@@ -28,7 +28,66 @@ import re
 import yaml
 import unicodedata
 from difflib import SequenceMatcher
+from typing import List, Callable
 from .log import log
+
+
+class TitleNormalizer:
+    """Framework for normalizing paper titles with configurable rules."""
+
+    # Blacklist of bracket categories to remove (case-insensitive)
+    # Based on survey of actual bracket-enclosed text in the database
+    BRACKET_BLACKLIST = {
+        'method', 'research', 'article', 'research papers', 'resources',
+        'perspective', 'reviews', 'report', 'corrected', 'outlook',
+        'errata', 'special section: symposium outlook', 'review',
+        'methods', 'bioinformatics', 'research communications',
+        'resource/methodology', 'mini-review', 'letter to the editor',
+        'perspectives', 'interview', 'book review', 'editorial',
+        'corrigendum', 'meeting review', 'hypothesis', 'commentary'
+    }
+
+    def __init__(self):
+        """Initialize the normalizer with a list of rules."""
+        self.rules: List[Callable[[str], str]] = [
+            self.remove_trailing_period,  # Remove period first
+            self.remove_blacklisted_brackets,  # Then remove brackets
+            # Additional rules can be added here
+        ]
+
+    def normalize(self, title: str) -> str:
+        """Apply all normalization rules to a title."""
+        if not title:
+            return title
+
+        normalized = title
+        for rule in self.rules:
+            normalized = rule(normalized)
+
+        return normalized
+
+    def remove_blacklisted_brackets(self, title: str) -> str:
+        """Remove bracket-enclosed text if it matches the blacklist (case-insensitive)."""
+        # Match text in square brackets at the end of the title
+        match = re.search(r'\[([^\]]+)\]\s*$', title)
+
+        if match:
+            bracket_content = match.group(1).strip()
+
+            # Check if content matches any blacklisted item (case-insensitive)
+            if bracket_content.lower() in self.BRACKET_BLACKLIST:
+                # Remove the brackets and their content
+                title_without_brackets = title[:match.start()]
+                # Remove trailing whitespace
+                return title_without_brackets.rstrip()
+
+        return title
+
+    def remove_trailing_period(self, title: str) -> str:
+        """Remove a period at the end of the title."""
+        if title and title.endswith('.'):
+            return title[:-1].rstrip()
+        return title
 
 
 class FeedDatabase:
@@ -65,6 +124,9 @@ class FeedDatabase:
         self.db.autocommit = False
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.update_idcache()
+
+        # Initialize title normalizer
+        self.title_normalizer = TitleNormalizer()
 
     def __del__(self):
         if hasattr(self, "db"):
@@ -126,43 +188,6 @@ class FeedDatabase:
     def commit(self):
         self.db.commit()
 
-    def insert_item(self, item, shared=0, broadcasted=None, tldr=None):
-        content = remove_html_tags(item.content)
-
-        # Convert published to timestamp if it's a datetime object
-        if hasattr(item.published, 'timestamp'):
-            published_ts = item.published.timestamp()
-        else:
-            published_ts = item.published
-
-        # Insert into feeds table
-        self.cursor.execute(
-            """
-            INSERT INTO feeds (external_id, title, content, author, origin, published, link, mediaurl, tldr)
-            VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s, %s)
-            ON CONFLICT (external_id) DO NOTHING
-            RETURNING id
-        """,
-            (
-                item.item_id,
-                item.title,
-                content,
-                item.author,
-                item.origin,
-                published_ts,
-                item.href,
-                item.mediaUrl,
-                tldr,
-            ),
-        )
-
-        result = self.cursor.fetchone()
-        if result:
-            feed_id = result["id"]
-
-            self.idcache.add(item.item_id)
-            return feed_id
-
     def insert_feed_item(
         self,
         external_id,
@@ -175,6 +200,10 @@ class FeedDatabase:
         tldr=None,
     ):
         """Insert a paper item directly with explicit fields."""
+        # Normalize title
+        if title:
+            title = self.title_normalizer.normalize(title)
+
         # Clean content
         if content:
             content = remove_html_tags(content)
