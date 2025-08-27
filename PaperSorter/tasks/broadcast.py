@@ -41,7 +41,7 @@ class BroadcastCommand(BaseCommand):
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         """Add broadcast-specific arguments."""
         parser.add_argument(
-            '--limit',
+            '--limit-per-channel',
             type=int,
             default=20,
             help='Maximum number of items to process per channel'
@@ -65,7 +65,7 @@ class BroadcastCommand(BaseCommand):
         try:
             main(
                 config=args.config,
-                limit=args.limit,
+                limit_per_channel=args.limit_per_channel,
                 max_content_length=args.max_content_length,
                 clear_old_days=args.clear_old_days,
                 log_file=args.log_file,
@@ -106,7 +106,7 @@ def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def main(config, max_content_length, clear_old_days, log_file, quiet):
+def main(config, limit_per_channel, max_content_length, clear_old_days, log_file, quiet):
     """Send notifications for high-scoring papers to configured channels.
 
     Processes the broadcast queue and sends notifications to Slack/Discord channels
@@ -184,7 +184,7 @@ def main(config, max_content_length, clear_old_days, log_file, quiet):
 
         # Get items from the broadcast queue for this channel
         # Use channel-specific broadcast_limit
-        channel_limit = channel.get("broadcast_limit", 20)  # Default to 20 if not set
+        channel_limit = channel.get("broadcast_limit", limit_per_channel)  # Default to limit_per_channel arg if not set
         queue_items = feeddb.get_broadcast_queue_items(
             channel_id=channel_id, limit=channel_limit, model_id=model_id
         )
