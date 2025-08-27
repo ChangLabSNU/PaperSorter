@@ -146,7 +146,7 @@ def api_update_user_preferences():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@user_bp.route("/api/user/bookmark", methods=["PUT"])
+@user_bp.route("/api/user/bookmark", methods=["PUT", "POST"])
 @login_required
 def api_update_bookmark():
     """Update user's reading position bookmark."""

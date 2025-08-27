@@ -198,7 +198,7 @@ button.user-info.btn-logout:hover {
 .bookmark-divider {
     border-top: 3px solid var(--color-primary);
     margin: 0;
-    padding: 10px 20px;
+    padding: 5px 15px;
     background: var(--bg-hover);
     color: var(--color-primary);
     font-weight: bold;
@@ -210,6 +210,14 @@ button.user-info.btn-logout:hover {
 .bookmark-divider::before {
     content: '📖';
     margin-right: 8px;
+}
+
+.bookmark-divider-top {
+    border-top: 3px solid var(--color-primary);
+    margin: 0;
+    padding: 0;
+    height: 1px;
+    position: relative;
 }
 
 /* Feed items */
