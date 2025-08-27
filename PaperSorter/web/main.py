@@ -157,15 +157,16 @@ def label_item():
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Get feed_id and user_id from labeling_sessions
+        # IMPORTANT: Verify the session belongs to the current user
         cursor.execute(
-            "SELECT feed_id, user_id FROM labeling_sessions WHERE id = %s",
-            (session_id,),
+            "SELECT feed_id, user_id FROM labeling_sessions WHERE id = %s AND user_id = %s",
+            (session_id, current_user.id),
         )
         result = cursor.fetchone()
 
         if result:
             feed_id = result["feed_id"]
-            user_id = result["user_id"]
+            user_id = result["user_id"]  # This will be current_user.id
 
             # First check if a preference already exists
             cursor.execute(
@@ -198,6 +199,17 @@ def label_item():
                     (feed_id, user_id, float(label_value)),
                 )
 
+            # Update the labeling_sessions table with score and update_time
+            # Also verify ownership for the UPDATE to prevent any race conditions
+            cursor.execute(
+                """
+                UPDATE labeling_sessions
+                SET score = %s, update_time = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+            """,
+                (float(label_value), session_id, current_user.id),
+            )
+
             conn.commit()
 
         cursor.close()
@@ -214,7 +226,7 @@ def labeling():
     """Labeling interface - hidden page."""
     conn = current_app.config["get_db_connection"]()
     item = get_unlabeled_item(conn, current_user)
-    stats = get_labeling_stats(conn)
+    stats = get_labeling_stats(conn, current_user)
     conn.close()
 
     if not item:

@@ -81,21 +81,40 @@ def get_unlabeled_item(conn, user=None):
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
     if user:
         default_model_id = get_user_model_id(conn, user)
+        user_id = user.id
     else:
         default_model_id = get_default_model_id(conn)
-    cursor.execute(
-        """
-        SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
-               pp.score as predicted_score, f.published
-        FROM labeling_sessions ls
-        JOIN feeds f ON ls.feed_id = f.id
-        LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-        WHERE ls.score IS NULL
-        ORDER BY RANDOM()
-        LIMIT 1
-    """,
-        (default_model_id,),
-    )
+        user_id = None
+
+    # Filter by user_id if available
+    if user_id:
+        cursor.execute(
+            """
+            SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
+                   pp.score as predicted_score, f.published
+            FROM labeling_sessions ls
+            JOIN feeds f ON ls.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            WHERE ls.score IS NULL AND ls.user_id = %s
+            ORDER BY RANDOM()
+            LIMIT 1
+        """,
+            (default_model_id, user_id),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
+                   pp.score as predicted_score, f.published
+            FROM labeling_sessions ls
+            JOIN feeds f ON ls.feed_id = f.id
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            WHERE ls.score IS NULL
+            ORDER BY RANDOM()
+            LIMIT 1
+        """,
+            (default_model_id,),
+        )
 
     item = cursor.fetchone()
     cursor.close()
@@ -103,18 +122,35 @@ def get_unlabeled_item(conn, user=None):
     return item
 
 
-def get_labeling_stats(conn):
-    """Get statistics about labeling progress."""
+def get_labeling_stats(conn, user=None):
+    """Get statistics about labeling progress.
+
+    Args:
+        conn: Database connection
+        user: Current user object (optional, to filter stats by user)
+    """
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NULL")
-    unlabeled = cursor.fetchone()[0]
+    if user and hasattr(user, 'id'):
+        # Filter by user_id
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NULL AND user_id = %s", (user.id,))
+        unlabeled = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NOT NULL")
-    labeled = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NOT NULL AND user_id = %s", (user.id,))
+        labeled = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM labeling_sessions")
-    total = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE user_id = %s", (user.id,))
+        total = cursor.fetchone()[0]
+    else:
+        # Get stats for all users
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NULL")
+        unlabeled = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions WHERE score IS NOT NULL")
+        labeled = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM labeling_sessions")
+        total = cursor.fetchone()[0]
 
     cursor.close()
 
