@@ -222,6 +222,7 @@
             border-radius: 4px;
             font-size: 12px;
             font-weight: bold;
+            text-align: center;
         }
 
         .score-high {
@@ -376,10 +377,13 @@
             return 'score-low';
         }
 
-        function formatDate(dateString) {
+        function formatDateForQueue(dateString) {
             if (!dateString) return 'N/A';
+            // Convert to Unix timestamp if needed
             const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            const timestamp = Math.floor(date.getTime() / 1000);
+            // Use the global formatDateTime function with user preferences
+            return formatDateTime(timestamp);
         }
 
         function formatAuthors(authors) {
@@ -500,7 +504,7 @@
                                             ${item.score ? item.score.toFixed(3) : 'N/A'}
                                         </span>
                                     </td>
-                                    <td class="article-date">${formatDate(item.published)}</td>
+                                    <td class="article-date">${formatDateForQueue(item.published)}</td>
                                     <td>
                                         <button class="btn btn-danger"
                                                 onclick="removeFromQueue(${item.feed_id}, ${item.channel_id})"
