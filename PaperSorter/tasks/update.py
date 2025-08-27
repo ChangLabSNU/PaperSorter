@@ -419,7 +419,6 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
     Updates the database with new articles from all configured feed sources,
     generates embeddings, and queues high-scoring items for broadcast.
     """
-    initialize_logging(task="update", logfile=log_file, quiet=quiet)
 
     # Load configuration
     import yaml

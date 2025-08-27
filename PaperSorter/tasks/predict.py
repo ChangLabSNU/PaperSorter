@@ -118,7 +118,6 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
     Creates vector embeddings for articles and optionally generates interest
     predictions using trained models. Essential for semantic search and recommendations.
     """
-    initialize_logging(task="predict", logfile=log_file, quiet=quiet)
 
     # Handle --all flag: set count to 0 to process all papers
     if process_all:
