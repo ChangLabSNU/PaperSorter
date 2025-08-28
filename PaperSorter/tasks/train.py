@@ -413,6 +413,9 @@ def prepare_training_data(embeddings, pseudo_weight, seed):
         log.error("No training data available")
         return None, None, None, None
 
+    # Free memory from embeddings dict as it's no longer needed
+    del embeddings
+
     # Combine all parts
     X_all = np.vstack(X_parts)
     Y_all = np.concatenate(Y_parts)
