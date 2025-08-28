@@ -289,128 +289,194 @@ def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
         feeddb.commit()
 
 
-def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
-    unscored = feeddb.get_unscored_items()
+def _load_model(model_id, model_dir):
+    """Load a model from disk.
 
-    log.info("Scoring new papers...")
-    log.debug(f"Papers to score: {len(unscored)}")
+    Args:
+        model_id: The ID of the model to load
+        model_dir: Directory containing model files
+
+    Returns:
+        Loaded model dictionary or None if loading fails
+    """
+    model_file_path = f"{model_dir}/model-{model_id}.pkl"
+    try:
+        with open(model_file_path, "rb") as f:
+            model = pickle.load(f)
+        log.info(f"Loaded model {model_id} from {model_file_path}")
+        return model
+    except FileNotFoundError:
+        log.error(f"Model file not found: {model_file_path}")
+        return None
+
+
+def _collect_unique_models(channels_list):
+    """Extract unique model IDs from channels configuration.
+
+    Args:
+        channels_list: List of channel configurations
+
+    Returns:
+        Set of unique model IDs that are assigned to channels
+    """
+    unique_model_ids = set()
+
+    for channel in channels_list:
+        model_id = channel.get("model_id")
+        if model_id is None:
+            log.warning(
+                f"Channel '{channel['name']}' (ID: {channel['id']}) "
+                f"has no model assigned, skipping"
+            )
+        else:
+            unique_model_ids.add(model_id)
+
+    return unique_model_ids
+
+
+def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100):
+    """Score all unscored items for a specific model.
+
+    Args:
+        model_id: ID of the model
+        model: Loaded model dictionary
+        feeddb: FeedDatabase instance
+        embeddingdb: EmbeddingDatabase instance
+        batch_size: Number of items to process in each batch
+
+    Returns:
+        Number of items scored
+    """
+    unscored = feeddb.get_unscored_items(model_id=model_id)
 
     if not unscored:
-        return
+        log.debug(f"No items to score for model {model_id}")
+        return 0
 
-    # Get all channels to process items for each channel with its own settings
+    log.info(f"Scoring {len(unscored)} papers for model {model_id}")
+
+    for batch_num, batch in enumerate(batched(unscored, batch_size), 1):
+        log.debug(f"Model {model_id} - Scoring batch: {batch_num}")
+
+        # Get embeddings for batch
+        embeddings = embeddingdb[batch]
+
+        # Transform and predict
+        embeddings_transformed = model["scaler"].transform(embeddings)
+        dmtx_pred = xgb.DMatrix(embeddings_transformed)
+        scores = model["model"].predict(dmtx_pred)
+
+        # Update scores in database
+        for item_id, score in zip(batch, scores):
+            feeddb.update_score(item_id, score, model_id)
+            item_info = feeddb[item_id]
+            log.info(
+                f"New paper (model {model_id}): [{score:.2f}] "
+                f"{item_info['origin']} / {item_info['title']}"
+            )
+
+    return len(unscored)
+
+
+def _queue_high_scoring_items(channel, feeddb, lookback_hours=24):
+    """Add high-scoring recent items to broadcast queue for a channel.
+
+    Args:
+        channel: Channel configuration dictionary
+        feeddb: FeedDatabase instance
+        lookback_hours: How many hours back to check for new items
+
+    Returns:
+        Number of items added to queue
+    """
+    model_id = channel.get("model_id")
+    if model_id is None:
+        return 0
+
+    score_threshold = channel.get("score_threshold", 0.7)
+    channel_id = channel["id"]
+    channel_name = channel["name"]
+
+    # Query for high-scoring items not already in queue
+    feeddb.cursor.execute(
+        """
+        SELECT f.id as feed_id, f.external_id, pp.score
+        FROM feeds f
+        JOIN predicted_preferences pp ON f.id = pp.feed_id
+        LEFT JOIN broadcasts b ON f.id = b.feed_id AND b.channel_id = %s
+        WHERE pp.model_id = %s
+            AND pp.score >= %s
+            AND b.feed_id IS NULL  -- Not already in broadcast queue
+            AND f.added >= CURRENT_TIMESTAMP - INTERVAL '%s hours'
+        ORDER BY pp.score DESC
+        """,
+        (channel_id, model_id, score_threshold, lookback_hours)
+    )
+
+    items_to_broadcast = feeddb.cursor.fetchall()
+
+    for item in items_to_broadcast:
+        feed_id = item["feed_id"]
+        feeddb.add_to_broadcast_queue(feed_id, channel_id)
+        log.info(
+            f"Added to channel {channel_name} queue: "
+            f"score={item['score']:.2f}"
+        )
+
+    return len(items_to_broadcast)
+
+
+def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
+    """Score new feeds using active models and queue high-scoring items.
+
+    This function:
+    1. Identifies unique models across all channels
+    2. Scores unscored items for each model
+    3. Queues high-scoring items for broadcast to appropriate channels
+
+    Args:
+        feeddb: FeedDatabase instance
+        embeddingdb: EmbeddingDatabase instance
+        channels: Channels configuration manager
+        model_dir: Directory containing model files
+    """
+    log.info("Scoring new papers...")
+
+    # Get channel configurations
     all_channels = channels.get_all_channels()
     if not all_channels:
         log.warning("No channels configured")
         return
 
-    # Load models for each channel
-    channel_models = {}
-    channels_without_model = []
-    for channel in all_channels:
-        model_id = channel["model_id"]
-        if model_id is None:
-            log.warning(f"Channel '{channel['name']}' (ID: {channel['id']}) has no model assigned, skipping")
-            channels_without_model.append(channel)
-            continue
-        if model_id not in channel_models:
-            model_file_path = f"{model_dir}/model-{model_id}.pkl"
-            try:
-                channel_models[model_id] = pickle.load(open(model_file_path, "rb"))
-                log.info(f"Loaded model {model_id} from {model_file_path}")
-            except FileNotFoundError:
-                log.error(f"Model file not found: {model_file_path}")
-                channel_models[model_id] = None
-
-    if channels_without_model and not channel_models:
+    # Identify unique models needed
+    unique_model_ids = _collect_unique_models(all_channels)
+    if not unique_model_ids:
         log.error("No channels have valid models assigned. Cannot score feeds.")
         return
-    batchsize = 100
 
-    for bid, batch in enumerate(batched(unscored, batchsize)):
-        log.debug(f"Scoring batch: {bid + 1}")
-        emb = embeddingdb[batch]
+    # Score items for each unique model
+    total_scored = 0
+    for model_id in unique_model_ids:
+        model = _load_model(model_id, model_dir)
+        if model:
+            scored_count = _score_items_for_model(
+                model_id, model, feeddb, embeddingdb
+            )
+            total_scored += scored_count
 
-        # KNOWN ISSUE: The current implementation has a problem where if ANY model lacks
-        # a score for an item, ALL models will re-score that item. This happens because
-        # get_unscored_items() returns items missing scores from ANY active model, not
-        # items that are completely unscored. This can lead to unnecessary re-computation
-        # when new models are added or activated.
-        # TODO: Consider tracking which specific models need scoring for each item.
+    if total_scored > 0:
+        log.info(f"Scored {total_scored} total items across all models")
 
-        # Track which models have been processed to avoid duplicate scoring
-        processed_models = set()
+    # Queue high-scoring items for each channel
+    total_queued = 0
+    for channel in all_channels:
+        queued_count = _queue_high_scoring_items(channel, feeddb)
+        total_queued += queued_count
 
-        # Score with each channel's model and add to appropriate queues
-        for channel in all_channels:
-            model_id = channel["model_id"]
-            if model_id is None:
-                continue  # Already logged warning above
-            predmodel = channel_models.get(model_id)
-            if not predmodel:
-                continue
+    if total_queued > 0:
+        log.info(f"Queued {total_queued} total items for broadcast")
 
-            score_threshold = channel["score_threshold"] or 0.7
-            channel_id = channel["id"]
-
-            # Score items if this model hasn't been processed yet
-            if model_id not in processed_models:
-                emb_xrm = predmodel["scaler"].transform(emb)
-                dmtx_pred = xgb.DMatrix(emb_xrm)
-                scores = predmodel["model"].predict(dmtx_pred)
-
-                # Update scores and log new items for this model
-                for item_id, score in zip(batch, scores):
-                    feeddb.update_score(item_id, score, model_id)
-                    iteminfo = feeddb[item_id]
-                    log.info(
-                        f"New paper: [{score:.2f}] {iteminfo['origin']} / "
-                        f"{iteminfo['title']}"
-                    )
-
-                processed_models.add(model_id)
-            else:
-                # Retrieve already computed scores for this model
-                scores = []
-                for item_id in batch:
-                    feeddb.cursor.execute(
-                        """
-                        SELECT pp.score
-                        FROM feeds f
-                        JOIN predicted_preferences pp ON f.id = pp.feed_id
-                        WHERE f.external_id = %s AND pp.model_id = %s
-                    """,
-                        (item_id, model_id),
-                    )
-                    result = feeddb.cursor.fetchone()
-                    scores.append(result["score"] if result else 0.0)
-
-            # Add high-scoring items to this channel's broadcast queue
-            for item_id, score in zip(batch, scores):
-                if score >= score_threshold:
-                    # Get feed_id from external_id
-                    feeddb.cursor.execute(
-                        "SELECT id FROM feeds WHERE external_id = %s", (item_id,)
-                    )
-                    result = feeddb.cursor.fetchone()
-                    if result:
-                        feed_id = result["id"]
-                        # Check if already broadcasted
-                        feeddb.cursor.execute(
-                            """
-                            SELECT 1 FROM broadcasts
-                            WHERE feed_id = %s AND channel_id = %s
-                        """,
-                            (feed_id, channel_id),
-                        )
-                        if not feeddb.cursor.fetchone():
-                            feeddb.add_to_broadcast_queue(feed_id, channel_id)
-                            iteminfo = feeddb[item_id]
-                            log.info(
-                                f"Added to channel {channel['name']} queue: {iteminfo['title']}"
-                            )
-
-        feeddb.commit()
+    feeddb.commit()
 
 
 def main(config, batch_size, limit_sources, check_interval_hours, log_file, quiet):
