@@ -80,6 +80,11 @@ summarization_api:
   # Optional: model name for summarization
   model: "gpt-4o-mini"
 
+# Model storage configuration
+models:
+  # Directory for storing trained XGBoost model files
+  path: "./models"
+
 # Scholarly database configuration
 # Choose between Semantic Scholar and OpenAlex for enriching article metadata
 scholarly_database:
