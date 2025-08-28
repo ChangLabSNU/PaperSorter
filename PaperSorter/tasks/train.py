@@ -35,6 +35,8 @@ import argparse
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import yaml
+from psycopg2 import sql
+import os
 
 
 class TrainCommand(BaseCommand):
@@ -66,6 +68,11 @@ class TrainCommand(BaseCommand):
             help='User ID(s) for training preferences. Can be specified multiple times. If omitted, uses all users'
         )
         parser.add_argument(
+            '--base-model',
+            type=int,
+            help='Model ID to use for pseudo-labeling unlabeled data'
+        )
+        parser.add_argument(
             '--embeddings-table',
             default='embeddings',
             help='Name of the embeddings table to use'
@@ -94,6 +101,12 @@ class TrainCommand(BaseCommand):
             default=42,
             help='Random seed for reproducibility'
         )
+        parser.add_argument(
+            '--max-papers',
+            type=int,
+            default=100000,
+            help='Maximum number of papers to include in training (prioritizes labeled data)'
+        )
 
     def handle(self, args: argparse.Namespace, context) -> int:
         """Execute the train command."""
@@ -111,16 +124,431 @@ class TrainCommand(BaseCommand):
                 neg_cutoff=args.neg_cutoff,
                 pseudo_weight=args.pseudo_weight,
                 seed=args.seed,
+                max_papers=getattr(args, 'max_papers', None),
                 log_file=args.log_file,
                 quiet=args.quiet
             )
             return 0
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             log.error(f"Train failed: {e}")
             return 1
 
 # Register the command
 registry.register(TrainCommand)
+
+
+def select_training_feeds(db, user_ids, base_model, pos_cutoff, neg_cutoff, max_papers=None, seed=42):
+    """Select feed IDs for training based on preferences and pseudolabeling.
+
+    NOTE: This function only selects feed IDs. No embeddings are loaded here
+    to minimize memory usage. Embeddings should be loaded separately after
+    all selection logic is complete.
+
+    Args:
+        db: Database connection
+        user_ids: List of user IDs to filter by (None for all users)
+        base_model: Optional model ID for pseudolabeling
+        pos_cutoff: Threshold for positive pseudo-labels
+        neg_cutoff: Threshold for negative pseudo-labels
+        max_papers: Maximum number of papers to include
+        seed: Random seed for reproducible sampling
+
+    Returns:
+        dict: Dictionary with 'labeled' and 'pseudo' lists of feed_ids
+    """
+    # Build WHERE clause for user filtering
+    if user_ids:
+        user_where = sql.SQL("WHERE p.user_id = ANY(%s)")
+        user_params = (user_ids,)
+    else:
+        user_where = sql.SQL("")
+        user_params = ()
+
+    # Step 1: Get all feeds with user preferences (these have priority)
+    # We check for embedding existence but don't load the actual vectors
+    labeled_query = sql.SQL("""
+        WITH latest_preferences AS (
+            SELECT DISTINCT ON (feed_id, user_id)
+                feed_id, AVG(score) OVER (PARTITION BY feed_id) as avg_score
+            FROM preferences p
+            {user_where}
+            ORDER BY feed_id, user_id, time DESC
+        )
+        SELECT DISTINCT lp.feed_id, lp.avg_score
+        FROM latest_preferences lp
+        INNER JOIN embeddings e ON lp.feed_id = e.feed_id
+        ORDER BY lp.feed_id
+    """).format(user_where=user_where)
+
+    cursor = db.cursor()
+    cursor.execute(labeled_query, user_params if user_ids else ())
+    labeled_feeds = [(row[0], row[1]) for row in cursor.fetchall()]
+    cursor.close()
+
+    labeled_feed_ids = [fid for fid, _ in labeled_feeds]
+    labeled_pos = [fid for fid, score in labeled_feeds if score > 0.5]
+    labeled_neg = [fid for fid, score in labeled_feeds if score < 0.5]
+
+    log.info(f"Found {len(labeled_feed_ids)} feeds with user preferences")
+
+    # Step 2: Get pseudolabeled feeds if base_model is specified
+    pseudo_positives = []
+    pseudo_negatives = []
+    if base_model:
+        # Get positive pseudo-labels
+        # We check for embedding existence but don't load the actual vectors
+        pseudo_pos_query = sql.SQL("""
+            SELECT pp.feed_id, pp.score
+            FROM predicted_preferences pp
+            INNER JOIN embeddings e ON pp.feed_id = e.feed_id
+            WHERE pp.model_id = %s
+              AND pp.score >= %s
+              AND pp.feed_id NOT IN %s
+            ORDER BY pp.score DESC
+        """)
+
+        cursor = db.cursor()
+        cursor.execute(pseudo_pos_query,
+                      (base_model, pos_cutoff, tuple(labeled_feed_ids) if labeled_feed_ids else (None,)))
+        pseudo_pos_feeds = cursor.fetchall()
+        cursor.close()
+
+        # Get negative pseudo-labels
+        # We check for embedding existence but don't load the actual vectors
+        pseudo_neg_query = sql.SQL("""
+            SELECT pp.feed_id, pp.score
+            FROM predicted_preferences pp
+            INNER JOIN embeddings e ON pp.feed_id = e.feed_id
+            WHERE pp.model_id = %s
+              AND pp.score < %s
+              AND pp.feed_id NOT IN %s
+            ORDER BY pp.score ASC
+        """)
+
+        cursor = db.cursor()
+        cursor.execute(pseudo_neg_query,
+                      (base_model, neg_cutoff, tuple(labeled_feed_ids) if labeled_feed_ids else (None,)))
+        pseudo_neg_feeds = cursor.fetchall()
+        cursor.close()
+
+        pseudo_positives = [fid for fid, score in pseudo_pos_feeds]
+        pseudo_negatives = [fid for fid, score in pseudo_neg_feeds]
+
+        log.info(f"Found {len(pseudo_positives)} positive and {len(pseudo_negatives)} negative pseudo-labeled feeds")
+
+    # Step 3: Apply max_papers limit if specified
+    if max_papers and len(labeled_feed_ids) + len(pseudo_positives) + len(pseudo_negatives) > max_papers:
+        # Priority: labeled data > balanced pseudo (equal positive and negative)
+        available_for_pseudo = max_papers - len(labeled_feed_ids)
+
+        if available_for_pseudo > 0:
+            # Target equal number of positive and negative pseudo samples
+            n_each_type = available_for_pseudo // 2
+
+            np.random.seed(seed)
+            if len(pseudo_positives) < n_each_type:
+                n_pseudo_neg = available_for_pseudo - len(pseudo_positives)
+                n_pseudo_pos = len(pseudo_positives)
+            elif len(pseudo_negatives) < n_each_type:
+                n_pseudo_pos = available_for_pseudo - len(pseudo_negatives)
+                n_pseudo_neg = len(pseudo_negatives)
+            else:
+                n_pseudo_pos = n_each_type
+                n_pseudo_neg = n_each_type
+
+            if len(pseudo_positives) > n_pseudo_pos:
+                pseudo_positives = np.random.choice(pseudo_positives, n_pseudo_pos, replace=False).tolist()
+            if len(pseudo_negatives) > n_pseudo_neg:
+                pseudo_negatives = np.random.choice(pseudo_negatives, n_pseudo_neg, replace=False).tolist()
+
+            log.info(f"Limited to {max_papers} total papers: {len(labeled_feed_ids)} labeled + "
+                    f"{len(pseudo_positives)} pseudo-positive + {len(pseudo_negatives)} pseudo-negative")
+        else:
+            pseudo_positives = []
+            pseudo_negatives = []
+            log.info("Max papers limit reached with labeled data alone")
+
+    return {
+        'labeled_pos': labeled_pos,
+        'labeled_neg': labeled_neg,
+        'pseudo_pos': pseudo_positives,
+        'pseudo_neg': pseudo_negatives,
+    }
+
+
+def load_embeddings(db, feed_selection, embeddings_table):
+    """Load training data for selected feeds.
+
+    Args:
+        db: Database connection
+        feed_selection: Dictionary with 'labeled_pos', 'labeled_neg', 'pseudo_pos', 'pseudo_neg' lists
+        embeddings_table: Name of the embeddings table
+
+    Returns:
+        list: List of dictionaries containing training data records
+    """
+    # Load embeddings for selected feeds
+    query = sql.SQL("""
+        SELECT e.embedding
+        FROM feeds f
+        JOIN {embeddings_table} e ON f.id = e.feed_id
+        WHERE f.id = ANY(%s)
+        ORDER BY f.id
+    """).format(embeddings_table=sql.Identifier(embeddings_table))
+
+    loaded_embeddings = {}
+    batch_size = 2000
+
+    for label, itemids in feed_selection.items():
+        if not itemids:
+            continue
+
+        log.info(f"Loading {len(itemids)} embeddings for {label}...")
+        embeddings_batch = []
+
+        for i in range(0, len(itemids), batch_size):
+            batch_ids = itemids[i:i+batch_size]
+            batch_start = i + 1
+            batch_end = min(i + batch_size, len(itemids))
+
+            # Show progress
+            log.info(f"  Processing batch {batch_start}-{batch_end} of {len(itemids)} ({label})")
+
+            cursor = db.cursor()
+            cursor.execute(query, (batch_ids,))
+
+            partial_table = np.array(cursor.fetchall(), dtype=np.float32)
+            embeddings_batch.append(partial_table.squeeze(axis=1))
+            cursor.close()
+
+        loaded_embeddings[label] = np.concatenate(embeddings_batch, axis=0)
+
+    total_loaded = sum(map(len, loaded_embeddings.values()))
+
+    log.info(f"Loaded embeddings for {total_loaded} feeds")
+    return loaded_embeddings
+
+#    X_scaled, Y_all, weights_all, scaler = prepare_training_data(
+#        embeddings, base_model, pseudo_weight, seed)
+
+def prepare_training_data(embeddings, pseudo_weight, seed):
+    """Prepare training data from database results.
+
+    Args:
+        embeddings: Dictionary with keys 'labeled_pos', 'labeled_neg', 'pseudo_pos', 'pseudo_neg'
+                   containing embedding arrays for each category
+        pseudo_weight: Weight for pseudo-labeled data (0.0 to 1.0)
+        seed: Random seed for reproducibility
+
+    Returns:
+        tuple: (X_scaled, Y_all, weights_all, scaler)
+    """
+    def count_samples(embeddings_dict):
+        """Count samples by category."""
+        return {
+            'labeled_total': len(embeddings_dict.get('labeled_pos', [])) + len(embeddings_dict.get('labeled_neg', [])),
+            'labeled_neg': len(embeddings_dict.get('labeled_neg', [])),
+            'pseudo_pos': len(embeddings_dict.get('pseudo_pos', [])),
+            'pseudo_neg': len(embeddings_dict.get('pseudo_neg', []))
+        }
+
+    def calculate_pseudo_weight(n_labeled, n_pseudo, base_weight, max_weight=1.0):
+        """Calculate weight for pseudo-labeled samples based on class balance."""
+        if n_pseudo == 0:
+            return 0.0
+        weight = (n_labeled / n_pseudo) * base_weight
+        return min(weight, max_weight)
+
+    def determine_negative_pseudo_weight(counts, pseudo_weight):
+        """Determine weight for negative pseudo-labels based on training stage."""
+        if counts['labeled_neg'] == 0 and counts['pseudo_neg'] > 0:
+            # Initial training: no real negative labels, pseudo-negatives are just "unlabeled"
+            weight = pseudo_weight * 0.5
+            log.info("Initial training: Using reduced weight for negative pseudo-labels")
+        elif counts['pseudo_neg'] > 0:
+            # Normal training: have some real negative labels
+            weight = calculate_pseudo_weight(counts['labeled_total'], counts['pseudo_neg'], pseudo_weight)
+        else:
+            weight = 0.0
+        return weight
+
+    # Count samples
+    counts = count_samples(embeddings)
+
+    # Calculate weights
+    pseudo_pos_weight = calculate_pseudo_weight(counts['labeled_total'], counts['pseudo_pos'], pseudo_weight)
+    pseudo_neg_weight = determine_negative_pseudo_weight(counts, pseudo_weight)
+
+    if counts['pseudo_pos'] > 0 or counts['pseudo_neg'] > 0:
+        log.info(f"Pseudo-label weights: positive={pseudo_pos_weight:.4f}, negative={pseudo_neg_weight:.4f}")
+
+    # Define sample categories with their labels and weights
+    sample_categories = [
+        ("labeled_pos", 1.0, 1.0),           # (category_name, label_value, weight)
+        ("labeled_neg", 0.0, 1.0),
+        ("pseudo_pos", 1.0, pseudo_pos_weight),
+        ("pseudo_neg", 0.0, pseudo_neg_weight)
+    ]
+
+    # Combine all embeddings with their labels and weights
+    X_parts = []
+    Y_parts = []
+    weights_parts = []
+
+    for category, label_value, weight in sample_categories:
+        if category not in embeddings or weight <= 0:
+            continue
+
+        n_samples = len(embeddings[category])
+        if n_samples > 0:
+            X_parts.append(embeddings[category])
+            Y_parts.append(np.full(n_samples, label_value))
+            weights_parts.append(np.full(n_samples, weight))
+            log.info(f"Added {n_samples} {category} samples (weight={weight:.3f})")
+
+    # Check if we have any data
+    if not X_parts:
+        log.error("No training data available")
+        return None, None, None, None
+
+    # Combine all parts
+    X_all = np.vstack(X_parts)
+    Y_all = np.concatenate(Y_parts)
+    weights_all = np.concatenate(weights_parts)
+
+    # Log statistics
+    log.info(f"Total training samples: {len(X_all)}")
+    log.info(f"  Positive samples: {np.sum(Y_all == 1)} ({np.sum(Y_all == 1) / len(Y_all) * 100:.1f}%)")
+    log.info(f"  Negative samples: {np.sum(Y_all == 0)} ({np.sum(Y_all == 0) / len(Y_all) * 100:.1f}%)")
+    log.info(f"  Average weight: {np.mean(weights_all):.3f}")
+    log.info(f"  Feature dimensions: {X_all.shape[1]}")
+
+    # Shuffle the data
+    np.random.seed(seed)
+    indices = np.random.permutation(len(X_all))
+    X_all = X_all[indices]
+    Y_all = Y_all[indices]
+    weights_all = weights_all[indices]
+
+    # Scale embeddings
+    log.info("Scaling embeddings...")
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_all)
+
+    return X_scaled, Y_all, weights_all, scaler
+
+
+
+def train_xgboost_model(X_train, y_train, X_test, y_test, weights_train, weights_test, params, rounds):
+    """Train XGBoost model with given data.
+
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        X_test: Test features
+        y_test: Test labels
+        weights_train: Training weights
+        weights_test: Test weights
+        params: XGBoost parameters
+        rounds: Number of boosting rounds
+
+    Returns:
+        tuple: (model, rocauc)
+    """
+    # Create XGBoost datasets
+    dtrain = xgb.DMatrix(X_train, y_train, weight=weights_train)
+    dtest = xgb.DMatrix(X_test, y_test, weight=weights_test)
+
+    # Training parameters
+    evals = [(dtrain, "train"), (dtest, "validation")]
+
+    # Train model
+    log.info("Training XGBoost model...")
+    model = xgb.train(
+        params=params,
+        dtrain=dtrain,
+        num_boost_round=rounds,
+        evals=evals,
+        verbose_eval=10,
+        early_stopping_rounds=50,
+    )
+
+    # Evaluate model on test set
+    log.info("Evaluating model on test set...")
+    y_testpred = model.predict(dtest)
+    rocauc = roc_auc_score(y_test, y_testpred, sample_weight=weights_test)
+    log.info(f"-> Test ROCAUC: {rocauc:.3f}")
+
+    return model, rocauc
+
+
+def save_model(model, scaler, output, name, rocauc, user_ids, num_samples, config_data, db=None):
+    """Save trained model to file or database.
+
+    Args:
+        model: Trained XGBoost model
+        scaler: StandardScaler used for features
+        output: Output file path (if specified)
+        name: Model name for database registration (if specified)
+        rocauc: Model's ROC-AUC score
+        user_ids: User IDs used for training
+        num_samples: Number of training samples
+        config_data: Configuration dictionary
+        db: Database connection (required if name is specified)
+    """
+    log.info("Saving final model...")
+
+    if output:
+        # Save to specified file path
+        pickle.dump(
+            {
+                "model": model,
+                "scaler": scaler,
+            },
+            open(output, "wb"),
+        )
+        log.info(f"Final model saved to {output} (best iteration: {model.best_iteration})")
+    else:
+        # Register model in database and save to models directory
+        # Get model directory from config
+        model_dir = config_data.get("models", {}).get("path", ".")
+
+        # Ensure model directory exists
+        os.makedirs(model_dir, exist_ok=True)
+
+        # Build notes about the training
+        user_info = "all users" if not user_ids else f"user(s): {user_ids}"
+        notes = f"Trained on {user_info}, {num_samples} samples, ROC-AUC: {rocauc:.3f}"
+
+        # Need a new cursor for the insert
+        insert_cursor = db.cursor()
+        insert_cursor.execute(
+            """INSERT INTO models (name, created, is_active, notes)
+               VALUES (%s, NOW(), TRUE, %s)
+               RETURNING id""",
+            (name, notes)
+        )
+
+        model_id = insert_cursor.fetchone()[0]
+        db.commit()
+        insert_cursor.close()
+
+        # Save model file with the ID
+        model_path = f"{model_dir}/model-{model_id}.pkl"
+        pickle.dump(
+            {
+                "model": model,
+                "scaler": scaler,
+            },
+            open(model_path, "wb"),
+        )
+
+        log.info(
+            f"Model registered as '{name}' with ID {model_id}\n"
+            f"Model file saved to {model_path} (best iteration: {model.best_iteration})"
+        )
 
 
 def main(
@@ -135,6 +563,7 @@ def main(
     pseudo_weight,
     embeddings_table,
     seed,
+    max_papers,
     log_file,
     quiet,
 ):
@@ -167,12 +596,10 @@ def main(
         user=db_config["user"],
         password=db_config["password"],
     )
-    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Register pgvector extension
     register_vector(db)
 
-    # Query to get all feeds with their embeddings, preferences, and predicted scores
     # Convert user_id tuple to list, or use None for all users
     user_ids = list(user_id) if user_id else None
 
@@ -192,263 +619,32 @@ def main(
     else:
         log.info("Pseudolabeling disabled (no base model specified)")
 
-    # Use psycopg2.sql to safely insert table name
-    from psycopg2 import sql
+    if max_papers:
+        log.info(f"Maximum papers limited to: {max_papers}")
 
-    # Build the WHERE clause for user filtering
-    if user_ids:
-        # Use IN clause for multiple user IDs
-        where_clause = sql.SQL("WHERE user_id = ANY(%s)")
-        query_params = (user_ids,)
-    else:
-        # No WHERE clause - get all users
-        where_clause = sql.SQL("")
-        query_params = ()
-
-    query = sql.SQL("""
-        WITH latest_preferences AS (
-            SELECT DISTINCT ON (feed_id, user_id)
-                feed_id, user_id, score, time, source
-            FROM preferences
-            {where_clause}
-            ORDER BY feed_id, user_id, time DESC
-        ),
-        aggregated_preferences AS (
-            -- Aggregate preferences across multiple users
-            SELECT
-                feed_id,
-                AVG(score) as preference_score,
-                MAX(time) as preference_time,
-                STRING_AGG(DISTINCT source::text, ', ') as preference_source,
-                COUNT(DISTINCT user_id) as user_count
-            FROM latest_preferences
-            GROUP BY feed_id
-        )
-        SELECT
-            f.id as feed_id,
-            f.external_id,
-            f.title,
-            f.published,
-            ap.preference_score,
-            ap.preference_time,
-            ap.preference_source,
-            ap.user_count,
-            {predicted_score_field}
-            e.embedding
-        FROM feeds f
-        JOIN {embeddings_table} e ON f.id = e.feed_id
-        LEFT JOIN aggregated_preferences ap ON f.id = ap.feed_id
-        {predicted_join}
-        ORDER BY f.id
-    """).format(
-        where_clause=where_clause,
-        embeddings_table=sql.Identifier(embeddings_table),
-        predicted_join=sql.SQL(f"LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = {base_model}") if base_model else sql.SQL(""),
-        predicted_score_field=sql.SQL("pp.score as predicted_score,") if base_model else sql.SQL("NULL as predicted_score,")
+    # Step 1: Select feed IDs to use for training
+    log.info("Selecting feeds for training...")
+    feed_selection = select_training_feeds(
+        db, user_ids, base_model, pos_cutoff, neg_cutoff, max_papers, seed
     )
 
-    cursor.execute(query, query_params)
+    # Step 2: Load training data for selected feeds
+    log.info("Loading training data from database...")
+    embeddings = load_embeddings(db, feed_selection, embeddings_table)
 
-    results = cursor.fetchall()
-    cursor.close()
-    # Keep db connection open if we need to register the model
-    if output:
-        db.close()
-
-    if not results:
+    if not embeddings:
         log.error("No papers with embeddings found")
-        if not output:
-            db.close()
+        db.close()
         return
 
-    log.info(f"Found {len(results)} papers with embeddings")
+    # Prepare training data
+    X_scaled, Y_all, weights_all, scaler = prepare_training_data(
+        embeddings, pseudo_weight, seed)
 
-    # Log information about user coverage if multiple users
-    if not user_ids or len(user_ids) > 1:
-        feeds_with_labels = sum(1 for r in results if r["preference_score"] is not None)
-        multi_user_feeds = sum(1 for r in results if r.get("user_count") is not None and r["user_count"] > 1)
-        log.info(f"Papers with labels: {feeds_with_labels}, Multi-user labeled papers: {multi_user_feeds}")
-
-    # Prepare data
-    feed_ids = []
-    embeddings = []
-    preference_scores = []
-    predicted_scores = []
-
-    for row in results:
-        feed_ids.append(row["feed_id"])
-        embeddings.append(np.array(row["embedding"], dtype=np.float64))
-        preference_scores.append(row["preference_score"])
-        predicted_scores.append(row["predicted_score"])
-
-    embeddings = np.array(embeddings, dtype=np.float64)
-
-    # Create masks for different data categories
-    pref_available = np.array([p is not None for p in preference_scores])
-
-    # Only create pseudo-label masks if base_model is specified
-    if base_model:
-        pref_notavail_pos = np.array(
-            [
-                (p is not None and p >= pos_cutoff) and not avail
-                for p, avail in zip(predicted_scores, pref_available)
-            ]
-        )
-        pref_notavail_neg = np.array(
-            [
-                (p is not None and p < neg_cutoff) and not avail
-                for p, avail in zip(predicted_scores, pref_available)
-            ]
-        )
-    else:
-        # No pseudolabeling without base model
-        pref_notavail_pos = np.array([False] * len(feed_ids))
-        pref_notavail_neg = np.array([False] * len(feed_ids))
-
-    # Extract data for each category
-    embs_with_pref = embeddings[pref_available]
-    labels_with_pref = np.array(
-        [p for p, avail in zip(preference_scores, pref_available) if avail]
-    )
-    fids_with_pref = np.array(
-        [fid for fid, avail in zip(feed_ids, pref_available) if avail]
-    )
-
-    embs_wopref_pos = embeddings[pref_notavail_pos]
-    fids_wopref_pos = np.array(
-        [fid for fid, pos in zip(feed_ids, pref_notavail_pos) if pos]
-    )
-
-    embs_wopref_neg = embeddings[pref_notavail_neg]
-    fids_wopref_neg = np.array(
-        [fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg]
-    )
-
-    cnt_with_pref = len(embs_with_pref)
-    cnt_wopref_pos = len(embs_wopref_pos)
-    cnt_wopref_neg = len(embs_wopref_neg)
-
-    # Count actual negative labels in the labeled data
-    cnt_negative_labels = sum(1 for score in labels_with_pref if score < 0.5) if cnt_with_pref > 0 else 0
-
-    # Initial training stage: if no negative labels exist,
-    # use all unlabeled articles as negative pseudo-labels
-    if cnt_negative_labels == 0:
-        if base_model and cnt_wopref_neg == 0:
-            # With base model but no predicted negatives, use all unlabeled
-            log.info("Initial training stage: No negative labels or predicted negatives found")
-            log.info("Using all unlabeled articles as negative pseudo-labels")
-
-            # Create mask for all articles without labels and not in positive pseudo-labels
-            pref_notavail_neg = np.array([
-                not avail and not pos
-                for avail, pos in zip(pref_available, pref_notavail_pos)
-            ])
-        elif not base_model:
-            # No base model and no negative labels - use all unlabeled as negatives
-            log.info("Initial training stage: No negative labels found (no base model)")
-            log.info("Using all unlabeled articles as negative pseudo-labels")
-
-            # All unlabeled articles become negative pseudo-labels
-            pref_notavail_neg = np.array([not avail for avail in pref_available])
-
-        # Re-extract negative pseudo-label data if mask was updated
-        if cnt_negative_labels == 0 and (not base_model or cnt_wopref_neg == 0):
-            embs_wopref_neg = embeddings[pref_notavail_neg]
-            fids_wopref_neg = np.array(
-                [fid for fid, neg in zip(feed_ids, pref_notavail_neg) if neg]
-            )
-            cnt_wopref_neg = len(embs_wopref_neg)
-
-    # Log data distribution
-    log_msg = f"Data distribution: {cnt_with_pref} labeled ({cnt_with_pref - cnt_negative_labels} positive, {cnt_negative_labels} negative)"
-    if cnt_wopref_pos > 0 or cnt_wopref_neg > 0:
-        log_msg += f", {cnt_wopref_pos} pseudo-positive, {cnt_wopref_neg} pseudo-negative"
-    log.info(log_msg)
-
-    # Calculate weights for pseudo-labeled data
-    wopref_pos_weight = (
-        cnt_with_pref / cnt_wopref_pos * pseudo_weight if cnt_wopref_pos > 0 else 0
-    )
-    wopref_pos_weight = min(
-        wopref_pos_weight, 1.0
-    )  # Ensure weight does not exceed true label weight
-
-    # For negative pseudo-labels, adjust weight
-    if cnt_negative_labels == 0 and cnt_wopref_neg > 0:
-        # In initial training (no real negative labels), use lower weight for negative pseudo-labels
-        # since they are just "everything else" rather than predicted/real negatives
-        wopref_neg_weight = pseudo_weight * 0.5  # Use half the normal pseudo weight
-        log.info("Initial training: Using reduced weight for negative pseudo-labels")
-    elif cnt_wopref_neg > 0:
-        # Normal case with some negative labels
-        wopref_neg_weight = (
-            cnt_with_pref / cnt_wopref_neg * pseudo_weight if cnt_wopref_neg > 0 else 0
-        )
-        wopref_neg_weight = min(
-            wopref_neg_weight, 1.0
-        )  # Ensure weight does not exceed true label weight
-    else:
-        wopref_neg_weight = 0
-
-    if cnt_wopref_pos > 0 or cnt_wopref_neg > 0:
-        log.info(
-            f"Pseudo-label weights: positive={wopref_pos_weight:.4f}, negative={wopref_neg_weight:.4f}"
-        )
-
-    # Combine all data
-    X_all = []
-    Y_all = []
-    weights_all = []
-    fids_all = []
-
-    # Data with preference scores
-    if cnt_with_pref > 0:
-        X_all.append(embs_with_pref)
-        Y_all.append(labels_with_pref)
-        weights_all.append(np.ones(cnt_with_pref))
-        fids_all.append(fids_with_pref)
-
-    # Data without preference scores (positive)
-    if cnt_wopref_pos > 0:
-        X_all.append(embs_wopref_pos)
-        Y_all.append(np.ones(cnt_wopref_pos))
-        weights_all.append(np.full(cnt_wopref_pos, wopref_pos_weight))
-        fids_all.append(fids_wopref_pos)
-
-    # Data without preference scores (negative)
-    if cnt_wopref_neg > 0:
-        X_all.append(embs_wopref_neg)
-        Y_all.append(np.zeros(cnt_wopref_neg))
-        weights_all.append(np.full(cnt_wopref_neg, wopref_neg_weight))
-        fids_all.append(fids_wopref_neg)
-
-    # Combine all data
-    X_all = np.vstack(X_all) if X_all else np.array([])
-    Y_all = np.hstack(Y_all) if Y_all else np.array([])
-    weights_all = np.hstack(weights_all) if weights_all else np.array([])
-    fids_all = np.hstack(fids_all) if fids_all else np.array([])
-
-    if len(X_all) == 0:
+    if X_scaled is None:
         log.error("No training data available")
+        db.close()
         return
-
-    log.info(f"Total training samples: {len(X_all)}")
-
-    # Shuffle the data
-    indices = np.arange(len(X_all))
-    np.random.seed(seed)  # For reproducibility
-    np.random.shuffle(indices)
-
-    X_all = X_all[indices]
-    Y_all = Y_all[indices]
-    weights_all = weights_all[indices]
-    fids_all = fids_all[indices]
-
-    # Scale embeddings
-    log.info("Scaling embeddings...")
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_all)
 
     # Split data
     log.info("Splitting data...")
@@ -457,20 +653,13 @@ def main(
         X_test,
         y_train,
         y_test,
-        fids_train,
-        fids_test,
         weights_train,
         weights_test,
     ) = train_test_split(
-        X_scaled, Y_all, fids_all, weights_all, test_size=0.25, random_state=seed
+        X_scaled, Y_all, weights_all, test_size=0.25, random_state=seed
     )
 
-    # Create XGBoost datasets
-    dtrain = xgb.DMatrix(X_train, y_train, weight=weights_train)
-    dtest = xgb.DMatrix(X_test, y_test, weight=weights_test)
-
-    # Training parameters
-    evals = [(dtrain, "train"), (dtest, "validation")]
+    # Define XGBoost parameters
     params = {
         "objective": "binary:logistic",
         #'device': 'cuda',
@@ -480,27 +669,16 @@ def main(
         "seed": seed,
     }
 
-    # Train model
-    log.info("Training XGBoost model...")
-    model = xgb.train(
-        params=params,
-        dtrain=dtrain,
-        num_boost_round=rounds,
-        evals=evals,
-        verbose_eval=10,
-        early_stopping_rounds=50,
+    # Train initial model
+    _, rocauc = train_xgboost_model(
+        X_train, y_train, X_test, y_test,
+        weights_train, weights_test, params, rounds
     )
-
-    # Evaluate model on test set
-    log.info("Evaluating model on test set...")
-    y_testpred = model.predict(dtest)
-    rocauc = roc_auc_score(y_test, y_testpred, sample_weight=weights_test)
-    log.info(f"-> Test ROCAUC: {rocauc:.3f}")
 
     # Train final model on full dataset with validation split for early stopping
     log.info("Training final model on full dataset...")
 
-    # Create validation split from full data (20% for validation)
+    # Create validation split from full data (10% for validation)
     (
         X_train_final,
         X_val_final,
@@ -510,82 +688,19 @@ def main(
         weights_val_final,
     ) = train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=seed)
 
-    # Create XGBoost datasets for final model
-    dtrain_final = xgb.DMatrix(X_train_final, y_train_final, weight=weights_train_final)
-    dval_final = xgb.DMatrix(X_val_final, y_val_final, weight=weights_val_final)
-
-    # Training with early stopping
-    evals_final = [(dtrain_final, "train"), (dval_final, "validation")]
-
-    # Use the best iteration from the test model as a guide
-    best_iteration = model.best_iteration
-    log.info(f"Using best iteration from test model: {best_iteration}")
-
     # Train final model
-    final_model = xgb.train(
-        params=params,
-        dtrain=dtrain_final,
-        num_boost_round=rounds,
-        evals=evals_final,
-        verbose_eval=10,
-        early_stopping_rounds=50,
+    final_model, _ = train_xgboost_model(
+        X_train_final, y_train_final, X_val_final, y_val_final,
+        weights_train_final, weights_val_final, params, rounds
     )
 
-    # Save final model
-    log.info("Saving final model...")
+    # Save the model
+    save_model(
+        final_model, scaler, output, name, rocauc,
+        user_ids, len(X_scaled), config_data,
+        db if not output else None
+    )
 
-    if output:
-        # Save to specified file path
-        pickle.dump(
-            {
-                "model": final_model,
-                "scaler": scaler,
-            },
-            open(output, "wb"),
-        )
-        log.info(
-            f"Final model saved to {output} (best iteration: {final_model.best_iteration})"
-        )
-    else:
-        # Register model in database and save to models directory
-        # Get model directory from config
-        model_dir = config_data.get("models", {}).get("path", ".")
-
-        # Ensure model directory exists
-        import os
-        os.makedirs(model_dir, exist_ok=True)
-
-        # Build notes about the training
-        user_info = "all users" if not user_ids else f"user(s): {user_ids}"
-        notes = f"Trained on {user_info}, {len(X_all)} samples, ROC-AUC: {rocauc:.3f}"
-
-        # Need a new cursor for the insert
-        insert_cursor = db.cursor()
-        insert_cursor.execute(
-            """INSERT INTO models (name, created, is_active, notes)
-               VALUES (%s, NOW(), TRUE, %s)
-               RETURNING id""",
-            (name, notes)
-        )
-
-        model_id = insert_cursor.fetchone()[0]
-        db.commit()
-        insert_cursor.close()
-
-        # Save model file with the ID
-        model_path = f"{model_dir}/model-{model_id}.pkl"
-        pickle.dump(
-            {
-                "model": final_model,
-                "scaler": scaler,
-            },
-            open(model_path, "wb"),
-        )
-
-        log.info(
-            f"Model registered as '{name}' with ID {model_id}\n"
-            f"Model file saved to {model_path} (best iteration: {final_model.best_iteration})"
-        )
-
-        # Close database connection
+    # Close database connection
+    if not output:
         db.close()
