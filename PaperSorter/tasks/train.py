@@ -105,6 +105,7 @@ class TrainCommand(BaseCommand):
                 name=args.name,
                 rounds=args.rounds,
                 user_id=args.user_id or (),
+                base_model=getattr(args, 'base_model', None),
                 embeddings_table=args.embeddings_table,
                 pos_cutoff=args.pos_cutoff,
                 neg_cutoff=args.neg_cutoff,
@@ -133,6 +134,7 @@ def main(
     neg_cutoff,
     pseudo_weight,
     embeddings_table,
+    seed,
     log_file,
     quiet,
 ):
@@ -435,7 +437,7 @@ def main(
 
     # Shuffle the data
     indices = np.arange(len(X_all))
-    np.random.seed(42)  # For reproducibility
+    np.random.seed(seed)  # For reproducibility
     np.random.shuffle(indices)
 
     X_all = X_all[indices]
@@ -460,7 +462,7 @@ def main(
         weights_train,
         weights_test,
     ) = train_test_split(
-        X_scaled, Y_all, fids_all, weights_all, test_size=0.25, random_state=42
+        X_scaled, Y_all, fids_all, weights_all, test_size=0.25, random_state=seed
     )
 
     # Create XGBoost datasets
@@ -475,7 +477,7 @@ def main(
         "max_depth": 3,
         "eta": 0.1,  # learning rate
         "eval_metric": ["logloss", "auc"],
-        "seed": 42,
+        "seed": seed,
     }
 
     # Train model
@@ -506,7 +508,7 @@ def main(
         y_val_final,
         weights_train_final,
         weights_val_final,
-    ) = train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=42)
+    ) = train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=seed)
 
     # Create XGBoost datasets for final model
     dtrain_final = xgb.DMatrix(X_train_final, y_train_final, weight=weights_train_final)
