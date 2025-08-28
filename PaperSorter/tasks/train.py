@@ -130,8 +130,6 @@ class TrainCommand(BaseCommand):
             )
             return 0
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             log.error(f"Train failed: {e}")
             return 1
 
@@ -408,18 +406,22 @@ def prepare_training_data(embeddings, pseudo_weight, seed):
             weights_parts.append(np.full(n_samples, weight))
             log.info(f"Added {n_samples} {category} samples (weight={weight:.3f})")
 
+            del embeddings[category]  # Free memory
+
     # Check if we have any data
     if not X_parts:
         log.error("No training data available")
         return None, None, None, None
 
-    # Free memory from embeddings dict as it's no longer needed
-    del embeddings
-
     # Combine all parts
     X_all = np.vstack(X_parts)
+    del X_parts
+
     Y_all = np.concatenate(Y_parts)
+    del Y_parts
+
     weights_all = np.concatenate(weights_parts)
+    del weights_parts
 
     # Log statistics
     log.info(f"Total training samples: {len(X_all)}")
