@@ -341,7 +341,28 @@ class FeedDatabase:
                 "UPDATE feeds SET content = %s WHERE id = %s", (content, item_id)
             )
 
-    def get_unscored_items(self):
+    def get_unscored_items(self, model_id=None):
+        """Get items that lack scores from specified model(s).
+        
+        Args:
+            model_id: If provided, returns items missing scores for this specific model.
+                     If None, returns items missing scores from ANY active model.
+        """
+        if model_id is not None:
+            # Get unscored items for a specific model
+            self.cursor.execute(
+                """
+                SELECT DISTINCT f.external_id
+                FROM feeds f
+                LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+                WHERE f.external_id IS NOT NULL
+                  AND pp.score IS NULL
+                """,
+                (model_id,)
+            )
+            return [row["external_id"] for row in self.cursor.fetchall()]
+        
+        # Original behavior: get items missing scores from any active model
         # Get active model IDs
         self.cursor.execute("SELECT id FROM models WHERE is_active = TRUE")
         active_model_ids = [row["id"] for row in self.cursor.fetchall()]
