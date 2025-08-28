@@ -96,6 +96,18 @@ class LabelingCommand(BaseCommand):
             default=0,
             help='Maximum age of papers in days. 0 means no limit (default: 0)'
         )
+        create_parser.add_argument(
+            '--max-reference-papers',
+            type=int,
+            default=20,
+            help='Maximum number of reference papers for distance calculation (default: 20)'
+        )
+        create_parser.add_argument(
+            '--max-scan-papers',
+            type=int,
+            default=100000,
+            help='Maximum number of candidate papers to scan for distance calculation (default: 100000)'
+        )
 
         # Add clear subcommand
         clear_parser = subparsers.add_parser(
@@ -123,7 +135,9 @@ class LabelingCommand(BaseCommand):
                     user_id=tuple(args.user_id) if args.user_id else (),
                     labeler_user_id=args.labeler_user_id,
                     base_model=args.base_model,
-                    max_age=args.max_age
+                    max_age=args.max_age,
+                    max_reference_papers=args.max_reference_papers,
+                    max_scan_papers=args.max_scan_papers
                 )
                 return 0
             elif args.subcommand == 'clear':
@@ -342,117 +356,206 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids, max_age=0):
     return cursor.fetchall()
 
 
-def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0):
-    """Get feeds with distances to interested feeds for distance-based sampling."""
-    log.info("Calculating distances to interested feeds...")
-
-    # Build age filter
-    age_filter = ""
+def count_interested_feeds(cursor, score_threshold, user_ids):
+    """Count the number of interested feeds based on score threshold."""
+    where_clause = "WHERE p.score >= %s"
     params = [score_threshold]
 
-    if max_age > 0:
-        cutoff_date = datetime.now() - timedelta(days=max_age)
-        age_filter = "AND f.added >= %s"
-        log.info(f"Filtering to papers added after {cutoff_date.strftime('%Y-%m-%d')}")
+    if user_ids:
+        where_clause += " AND p.user_id = ANY(%s)"
+        params.append(user_ids)
+
+    cursor.execute(f"""
+        SELECT COUNT(DISTINCT f.id) as count
+        FROM feeds f
+        JOIN embeddings e ON f.id = e.feed_id
+        JOIN preferences p ON f.id = p.feed_id
+        {where_clause}
+    """, params)
+
+    return cursor.fetchone()["count"]
+
+
+def count_unlabeled_papers(cursor, user_ids):
+    """Count the number of unlabeled papers with embeddings."""
+    not_exists_clause = "SELECT 1 FROM preferences p WHERE p.feed_id = f.id"
+    params = []
 
     if user_ids:
-        base_params = params + [user_ids]
-        if max_age > 0:
-            base_params.append(cutoff_date)
-        base_params.append(user_ids)
+        not_exists_clause += " AND p.user_id = ANY(%s)"
+        params = [user_ids]
 
-        cursor.execute(f"""
-            WITH interested_feeds AS (
-                -- Get all feeds labeled as interested by specified users
-                SELECT DISTINCT f.id, e.embedding
-                FROM feeds f
-                JOIN embeddings e ON f.id = e.feed_id
-                JOIN preferences p ON f.id = p.feed_id
-                WHERE p.score >= %s AND p.user_id = ANY(%s)
-            ),
-            feed_distances AS (
-                -- Calculate minimum distance from each paper to any interested paper
-                SELECT
-                    f.id,
-                    f.external_id,
-                    f.title,
-                    f.author,
-                    f.origin,
-                    f.published,
-                    f.added,
-                    MIN(e.embedding <=> i.embedding) as min_distance
-                FROM feeds f
-                JOIN embeddings e ON f.id = e.feed_id
-                CROSS JOIN interested_feeds i
-                WHERE NOT EXISTS (
-                    -- Exclude feeds that already have preferences from the specified users
-                    SELECT 1 FROM preferences p WHERE p.feed_id = f.id AND p.user_id = ANY(%s)
-                )
-                {age_filter}
-                GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
-            )
-            SELECT
-                id as feed_id,
-                external_id,
-                title,
-                author,
-                origin,
-                published,
-                added,
-                min_distance
-            FROM feed_distances
-            WHERE min_distance IS NOT NULL
-            ORDER BY min_distance ASC
-        """, base_params)
+    cursor.execute(f"""
+        SELECT COUNT(DISTINCT f.id) as count
+        FROM feeds f
+        JOIN embeddings e ON f.id = e.feed_id
+        WHERE NOT EXISTS ({not_exists_clause})
+    """, params)
+
+    return cursor.fetchone()["count"]
+
+
+def get_min_feed_id_for_limit(cursor, user_ids, max_scan_papers):
+    """Get the minimum feed ID to limit candidate papers to most recent N."""
+    # Build NOT EXISTS clause based on user_ids
+    not_exists_clause = "SELECT 1 FROM preferences p WHERE p.feed_id = f.id"
+    params = []
+
+    if user_ids:
+        not_exists_clause += " AND p.user_id = ANY(%s)"
+        params.append(user_ids)
+
+    params.append(max_scan_papers - 1)
+
+    cursor.execute(f"""
+        SELECT f.id
+        FROM feeds f
+        JOIN embeddings e ON f.id = e.feed_id
+        WHERE NOT EXISTS ({not_exists_clause})
+        ORDER BY f.id DESC
+        LIMIT 1 OFFSET %s
+    """, params)
+
+    result = cursor.fetchone()
+    return result["id"] if result else None
+
+
+def get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age=0, max_reference_papers=None, max_scan_papers=None):
+    """Get feeds with distances to interested feeds for distance-based sampling."""
+    # Use defaults if not specified
+    if max_reference_papers is None:
+        max_reference_papers = 20
+    if max_scan_papers is None:
+        max_scan_papers = 100000
+    # Count and log interested feeds
+    total_interested = count_interested_feeds(cursor, score_threshold, user_ids)
+
+    if total_interested > max_reference_papers:
+        log.info(f"Found {total_interested} interested papers. Using {max_reference_papers} most recent as references for performance.")
     else:
-        if max_age > 0:
+        log.info(f"Calculating distances to all {total_interested} interested feeds...")
+
+    # Count target feeds and determine if limiting is needed
+    total_target_feeds = count_unlabeled_papers(cursor, user_ids)
+
+    # Determine minimum feed ID to limit target feeds
+    min_feed_id_filter = ""
+    min_feed_id = None
+    if total_target_feeds > max_scan_papers:
+        log.info(f"Found {total_target_feeds} unlabeled papers. Limiting to most recent {max_scan_papers} for performance.")
+        min_feed_id = get_min_feed_id_for_limit(cursor, user_ids, max_scan_papers)
+        if min_feed_id:
+            min_feed_id_filter = "AND f.id >= %s"
+            log.info(f"Using feeds with ID >= {min_feed_id}")
+    else:
+        log.info(f"Processing all {total_target_feeds} unlabeled papers.")
+
+    # Build filters
+    age_filter, cutoff_date = build_age_filter(max_age)
+
+    # Execute distance calculation query
+    query_params = build_distance_query_params(
+        score_threshold, user_ids, max_reference_papers,
+        min_feed_id, cutoff_date
+    )
+
+    distance_query = build_distance_calculation_query(
+        user_ids, min_feed_id_filter, age_filter
+    )
+
+    cursor.execute(distance_query, query_params)
+    return cursor.fetchall()
+
+
+def build_age_filter(max_age):
+    """Build age filter and return filter string and cutoff date."""
+    if max_age > 0:
+        cutoff_date = datetime.now() - timedelta(days=max_age)
+        log.info(f"Filtering to papers added after {cutoff_date.strftime('%Y-%m-%d')}")
+        return "AND f.added >= %s", cutoff_date
+    return "", None
+
+
+def build_distance_query_params(score_threshold, user_ids, max_reference_papers, min_feed_id, cutoff_date):
+    """Build parameters for distance calculation query."""
+    params = [score_threshold]
+
+    if user_ids:
+        params.append(user_ids)
+        params.append(max_reference_papers)
+        params.append(user_ids)  # For the NOT EXISTS clause
+        if min_feed_id:
+            params.append(min_feed_id)
+        if cutoff_date:
+            params.append(cutoff_date)
+    else:
+        params.append(max_reference_papers)
+        if min_feed_id:
+            params.append(min_feed_id)
+        if cutoff_date:
             params.append(cutoff_date)
 
-        cursor.execute(f"""
-            WITH interested_feeds AS (
-                -- Get all feeds labeled as interested
-                SELECT DISTINCT f.id, e.embedding
-                FROM feeds f
-                JOIN embeddings e ON f.id = e.feed_id
-                JOIN preferences p ON f.id = p.feed_id
-                WHERE p.score >= %s
-            ),
-            feed_distances AS (
-                -- Calculate minimum distance from each feed to any interested feed
-                SELECT
-                    f.id,
-                    f.external_id,
-                    f.title,
-                    f.author,
-                    f.origin,
-                    f.published,
-                    f.added,
-                    MIN(e.embedding <=> i.embedding) as min_distance
-                FROM feeds f
-                JOIN embeddings e ON f.id = e.feed_id
-                CROSS JOIN interested_feeds i
-                WHERE NOT EXISTS (
-                    -- Exclude feeds that already have preferences
-                    SELECT 1 FROM preferences p WHERE p.feed_id = f.id
-                )
-                {age_filter}
-                GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
-            )
-            SELECT
-                id as feed_id,
-                external_id,
-                title,
-                author,
-                origin,
-                published,
-                added,
-                min_distance
-            FROM feed_distances
-            WHERE min_distance IS NOT NULL
-            ORDER BY min_distance ASC
-        """, params)
+    return params
 
-    return cursor.fetchall()
+
+def build_distance_calculation_query(user_ids, min_feed_id_filter, age_filter):
+    """Build the SQL query for distance calculation."""
+    # Build the WHERE clause for interested feeds based on user_ids
+    interested_where = "WHERE p.score >= %s"
+    if user_ids:
+        interested_where += " AND p.user_id = ANY(%s)"
+
+    # Build the NOT EXISTS clause for excluding already-labeled papers
+    exclude_clause = "SELECT 1 FROM preferences p WHERE p.feed_id = f.id"
+    if user_ids:
+        exclude_clause += " AND p.user_id = ANY(%s)"
+
+    return f"""
+        WITH interested_feeds AS (
+            -- Get most recent N feeds labeled as interested
+            SELECT DISTINCT f.id, e.embedding
+            FROM feeds f
+            JOIN embeddings e ON f.id = e.feed_id
+            JOIN preferences p ON f.id = p.feed_id
+            {interested_where}
+            ORDER BY f.id DESC
+            LIMIT %s
+        ),
+        feed_distances AS (
+            -- Calculate minimum distance from each paper to any interested paper
+            SELECT
+                f.id,
+                f.external_id,
+                f.title,
+                f.author,
+                f.origin,
+                f.published,
+                f.added,
+                MIN(e.embedding <=> i.embedding) as min_distance
+            FROM feeds f
+            JOIN embeddings e ON f.id = e.feed_id
+            CROSS JOIN interested_feeds i
+            WHERE NOT EXISTS (
+                -- Exclude feeds that already have preferences
+                {exclude_clause}
+            )
+            {min_feed_id_filter}
+            {age_filter}
+            GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
+        )
+        SELECT
+            id as feed_id,
+            external_id,
+            title,
+            author,
+            origin,
+            published,
+            added,
+            min_distance
+        FROM feed_distances
+        WHERE min_distance IS NOT NULL
+        ORDER BY min_distance ASC
+    """
 
 
 def sample_feeds_from_bins(all_feeds, sample_size, bins, base_model):
@@ -685,7 +788,7 @@ def display_session_summary(stats, session_user_id, selected_values, metric_name
 # Removed Click decorators - functions now called directly
 
 
-def do_create_labeling_session(config_path, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age):
+def do_create_labeling_session(config_path, sample_size, bins, score_threshold, user_id, labeler_user_id, base_model, max_age, max_reference_papers, max_scan_papers):
     """Create a new labeling session with balanced sampling.
 
     This command supports two modes:
@@ -734,8 +837,12 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
     register_vector(db)
 
     try:
-        # Prepare user filter for queries
-        user_ids = list(user_id) if user_id else None
+        # Prepare user filter for queries - ensure user_ids is always a list for PostgreSQL ANY()
+        if user_id:
+            user_ids = list(user_id)  # Convert tuple to list if needed
+        else:
+            user_ids = None
+        
         user_filter_msg = ""
 
         if user_ids:
@@ -765,6 +872,13 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
             db.close()
             return
 
+        # Determine which user_id to use for the labeling session early
+        session_user_id = determine_session_user(cursor, labeler_user_id, user_ids)
+        if not session_user_id:
+            cursor.close()
+            db.close()
+            return
+
         # Model-based sampling vs distance-based sampling
         model_info = None
         if base_model:
@@ -774,6 +888,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
                 cursor.close()
                 db.close()
                 return
+        else:
             # Check prerequisites for distance-based mode
             success, interested_count = check_prerequisites_for_distance_mode(
                 cursor, user_ids, user_filter, user_params, score_threshold
@@ -783,15 +898,15 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
                 db.close()
                 return
 
-        # Clear existing labeling session
-        log.info("Clearing existing labeling session...")
-        cursor.execute("TRUNCATE TABLE labeling_sessions")
+        # Clear existing labeling session for the specific user
+        log.info(f"Clearing existing labeling session for user_id: {session_user_id}...")
+        cursor.execute("DELETE FROM labeling_sessions WHERE user_id = %s", (session_user_id,))
 
         # Get feeds for sampling based on mode
         if base_model:
             all_feeds = get_feeds_for_model_mode(cursor, base_model, user_ids, max_age)
         else:
-            all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age)
+            all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age, max_reference_papers, max_scan_papers)
 
         if not all_feeds:
             log.error("No unlabeled papers with embeddings found")
@@ -831,16 +946,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
         )
 
         # Insert selected feeds into labeling_sessions table
-        log.info(f"Inserting {len(selected_feed_ids)} papers into labeling session...")
-
-        # Determine which user_id to use for the labeling session
-        session_user_id = determine_session_user(cursor, labeler_user_id, user_ids)
-        if not session_user_id:
-            cursor.close()
-            db.close()
-            return
-
-        log.info(f"Creating labeling session for user_id: {session_user_id}")
+        log.info(f"Inserting {len(selected_feed_ids)} papers into labeling session for user_id: {session_user_id}...")
 
         # Insert selected feeds
         for feed_id in selected_feed_ids:
@@ -867,6 +973,8 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
         )
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         log.error(f"Failed to create labeling session: {e}")
         db.rollback()
         raise
