@@ -67,6 +67,11 @@
                     <input type="text" id="modelName" required placeholder="e.g., Biology Papers Model v2">
                 </div>
                 <div class="form-group">
+                    <label for="modelScoreName">Score Display Name</label>
+                    <input type="text" id="modelScoreName" required placeholder="e.g., QBio Score, Research Score, etc.">
+                    <small>How the prediction score should be labeled in notifications</small>
+                </div>
+                <div class="form-group">
                     <label for="modelNotes">Notes</label>
                     <textarea id="modelNotes" placeholder="Description or notes about this model (optional)" rows="3"></textarea>
                     <small>Any additional information about this model</small>
@@ -124,6 +129,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
+                            <th>Score Name</th>
                             <th>Notes</th>
                             <th>Created</th>
                             <th>Status</th>
@@ -135,6 +141,7 @@
                             <tr>
                                 <td>${model.id}</td>
                                 <td><strong>${model.name}</strong></td>
+                                <td>${model.score_name || 'Score'}</td>
                                 <td>${model.notes ? (model.notes.length > 50 ? model.notes.substring(0, 50) + '...' : model.notes) : '-'}</td>
                                 <td>${model.created ? formatDate(model.created) : '-'}</td>
                                 <td>
@@ -159,6 +166,7 @@
             document.getElementById('modalTitle').textContent = 'Add Preference Model';
             document.getElementById('modelForm').reset();
             document.getElementById('modelId').value = '';
+            document.getElementById('modelScoreName').value = 'Score';
             document.getElementById('modelNotes').value = '';
             document.getElementById('modelModal').style.display = 'block';
         }
@@ -170,6 +178,7 @@
             document.getElementById('modalTitle').textContent = 'Edit Preference Model';
             document.getElementById('modelId').value = model.id;
             document.getElementById('modelName').value = model.name;
+            document.getElementById('modelScoreName').value = model.score_name || 'Score';
             document.getElementById('modelNotes').value = model.notes || '';
             document.getElementById('modelIsActive').checked = model.is_active !== false;
             document.getElementById('modelModal').style.display = 'block';
@@ -185,6 +194,7 @@
             const id = document.getElementById('modelId').value;
             const data = {
                 name: document.getElementById('modelName').value,
+                score_name: document.getElementById('modelScoreName').value,
                 notes: document.getElementById('modelNotes').value,
                 is_active: document.getElementById('modelIsActive').checked
             };

@@ -70,6 +70,7 @@ class ModelsCommand(BaseCommand):
         modify_parser = subparsers.add_parser('modify', help='Modify model metadata')
         modify_parser.add_argument('model_id', type=int, help='Model ID')
         modify_parser.add_argument('--name', help='New model name')
+        modify_parser.add_argument('--score-name', help='New score display name')
         modify_parser.add_argument('--notes', help='New model notes')
 
         # Activate subcommand
@@ -152,6 +153,7 @@ class ModelsCommand(BaseCommand):
             SELECT
                 m.id,
                 m.name,
+                m.score_name,
                 m.notes,
                 m.created,
                 m.is_active,
@@ -212,7 +214,7 @@ class ModelsCommand(BaseCommand):
 
         # Get model details
         cursor.execute("""
-            SELECT id, name, notes, created, is_active
+            SELECT id, name, score_name, notes, created, is_active
             FROM models
             WHERE id = %s
         """, (args.model_id,))
@@ -254,6 +256,7 @@ class ModelsCommand(BaseCommand):
         basic_info = [
             ["Model ID", model['id']],
             ["Name", model['name'] or 'N/A'],
+            ["Score Name", model.get('score_name', 'Score')],
             ["Notes", model['notes'] or 'N/A'],
             ["Created", model['created']],
             ["Status", 'Active' if model['is_active'] else 'Inactive'],
@@ -309,8 +312,8 @@ class ModelsCommand(BaseCommand):
 
     def handle_modify(self, args: argparse.Namespace) -> int:
         """Modify model metadata."""
-        if not args.name and not args.notes:
-            log.error("Nothing to modify. Specify --name or --notes")
+        if not args.name and not getattr(args, 'score_name', None) and not args.notes:
+            log.error("Nothing to modify. Specify --name, --score-name, or --notes")
             return 1
 
         cursor = self.conn.cursor()
@@ -328,6 +331,9 @@ class ModelsCommand(BaseCommand):
         if args.name is not None:
             updates.append("name = %s")
             values.append(args.name)
+        if getattr(args, 'score_name', None) is not None:
+            updates.append("score_name = %s")
+            values.append(args.score_name)
         if args.notes is not None:
             updates.append("notes = %s")
             values.append(args.notes)
@@ -480,7 +486,12 @@ class ModelsCommand(BaseCommand):
         return 0
 
     def handle_export(self, args: argparse.Namespace) -> int:
-        """Export model to pickle file with metadata."""
+        """Export model to portable ZIP format."""
+        import json
+        import xgboost as xgb
+        import zipfile
+        import tempfile
+
         cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Get model details
@@ -512,24 +523,20 @@ class ModelsCommand(BaseCommand):
             cursor.close()
             return 1
 
-        # Prepare export data with enhanced metadata
-        export_data = {
-            'model': model_data.get('model'),
-            'scaler': model_data.get('scaler'),
-            'metadata': {
-                'original_id': model_info['id'],
-                'name': model_info['name'],
-                'notes': model_info['notes'],
-                'created': model_info['created'].isoformat() if model_info['created'] else None,
-                'export_date': datetime.now().isoformat(),
-                'export_version': '1.0',
-                'papersorter_version': __version__,
-            }
+        # Prepare metadata
+        metadata = {
+            'original_id': model_info['id'],
+            'name': model_info['name'],
+            'notes': model_info['notes'],
+            'created': model_info['created'].isoformat() if model_info['created'] else None,
+            'export_date': datetime.now().isoformat(),
+            'export_version': '2.0',  # Version 2.0 for portable format
+            'papersorter_version': __version__,
         }
 
         # Copy any existing metadata
         if 'metadata' in model_data:
-            export_data['metadata'].update(model_data['metadata'])
+            metadata.update(model_data['metadata'])
 
         # Add prediction statistics if requested
         if args.include_predictions:
@@ -544,64 +551,162 @@ class ModelsCommand(BaseCommand):
                 WHERE model_id = %s
             """, (args.model_id,))
             stats = cursor.fetchone()
-            export_data['metadata']['prediction_stats'] = dict(stats)
+            metadata['prediction_stats'] = dict(stats)
 
         cursor.close()
 
-        # Save to output file
+        # Create portable ZIP export
         try:
-            with open(args.output, 'wb') as f:
-                pickle.dump(export_data, f)
-            log.info(f"Model exported successfully to: {args.output}")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Save XGBoost model in JSON format
+                xgb_model = model_data.get('model')
+                if xgb_model:
+                    model_json_path = os.path.join(tmpdir, 'model.json')
+                    xgb_model.save_model(model_json_path)
+
+                # Save scaler parameters as JSON
+                scaler = model_data.get('scaler')
+                scaler_params = {}
+                if scaler:
+                    # Extract scaler parameters for portable serialization
+                    scaler_params = {
+                        'type': 'StandardScaler',
+                        'mean': scaler.mean_.tolist() if hasattr(scaler, 'mean_') else None,
+                        'scale': scaler.scale_.tolist() if hasattr(scaler, 'scale_') else None,
+                        'var': scaler.var_.tolist() if hasattr(scaler, 'var_') else None,
+                        'n_features_in': scaler.n_features_in_ if hasattr(scaler, 'n_features_in_') else None,
+                        'n_samples_seen': int(scaler.n_samples_seen_) if hasattr(scaler, 'n_samples_seen_') else None,
+                        'with_mean': scaler.with_mean if hasattr(scaler, 'with_mean') else True,
+                        'with_std': scaler.with_std if hasattr(scaler, 'with_std') else True,
+                    }
+
+                scaler_json_path = os.path.join(tmpdir, 'scaler.json')
+                with open(scaler_json_path, 'w') as f:
+                    json.dump(scaler_params, f, indent=2)
+
+                # Save metadata
+                metadata_json_path = os.path.join(tmpdir, 'metadata.json')
+                with open(metadata_json_path, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+
+                # Create ZIP archive
+                with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    if xgb_model:
+                        zf.write(model_json_path, 'model.json')
+                    zf.write(scaler_json_path, 'scaler.json')
+                    zf.write(metadata_json_path, 'metadata.json')
+
+                log.info(f"Model exported successfully to: {args.output} (ZIP format)")
+
             return 0
         except Exception as e:
             log.error(f"Failed to export model: {e}")
             return 1
 
     def handle_import(self, args: argparse.Namespace) -> int:
-        """Import model from pickle file."""
+        """Import model from portable ZIP format."""
+        import json
+        import xgboost as xgb
+        import zipfile
+        import tempfile
+        from sklearn.preprocessing import StandardScaler
+        import numpy as np
+
         # Check if input file exists
         if not os.path.exists(args.input_file):
             log.error(f"Input file not found: {args.input_file}")
             return 1
 
-        # Load model data
+        # Verify it's a ZIP file
+        if not zipfile.is_zipfile(args.input_file):
+            log.error(f"Input file is not a valid ZIP file: {args.input_file}")
+            return 1
+
         try:
-            with open(args.input_file, 'rb') as f:
-                import_data = pickle.load(f)
+            log.info("Importing from ZIP format")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with zipfile.ZipFile(args.input_file, 'r') as zf:
+                    zf.extractall(tmpdir)
+
+                # Load metadata
+                metadata_path = os.path.join(tmpdir, 'metadata.json')
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                else:
+                    metadata = {}
+
+                # Load XGBoost model
+                model = None
+                model_path = os.path.join(tmpdir, 'model.json')
+                if os.path.exists(model_path):
+                    model = xgb.Booster()
+                    model.load_model(model_path)
+                    log.info("Loaded XGBoost model from JSON format")
+                else:
+                    log.error("Model file not found in ZIP archive")
+                    return 1
+
+                # Load and reconstruct scaler
+                scaler = None
+                scaler_path = os.path.join(tmpdir, 'scaler.json')
+                if os.path.exists(scaler_path):
+                    with open(scaler_path, 'r') as f:
+                        scaler_params = json.load(f)
+
+                    if scaler_params.get('type') == 'StandardScaler':
+                        scaler = StandardScaler(
+                            with_mean=scaler_params.get('with_mean', True),
+                            with_std=scaler_params.get('with_std', True)
+                        )
+                        # Reconstruct the scaler with saved parameters
+                        if scaler_params.get('mean') is not None:
+                            scaler.mean_ = np.array(scaler_params['mean'])
+                        if scaler_params.get('scale') is not None:
+                            scaler.scale_ = np.array(scaler_params['scale'])
+                        if scaler_params.get('var') is not None:
+                            scaler.var_ = np.array(scaler_params['var'])
+                        if scaler_params.get('n_features_in') is not None:
+                            scaler.n_features_in_ = scaler_params['n_features_in']
+                        if scaler_params.get('n_samples_seen') is not None:
+                            scaler.n_samples_seen_ = scaler_params['n_samples_seen']
+                        log.info("Reconstructed StandardScaler from parameters")
+
+                import_data = {
+                    'model': model,
+                    'scaler': scaler,
+                    'metadata': metadata
+                }
         except Exception as e:
             log.error(f"Failed to load model file: {e}")
             return 1
 
-        # Validate model data
-        if 'model' not in import_data:
-            log.error("Invalid model file: missing 'model' key")
-            return 1
-
         # Extract metadata
-        metadata = import_data.get('metadata', {})
         model_name = args.name or metadata.get('name', 'Imported Model')
-        model_notes = args.notes or metadata.get('notes', '')
+        model_notes = args.notes or metadata.get('notes') or ''
 
         # Add import information to notes
         import_info = f"\nImported from {args.input_file} on {datetime.now().isoformat()}"
         if metadata.get('original_id'):
             import_info += f" (Original ID: {metadata['original_id']})"
+        if metadata.get('export_version'):
+            import_info += f" (Export version: {metadata['export_version']})"
         model_notes = (model_notes + import_info).strip()
 
         cursor = self.conn.cursor()
 
         # Insert model into database
         cursor.execute("""
-            INSERT INTO models (name, notes, created, is_active)
-            VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
+            INSERT INTO models (name, score_name, notes, created, is_active)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
             RETURNING id
-        """, (model_name, model_notes, args.activate))
+        """, (model_name, 'Score', model_notes, args.activate))
 
         new_model_id = cursor.fetchone()[0]
         self.conn.commit()
 
-        # Save model file
+        # Save model file in internal pickle format
         model_file = os.path.join(self.model_dir, f"model-{new_model_id}.pkl")
         try:
             # Update metadata with new ID
@@ -711,7 +816,7 @@ class ModelsCommand(BaseCommand):
             return
 
         # Prepare table data
-        headers = ['ID', 'Name', 'Status', 'File', 'Channels', 'Predictions', 'Created']
+        headers = ['ID', 'Name', 'Score Name', 'Status', 'File', 'Channels', 'Predictions', 'Created']
         if with_channels:
             headers.append('Associated Channels')
 
@@ -724,6 +829,7 @@ class ModelsCommand(BaseCommand):
             row = [
                 model['id'],
                 model['name'] or 'Unnamed',
+                model.get('score_name', 'Score'),
                 status,
                 file_status,
                 model['channel_count'],
