@@ -146,7 +146,26 @@ COMMENT ON COLUMN papersorter.users.theme IS 'User interface theme preference: l
 COMMENT ON COLUMN papersorter.users.timezone IS 'User timezone for date/time display';
 
 -- =====================================================================
--- 7. Verify migration success
+-- 7. Add score_name field to models table
+-- =====================================================================
+
+-- Add score_name column to models table with default value 'Score'
+ALTER TABLE papersorter.models
+ADD COLUMN IF NOT EXISTS score_name VARCHAR(50) DEFAULT 'Score';
+
+-- Update existing models to have default score name if NULL
+UPDATE papersorter.models
+SET score_name = 'Score'
+WHERE score_name IS NULL;
+
+-- Make the column NOT NULL after setting defaults
+ALTER TABLE papersorter.models
+ALTER COLUMN score_name SET NOT NULL;
+
+COMMENT ON COLUMN papersorter.models.score_name IS 'Display name for model prediction scores';
+
+-- =====================================================================
+-- 8. Verify migration success
 -- =====================================================================
 
 -- Check that all expected columns exist
@@ -197,6 +216,13 @@ BEGIN
         RAISE EXCEPTION 'Migration failed: models.notes column not found';
     END IF;
 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'papersorter'
+                   AND table_name = 'models'
+                   AND column_name = 'score_name') THEN
+        RAISE EXCEPTION 'Migration failed: models.score_name column not found';
+    END IF;
+
     IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_schema = 'papersorter'
                AND table_name = 'models'
@@ -217,4 +243,5 @@ COMMIT;
 -- 3. Models no longer have user associations; they are system-wide
 -- 4. The notes field in models table can store any descriptive information
 -- 5. Users can now set theme preference (light/dark/auto) and timezone
+-- 6. Models now have a score_name field for customizing score display names
 -- =====================================================================

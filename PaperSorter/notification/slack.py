@@ -77,14 +77,16 @@ class SlackProvider(NotificationProvider):
 
         # Add predicted score block if score is available
         if item.get("score") is not None:
+            # Use score_name from model if available, default to "Score"
+            score_name = message_options.get("score_name", "Score")
             blocks.append(
                 {
                     "type": "context",
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": f":heart_decoration: QBio "
-                            f"Score: *{int(item['score'] * 100)}*",
+                            "text": f":heart_decoration: {score_name}: "
+                            f"*{int(item['score'] * 100)}*",
                         }
                     ],
                 }
