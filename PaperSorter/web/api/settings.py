@@ -550,7 +550,7 @@ def api_get_models():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, name, notes, created, is_active
+        SELECT id, name, score_name, notes, created, is_active
         FROM models
         ORDER BY id
     """)
@@ -574,11 +574,11 @@ def api_create_model():
     try:
         cursor.execute(
             """
-            INSERT INTO models (name, notes, created, is_active)
-            VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
+            INSERT INTO models (name, score_name, notes, created, is_active)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
             RETURNING id
         """,
-            (data["name"], data.get("notes", ""), data.get("is_active", True)),
+            (data["name"], data.get("score_name", "Score"), data.get("notes", ""), data.get("is_active", True)),
         )
 
         model_id = cursor.fetchone()[0]
@@ -607,6 +607,10 @@ def api_update_model(model_id):
         # Update query parts
         update_parts = ["name = %s"]
         update_values = [data["name"]]
+
+        if "score_name" in data:
+            update_parts.append("score_name = %s")
+            update_values.append(data["score_name"])
 
         if "notes" in data:
             update_parts.append("notes = %s")
