@@ -132,7 +132,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     # Get all active channels
     feeddb.cursor.execute("""
         SELECT c.id, c.name, c.endpoint_url, c.model_id, c.broadcast_limit,
-               c.broadcast_hours, m.name as model_name
+               c.broadcast_hours, m.name as model_name, m.score_name
         FROM channels c
         LEFT JOIN models m ON c.model_id = m.id
         WHERE c.is_active = TRUE AND c.endpoint_url IS NOT NULL
@@ -156,6 +156,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
         endpoint = channel["endpoint_url"]
         model_id = channel["model_id"]
         model_name = channel["model_name"] or "Default"
+        score_name = channel.get("score_name", "Score")  # Default to "Score" if not set
         broadcast_hours = channel.get("broadcast_hours")
 
         # Check if broadcasting is allowed at current time
@@ -169,6 +170,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
         message_options = {
             "model_name": model_name,
             "channel_name": channel_name,
+            "score_name": score_name,
         }
 
         # Check and remove duplicates from the broadcast queue for this channel

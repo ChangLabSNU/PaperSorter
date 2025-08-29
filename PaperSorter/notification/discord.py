@@ -127,9 +127,11 @@ class DiscordProvider(NotificationProvider):
             else:
                 indicator = "🔴"
 
+            # Use score_name from model if available, default to "Score"
+            score_name = message_options.get("score_name", "Score")
             fields.append(
                 {
-                    "name": "📊 QBio Score",
+                    "name": f"📊 {score_name}",
                     "value": f"{indicator} {score_percent}",
                     "inline": True,
                 }
@@ -145,11 +147,6 @@ class DiscordProvider(NotificationProvider):
                     "inline": True,
                 }
             )
-
-        # Model info
-        model_name = message_options.get("model_name", "Default")
-        if model_name:
-            fields.append({"name": "🤖 Model", "value": model_name, "inline": True})
 
         # Add action links as a field (Discord webhooks don't support interactive buttons)
         if base_url and "id" in item:

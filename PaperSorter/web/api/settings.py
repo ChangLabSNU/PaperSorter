@@ -324,7 +324,7 @@ def api_test_channel(channel_id):
         # Get channel details
         cursor.execute(
             """
-            SELECT c.id, c.name, c.endpoint_url, m.name as model_name
+            SELECT c.id, c.name, c.endpoint_url, m.name as model_name, m.score_name
             FROM channels c
             LEFT JOIN models m ON c.model_id = m.id
             WHERE c.id = %s
@@ -359,6 +359,7 @@ def api_test_channel(channel_id):
         message_options = {
             "model_name": channel["model_name"] or "Default",
             "channel_name": channel["name"],
+            "score_name": channel.get("score_name", "Score"),  # Default to "Score" if not set
         }
 
         # Get base URL from config
