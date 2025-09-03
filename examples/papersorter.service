@@ -1,0 +1,39 @@
+[Unit]
+Description=Gunicorn instance to serve PaperSorter
+After=network.target
+
+[Service]
+# Run the service as a non-root user
+User=papersorter
+Group=papersorter
+
+# The root directory of your project
+WorkingDirectory=/home/papersorter/papersorter
+
+# Environment variables
+# Point to your configuration file
+Environment="PAPER_SORTER_CONFIG=/home/papersorter/papersorter/config.yml"
+# Optional: Skip authentication for development (specify a user email)
+#Environment="PAPER_SORTER_SKIP_AUTH=user@example.com"
+
+# The command to start the service
+# Adjust the path to your Python environment's gunicorn
+ExecStart=/home/papersorter/venv/bin/gunicorn \
+    --workers 2 \
+    --threads 4 \
+    --worker-class gthread \
+    --bind 0.0.0.0:8000 \
+    --timeout 120 \
+    --access-logfile /var/log/papersorter/access.log \
+    --error-logfile /var/log/papersorter/error.log \
+    PaperSorter.web.wsgi:app
+
+# Restart the service if it fails
+Restart=on-failure
+RestartSec=5
+
+# Send SIGTERM for clean shutdown
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
