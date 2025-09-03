@@ -66,6 +66,9 @@ class SemanticScholarProvider(ScholarlyDatabaseProvider):
 
             if response.status_code == 200:
                 return response.json()
+            elif response.status_code == 404 and "Title match not found" in response.text:
+                # 404 "Title match not found" errors are expected - don't log as error
+                return None
             else:
                 log.error(f"Semantic Scholar API error: {response.status_code} - {response.text}")
                 return None
