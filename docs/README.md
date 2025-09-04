@@ -82,7 +82,7 @@ The documentation is automatically deployed to GitHub Pages when changes are pus
 
 1. GitHub Actions builds the documentation
 2. Deploys to the `gh-pages` branch
-3. Available at: https://yourusername.github.io/papersorter/
+3. Available at: https://qbio.io/PaperSorter/
 
 ### Manual Deployment
 

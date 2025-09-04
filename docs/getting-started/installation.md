@@ -27,7 +27,6 @@ docker-compose up -d
 
 That's it! PaperSorter is now running at http://localhost:5001
 
-For detailed Docker configuration, see [Docker Installation Guide](../../DOCKER.md).
 
 ## System Requirements
 
@@ -321,7 +320,6 @@ For production deployments with Docker:
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-See [Docker Guide](../../DOCKER.md) for detailed production setup.
 
 ### Cloud Deployments
 
@@ -335,13 +333,12 @@ See [Docker Guide](../../DOCKER.md) for detailed production setup.
 After successful installation:
 
 1. Continue to [Quick Start Guide](quickstart.md)
-2. Configure [Feed Sources](../user-guide/feed-sources.md)
+2. Configure Feed Sources via web interface
 3. Set up [Notifications](../user-guide/notifications.md)
 4. Train your [First Model](first-model.md)
 
 ## Support
 
 If you encounter issues:
-- Check [Troubleshooting Guide](../admin-guide/troubleshooting.md)
-- Search [GitHub Issues](https://github.com/yourusername/papersorter/issues)
-- Join our [Community Discord](https://discord.gg/papersorter)
+- Check the documentation
+- Search [GitHub Issues](https://github.com/ChangLabSNU/papersorter/issues)

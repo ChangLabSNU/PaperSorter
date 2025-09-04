@@ -150,8 +150,8 @@ Indices and Tables
 Need Help?
 ==========
 
-- 📖 Check the :doc:`admin-guide/troubleshooting` guide
-- 🐛 Report issues on `GitHub <https://github.com/yourusername/papersorter/issues>`_
+- 📖 Check the documentation guides
+- 🐛 Report issues on `GitHub <https://github.com/ChangLabSNU/papersorter/issues>`_
 - 💬 Join our community discussions
 
 License

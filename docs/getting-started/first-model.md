@@ -474,6 +474,6 @@ After training your first model:
 
 ## Getting Help
 
-- Check [Training Guide](../user-guide/training-models.md) for advanced techniques
-- See [Model Troubleshooting](../admin-guide/troubleshooting.md#model-issues)
-- Join our [ML Discussion Forum](https://forum.papersorter.org/ml)
+- Check the documentation for advanced techniques
+- Review the model management commands for troubleshooting
+- Check GitHub issues for community support
