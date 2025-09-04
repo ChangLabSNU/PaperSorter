@@ -99,6 +99,4 @@ API Conventions
 Related Resources
 =================
 
-- :doc:`../development/architecture` - High-level system design
-- :doc:`../development/contributing` - Development guidelines
-- :doc:`../reference/database-schema` - Complete schema reference
+- :doc:`../development/index` - Development and contributing guidelines

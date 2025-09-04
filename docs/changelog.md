@@ -98,6 +98,4 @@ Complete reinstallation recommended due to extensive changes.
 ## Support
 
 For upgrade assistance:
-- Documentation: https://papersorter.readthedocs.io
-- Issues: https://github.com/yourusername/papersorter/issues
-- Discord: https://discord.gg/papersorter
+- Issues: https://github.com/ChangLabSNU/papersorter/issues

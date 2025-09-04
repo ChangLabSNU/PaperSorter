@@ -81,6 +81,4 @@ Common usage patterns:
 Related Documentation
 =====================
 
-- :doc:`../user-guide/workflows` - Common operational workflows
 - :doc:`../admin-guide/deployment` - Production automation setup
-- :doc:`../reference/configuration-reference` - Complete configuration options

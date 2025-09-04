@@ -111,5 +111,3 @@ Related Sections
 ================
 
 - :doc:`../api/index` - API implementation details
-- :doc:`../development/architecture` - System design principles
-- :doc:`../admin-guide/database-setup` - Database administration

@@ -384,4 +384,4 @@ papersorter train --name "Week $(date +%U) Model"
 - Check logs: `tail -f ~/.papersorter/logs/papersorter.log`
 - Database issues: `papersorter test-db`
 - API issues: `papersorter test-embedding --text "test"`
-- Full documentation: [User Guide](../user-guide/index.md)
+- Full documentation: Check the User Guide section

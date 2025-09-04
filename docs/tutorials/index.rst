@@ -77,16 +77,15 @@ Getting Help
 If you encounter issues:
 
 1. Check the tutorial's troubleshooting section
-2. Review the :doc:`../admin-guide/troubleshooting` guide
-3. Search existing GitHub issues
-4. Ask for help in community discussions
+2. Search existing GitHub issues
+3. Ask for help in community discussions
 
 Contributing Tutorials
 ======================
 
 Have a useful integration or workflow? We welcome tutorial contributions!
 
-See the :doc:`../development/contributing` guide for information on:
+Check the development documentation for information on:
 
 - Tutorial writing guidelines
 - Documentation standards
@@ -97,4 +96,3 @@ Related Documentation
 
 - :doc:`../user-guide/index` - Complete feature documentation
 - :doc:`../cli-reference/index` - Command reference
-- :doc:`../reference/configuration-reference` - All configuration options

@@ -69,5 +69,4 @@ Related Resources
 =================
 
 - :doc:`../development/index` - Contributing and extending PaperSorter
-- :doc:`../reference/database-schema` - Complete database documentation
 - :doc:`../api/index` - API reference for custom integrations
