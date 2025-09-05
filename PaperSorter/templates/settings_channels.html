@@ -675,7 +675,7 @@
                             <th>Name</th>
                             <th>Type</th>
                             <th>Score Threshold</th>
-                            <th>Model ID</th>
+                            <th>Model</th>
                             <th>Broadcast Limit</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -692,7 +692,7 @@
                                     </span>
                                 </td>
                                 <td>${channel.score_threshold || 0.7}</td>
-                                <td>${channel.model_id || 1}</td>
+                                <td>${channel.model_name || `Model ${channel.model_id || 1}`}</td>
                                 <td>${channel.broadcast_limit || 20}</td>
                                 <td>
                                     <span class="tag ${channel.is_active !== false ? 'tag-active' : 'tag-inactive'}">
