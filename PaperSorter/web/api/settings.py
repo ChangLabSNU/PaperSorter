@@ -79,10 +79,12 @@ def api_get_channels():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-        SELECT id, name, endpoint_url, score_threshold, model_id, is_active,
-               broadcast_limit, broadcast_hours
-        FROM channels
-        ORDER BY id
+        SELECT c.id, c.name, c.endpoint_url, c.score_threshold, c.model_id, c.is_active,
+               c.broadcast_limit, c.broadcast_hours,
+               m.name as model_name
+        FROM channels c
+        LEFT JOIN models m ON c.model_id = m.id
+        ORDER BY c.id
     """)
 
     channels = cursor.fetchall()
