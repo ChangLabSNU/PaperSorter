@@ -386,9 +386,22 @@
             return formatDateTime(timestamp);
         }
 
-        function formatAuthors(authors) {
-            // Use the common formatAuthors from common.js if available
-            return window.formatAuthors ? window.formatAuthors(authors) : authors;
+        function formatAuthors(authorString) {
+            // Simple author formatting if common.js is not available
+            if (!authorString) return '';
+
+            // If common.js formatAuthors is available and it's not this function, use it
+            if (window.formatAuthors && window.formatAuthors !== formatAuthors) {
+                return window.formatAuthors(authorString);
+            }
+
+            // Otherwise, provide a simple implementation
+            const authors = authorString.split(/[,;]\s*/);
+            if (authors.length <= 3) {
+                return authors.join(', ');
+            } else {
+                return authors[0] + ' et al.';
+            }
         }
 
         function getChannelTypeClass(endpoint) {
