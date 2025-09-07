@@ -42,6 +42,87 @@ from ..utils.database import get_user_model_id, save_search_query
 
 search_bp = Blueprint("search", __name__)
 
+# AI Assist system prompt - defines the role and behavior
+AI_ASSIST_SYSTEM_PROMPT = """You are an expert research synthesizer and literature review specialist. Your role is to transform brief user inputs (keywords, fragmented concepts, or research questions) into high-density, narrative queries structured like a research paper's abstract or introduction.
+
+Core Process:
+1. Analyze the user's keywords to infer the scientific discipline, central problem, and potential research gaps
+2. Generate two coherent paragraphs of academic prose:
+   - Paragraph 1: Establish the foundational knowledge area and define the central research problem
+   - Paragraph 2: Explore methodologies, applications, and future directions
+
+Critical Output Rules:
+- Write authentic scientific text, NOT meta-commentary about searching
+- Maximize semantic density with technical terminology and synonyms
+- Use formal, objective, third-person scientific tone
+- Include NO citations, references, or quotations
+- Do NOT use section headers like "Paragraph 1:" in the output
+- Generate only the academic prose itself"""
+
+# AI Assist user prompt template - provides instructions and examples
+AI_ASSIST_USER_PROMPT = """Transform the following keywords into a two-paragraph academic text suitable for semantic search in scientific literature.
+
+Example:
+Input: graphene FET biosensor, non-invasive glucose monitoring, saliva diagnostics
+
+Output:
+The development of highly sensitive and selective biosensors for non-invasive molecular diagnostics remains a critical challenge in personalized medicine. Field-effect transistors (FETs) based on two-dimensional materials, particularly graphene, offer exceptional electronic properties, high surface-to-volume ratios, and biocompatibility, making them ideal candidates for next-generation sensing platforms. A key application area is the detection of biomarkers in accessible biofluids, such as saliva. The precise detection of glucose levels in saliva correlates with blood glucose concentrations, presenting a viable alternative to traditional invasive blood sampling methods for diabetes management.
+
+Current research focuses on optimizing graphene FET (gFET) sensor architecture, including surface functionalization techniques to immobilize glucose oxidase enzymes or synthetic receptors effectively. Challenges include mitigating Debye screening effects in high ionic strength biofluids and ensuring long-term sensor stability and reproducibility. Investigation into multiplexed sensor arrays capable of simultaneously detecting glucose alongside other salivary biomarkers (e.g., lactate, cortisol) is essential for improving diagnostic accuracy. The integration of these sensors into point-of-care (POC) systems explores advancements in microfluidics and wireless data transmission for real-time health monitoring.
+
+Now transform this input:
+{query_text}"""
+
+
+def assist_query(query_text, config):
+    """Use LLM to transform keywords into academic-style text for better search."""
+    try:
+        # Load summarization API configuration (reuse for AI assist)
+        api_config = config.get("summarization_api")
+        if not api_config:
+            log.warning("Summarization API not configured for AI assist")
+            return None
+
+        # Format the user prompt with the query text
+        user_prompt = AI_ASSIST_USER_PROMPT.format(query_text=query_text)
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_config["api_key"], base_url=api_config.get("api_url", "https://api.openai.com/v1"))
+
+        # Generate assisted query
+        response = client.chat.completions.create(
+            model=api_config.get("model", "gpt-4"),
+            messages=[
+                {"role": "system", "content": AI_ASSIST_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=4000
+        )
+
+        assisted_text = response.choices[0].message.content.strip()
+
+        # Basic cleanup - remove any accidental headers or markers
+        lines = assisted_text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Skip lines that look like markdown headers or labels
+            line_stripped = line.strip()
+            if line_stripped and not (
+                line_stripped.startswith('**') and line_stripped.endswith('**') or
+                line_stripped.startswith('#') or
+                line_stripped.endswith(':') and len(line_stripped.split()) <= 4 or
+                line_stripped.lower().startswith('paragraph') or
+                line_stripped.lower().startswith('output:')
+            ):
+                cleaned_lines.append(line)
+
+        return '\n'.join(cleaned_lines).strip()
+
+    except Exception as e:
+        log.error(f"Error in AI assist: {e}")
+        return None
+
 
 @search_bp.route("/api/search", methods=["GET", "POST"])
 @login_required
@@ -51,20 +132,69 @@ def api_search():
     if request.method == "POST":
         data = request.get_json()
         query = data.get("query", "").strip() if data else ""
+        use_ai_assist = data.get("ai_assist", False) if data else False
+        saved_search_name = data.get("saved_search", "") if data else ""
     else:
         query = request.args.get("q", "").strip()
+        use_ai_assist = request.args.get("ai_assist", "").lower() == "true"
+        saved_search_name = request.args.get("saved_search", "").strip()
 
     if not query:
         return jsonify({"error": "Query parameter is required"}), 400
 
     try:
-        # Load embedding database with config
+        # Load configuration
         config_path = current_app.config["CONFIG_PATH"]
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        # Get database connection for saved search lookup
+        conn = current_app.config["get_db_connection"]()
+
+        # Apply AI assist if requested
+        assisted_query = None
+        search_query = query  # Default to original query
+
+        # Check if this is a saved search restoration
+        if saved_search_name and use_ai_assist:
+            # Try to retrieve the pre-computed assisted query
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT assisted_query FROM saved_searches
+                WHERE short_name = %s
+                LIMIT 1
+                """,
+                (saved_search_name,),
+            )
+            result = cursor.fetchone()
+            cursor.close()
+
+            if result and result[0]:
+                # Use the saved assisted query
+                assisted_query = result[0]
+                search_query = assisted_query
+                log.info(f"Using saved assisted query for search: {saved_search_name}")
+            elif use_ai_assist:
+                # Fallback to generating a new one if not found
+                assisted_query = assist_query(query, config)
+                if assisted_query:
+                    search_query = assisted_query
+                    log.info(f"Generated new assisted query for saved search: {saved_search_name}")
+        elif use_ai_assist:
+            # Regular AI assist (not from saved search)
+            assisted_query = assist_query(query, config)
+            if assisted_query:
+                search_query = assisted_query  # Use assisted query for search
+                log.info(f"AI assist transformed query from '{query}' to assisted version")
+            else:
+                log.warning("AI assist failed, falling back to original query")
+
+        # Load embedding database
         edb = EmbeddingDatabase(config_path)
 
         # Get user ID and default model ID for filtering
         user_id = current_user.id
-        conn = current_app.config["get_db_connection"]()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Get model_id from primary channel if it exists
@@ -75,9 +205,9 @@ def api_search():
         else:
             model_id = get_user_model_id(conn, current_user)
 
-        # Search using embeddings
+        # Search using embeddings (use search_query which may be the assisted version)
         search_results = edb.search_by_text(
-            query, limit=50, user_id=user_id, model_id=model_id,
+            search_query, limit=50, user_id=user_id, model_id=model_id,
             channel_id=current_user.primary_channel_id
         )
 
@@ -106,7 +236,7 @@ def api_search():
 
         # Save the search query to saved_searches table
         try:
-            short_name = save_search_query(conn, query, current_user.id)
+            short_name = save_search_query(conn, query, current_user.id, assisted_query)
         except Exception as e:
             log.error(f"Failed to save search query: {e}")
             short_name = None
@@ -117,12 +247,15 @@ def api_search():
             # Log text search event with the most relevant result (if any)
             # Store search query in content field, and the most relevant feed_id if results exist
             feed_id_to_log = search_results[0]["feed_id"] if search_results else None
+            event_type = "web:ai-assisted-search" if use_ai_assist and assisted_query else "web:text-search"
+            # For AI-assisted search, log both original and assisted query
+            log_content = json.dumps({"original": query, "assisted": assisted_query}) if assisted_query else query
             cursor.execute(
                 """
                 INSERT INTO events (event_type, user_id, feed_id, content)
                 VALUES (%s, %s, %s, %s)
             """,
-                ("web:text-search", current_user.id, feed_id_to_log, query),
+                (event_type, current_user.id, feed_id_to_log, log_content),
             )
             conn.commit()
         except Exception as e:
@@ -132,11 +265,53 @@ def api_search():
             cursor.close()
             conn.close()
 
-        return jsonify({"feeds": feeds, "short_name": short_name})
+        response_data = {"feeds": feeds, "short_name": short_name}
+        if assisted_query:
+            response_data["assisted_query"] = assisted_query
+
+        return jsonify(response_data)
 
     except Exception as e:
         log.error(f"Error searching papers: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@search_bp.route("/api/search/shorten", methods=["POST"])
+@login_required
+def api_shorten_search():
+    """Create or retrieve a shortened URL for a search query."""
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    query = data.get("query", "").strip()
+    assisted_query = data.get("assisted_query", "").strip() if data.get("assisted_query") else None
+
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+
+    try:
+        # Get database connection
+        conn = current_app.config["get_db_connection"]()
+
+        # Save or retrieve the search query
+        short_name = save_search_query(conn, query, current_user.id, assisted_query)
+
+        conn.close()
+
+        # Generate the full shortened URL
+        base_url = request.host_url.rstrip('/')
+        short_url = f"{base_url}/link/{short_name}"
+
+        return jsonify({
+            "short_name": short_name,
+            "short_url": short_url
+        })
+
+    except Exception as e:
+        log.error(f"Error creating shortened URL: {e}")
+        return jsonify({"error": "Failed to create shortened URL"}), 500
 
 
 @search_bp.route("/api/summarize", methods=["POST"])

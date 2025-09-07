@@ -168,16 +168,17 @@ def generate_short_name(length=8):
     return "".join(random.choice(characters) for _ in range(length))
 
 
-def save_search_query(conn, query, user_id=None):
+def save_search_query(conn, query, user_id=None, assisted_query=None):
     """Save a search query to the saved_searches table.
 
-    If the query already exists, return the existing short_name.
-    Otherwise, create a new entry with a unique short_name.
+    If the exact query combination (original + assisted) already exists,
+    return the existing short_name. Otherwise, create a new entry.
 
     Args:
         conn: Database connection
-        query: The search query to save
+        query: The original search query from user
         user_id: Optional user ID who performed the search
+        assisted_query: Optional AI-enhanced version of the query
 
     Returns:
         The short_name for this search query
@@ -185,15 +186,26 @@ def save_search_query(conn, query, user_id=None):
     cursor = conn.cursor()
 
     try:
-        # First check if this query already exists
-        cursor.execute(
-            """
-            SELECT short_name FROM saved_searches
-            WHERE query = %s
-            LIMIT 1
-        """,
-            (query,),
-        )
+        # Check if this exact combination already exists
+        # We need to handle NULL values properly in SQL
+        if assisted_query:
+            cursor.execute(
+                """
+                SELECT short_name FROM saved_searches
+                WHERE query = %s AND assisted_query = %s
+                LIMIT 1
+            """,
+                (query, assisted_query),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT short_name FROM saved_searches
+                WHERE query = %s AND assisted_query IS NULL
+                LIMIT 1
+            """,
+                (query,),
+            )
 
         existing = cursor.fetchone()
         if existing:
@@ -229,11 +241,11 @@ def save_search_query(conn, query, user_id=None):
                 # This short_name is unique, insert the new record
                 cursor.execute(
                     """
-                    INSERT INTO saved_searches (short_name, query, user_id)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO saved_searches (short_name, query, user_id, assisted_query)
+                    VALUES (%s, %s, %s, %s)
                     RETURNING short_name
                 """,
-                    (short_name, query, user_id),
+                    (short_name, query, user_id, assisted_query),
                 )
 
                 conn.commit()
