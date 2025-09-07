@@ -447,7 +447,7 @@
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-subtle);
             transition: background-color var(--transition-base);
         }
 
@@ -506,18 +506,18 @@
             border-radius: 24px;
             cursor: pointer;
             transition: all var(--transition-base);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
         }
 
         .btn-generate:hover {
             background: var(--similar-btn-generate-hover-bg);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            box-shadow: var(--shadow-hover);
             transform: translateY(-1px);
         }
 
         .btn-generate:active {
             transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-card);
         }
 
         .summary-loading, .poster-loading {
@@ -603,7 +603,7 @@
             height: 800px;
             border: 1px solid var(--similar-disclaimer-border);
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-subtle);
         }
 
         .poster-actions {
@@ -630,7 +630,7 @@
 
         .btn-print:hover {
             background: var(--similar-btn-generate-hover-bg);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 4px var(--shadow-lg);
         }
 
         .btn-print:active {
