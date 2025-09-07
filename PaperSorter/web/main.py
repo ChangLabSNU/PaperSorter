@@ -106,10 +106,10 @@ def shortened_link(short_name):
     cursor = conn.cursor()
 
     try:
-        # Look up the query for this short_name
+        # Look up the query and assisted_query for this short_name
         cursor.execute(
             """
-            SELECT query FROM saved_searches
+            SELECT query, assisted_query FROM saved_searches
             WHERE short_name = %s
             LIMIT 1
         """,
@@ -119,6 +119,7 @@ def shortened_link(short_name):
         result = cursor.fetchone()
         if result:
             query = result[0]
+            assisted_query = result[1]
 
             # Update last_access time
             cursor.execute(
@@ -132,7 +133,11 @@ def shortened_link(short_name):
             conn.commit()
 
             # Redirect to the main page with the search query
-            return redirect(url_for("main.index", q=query))
+            # Include ai_assist parameter if there was an assisted query
+            if assisted_query:
+                return redirect(url_for("main.index", q=query, ai_assist="true", saved_search=short_name))
+            else:
+                return redirect(url_for("main.index", q=query))
         else:
             # Short name not found
             return "Link not found", 404

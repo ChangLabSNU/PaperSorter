@@ -636,10 +636,11 @@ function toggleSemanticSearch() {
     }
 }
 
-async function performGeneralSearch() {
+async function performGeneralSearch(savedSearchName = null) {
     const query = document.getElementById('generalSearchInput').value.trim();
     if (!query) return;
 
+    const useAiAssist = document.getElementById('aiAssistCheckbox').checked;
     const searchInterface = document.getElementById('generalSearchContainer');
     const feedsSection = document.getElementById('feedsContainer');
     const resultsSection = document.getElementById('generalSearchResultsContainer');
@@ -648,19 +649,49 @@ async function performGeneralSearch() {
     // Update URL
     const newUrl = new URL(window.location);
     newUrl.searchParams.set('q', query);
+    if (useAiAssist) {
+        newUrl.searchParams.set('ai_assist', 'true');
+    }
+    if (savedSearchName) {
+        newUrl.searchParams.set('saved_search', savedSearchName);
+    }
     window.history.pushState({}, '', newUrl);
 
-    // Show loading
-    resultsContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Searching...</div>';
+    // Hide search interface and feeds section
     searchInterface.style.display = 'none';
     feedsSection.style.display = 'none';
+
+    // Show loading message in the results section
+    const loadingMessage = useAiAssist ?
+        '<div class="loading"><div class="loading-spinner"></div>Enhancing query with AI and searching...</div>' :
+        '<div class="loading"><div class="loading-spinner"></div>Searching...</div>';
+
+    // Hide the header and AI summary section during loading
+    const resultsHeader = resultsSection.querySelector('.search-results-header');
+    if (resultsHeader) resultsHeader.style.display = 'none';
+
+    const summarySection = document.getElementById('searchSummarySection');
+    if (summarySection) summarySection.style.display = 'none';
+
+    resultsContainer.innerHTML = loadingMessage;
     resultsSection.style.display = 'block';
 
     try {
+        const requestBody = {
+            query: query,
+            type: 'text',
+            ai_assist: useAiAssist
+        };
+
+        // Include saved search name if present
+        if (savedSearchName) {
+            requestBody.saved_search = savedSearchName;
+        }
+
         const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: query, type: 'text' })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
@@ -669,9 +700,31 @@ async function performGeneralSearch() {
 
         const data = await response.json();
         currentSearchShortName = data.short_name;
+
+        // Show the header now that we have results
+        const resultsHeader = resultsSection.querySelector('.search-results-header');
+        if (resultsHeader) resultsHeader.style.display = 'flex';
+
+        // Display assisted query if present
+        const assistedQueryDisplay = document.getElementById('assistedQueryDisplay');
+        const assistedQueryText = document.getElementById('assistedQueryText');
+        if (data.assisted_query) {
+            assistedQueryDisplay.style.display = 'block';
+            assistedQueryText.textContent = data.assisted_query;
+        } else {
+            assistedQueryDisplay.style.display = 'none';
+        }
+
         displaySearchResults(data.feeds, query);
     } catch (error) {
         console.error('Search error:', error);
+        // Show header so user can navigate back
+        const resultsHeader = resultsSection.querySelector('.search-results-header');
+        if (resultsHeader) resultsHeader.style.display = 'flex';
+        // Hide AI summary section on error
+        const summarySection = document.getElementById('searchSummarySection');
+        if (summarySection) summarySection.style.display = 'none';
+        // Error message is already in the results section which is visible
         resultsContainer.innerHTML = '<div class="error">Search failed. Please try again.</div>';
     }
 }
@@ -937,8 +990,13 @@ function backToFeedList() {
     document.getElementById('searchResultsContainer').style.display = 'none';
     document.getElementById('feedsContainer').style.display = 'block';
 
+    // Hide assisted query display
+    document.getElementById('assistedQueryDisplay').style.display = 'none';
+
     const newUrl = new URL(window.location);
     newUrl.searchParams.delete('q');
+    newUrl.searchParams.delete('ai_assist');
+    newUrl.searchParams.delete('saved_search');
     window.history.pushState({}, '', newUrl);
 }
 
@@ -947,37 +1005,64 @@ function backToSearchInput() {
     document.getElementById('semanticSearchContainer').style.display = 'block';
 }
 
-function copySearchLink(event) {
-    // Determine which URL to copy
-    let url;
-    if (currentSearchShortName) {
-        // Use the short link if available
-        const baseUrl = window.location.origin;
-        url = `${baseUrl}/link/${currentSearchShortName}`;
-    } else {
-        // Fall back to current URL
-        url = window.location.href;
-    }
-
+async function copySearchLink(event) {
     // Get the button element
     const btn = event ? event.target : document.querySelector('[onclick*="copySearchLink"]');
 
-    // Copy to clipboard
-    navigator.clipboard.writeText(url).then(() => {
+    // Get current search state
+    const query = document.getElementById('generalSearchInput').value.trim();
+    const assistedQueryEl = document.getElementById('assistedQueryText');
+    const assistedQuery = assistedQueryEl && assistedQueryEl.textContent ? assistedQueryEl.textContent.trim() : null;
+
+    if (!query) {
+        alert('No search query to share');
+        return;
+    }
+
+    // Show loading state
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Getting link...';
+    btn.disabled = true;
+
+    try {
+        // Request shortened URL from server
+        const response = await fetch('/api/search/shorten', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: query,
+                assisted_query: assistedQuery
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to create short link');
+        }
+
+        const data = await response.json();
+        const url = data.short_url;
+
+        // Copy to clipboard
+        await navigator.clipboard.writeText(url);
+
         // Show success feedback
-        const originalText = btn.innerHTML;
         btn.innerHTML = '✓ Copied!';
-        btn.disabled = true;
+
+        // Update the current short name for consistency
+        currentSearchShortName = data.short_name;
 
         // Reset button after 2 seconds
         setTimeout(() => {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }, 2000);
-    }).catch(err => {
+
+    } catch (err) {
         console.error('Failed to copy URL:', err);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
         alert('Failed to copy link to clipboard');
-    });
+    }
 }
 
 // Summary generation
@@ -1111,7 +1196,7 @@ let bookmarkUpdateTimer = null;
 function updateBookmarkPosition() {
     // Simply get the first feed item in the list
     const firstFeedItem = document.querySelector('.feed-item');
-    
+
     if (firstFeedItem) {
         const feedId = parseInt(firstFeedItem.dataset.feedId);
         if (feedId && feedId !== firstFeedId) {
@@ -1199,11 +1284,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check for search query in URL
     const urlParams = new URLSearchParams(window.location.search);
     const searchQuery = urlParams.get('q');
+    const aiAssist = urlParams.get('ai_assist') === 'true';
+    const savedSearchName = urlParams.get('saved_search');
 
     if (searchQuery) {
         // Restore search from URL
         document.getElementById('generalSearchInput').value = searchQuery;
-        performGeneralSearch();
+        if (aiAssist) {
+            document.getElementById('aiAssistCheckbox').checked = true;
+        }
+        // Pass saved search name if present
+        performGeneralSearch(savedSearchName);
     } else {
         // Load initial papers
         loadFeeds();
