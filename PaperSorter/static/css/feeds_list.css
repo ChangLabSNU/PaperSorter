@@ -366,8 +366,12 @@ button.user-info.btn-logout:hover {
     text-overflow: ellipsis;
 }
 
-.feed-author {
-    max-width: 200px;
+/* Allow author text to wrap when feed is expanded */
+.feed-item.expanded .feed-author {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    max-width: none;
 }
 
 .feed-origin {

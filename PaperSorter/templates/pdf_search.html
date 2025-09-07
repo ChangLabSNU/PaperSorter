@@ -419,6 +419,14 @@
             max-width: 200px;
         }
 
+        /* Allow author text to wrap when feed is expanded */
+        .feed-item.expanded .feed-author {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            max-width: none;
+        }
+
         .feed-origin {
             font-weight: bold;
         }
@@ -1191,7 +1199,7 @@
                             <div class="feed-title">${feed.title}</div>
                             <div class="feed-meta">
                                 <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
-                                ${feed.author ? `<div class="feed-meta-item feed-author">${feed.author}</div>` : ''}
+                                ${feed.author ? `<div class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</div>` : ''}
                                 <div class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</div>
                             </div>
                         </div>
@@ -1244,10 +1252,11 @@
             resultsContainer.innerHTML = feeds.map(feed => createFeedElement(feed)).join('');
 
             // Add click handlers to expand/collapse feed details
-            document.querySelectorAll('.feed-item').forEach(item => {
+            document.querySelectorAll('.feed-item').forEach((item, index) => {
                 const header = item.querySelector('.feed-header');
                 const details = item.querySelector('.feed-details');
                 const feedId = item.getAttribute('data-feed-rowid');
+                const feed = feeds[index]; // Get the corresponding feed data
 
                 header.addEventListener('click', async function(e) {
                     // Don't expand if clicking on buttons or links
@@ -1258,6 +1267,19 @@
 
                     // Toggle expanded state
                     details.classList.toggle('expanded');
+                    item.classList.toggle('expanded');
+                    
+                    // Toggle author display
+                    const authorElement = header.querySelector('.feed-author');
+                    if (feed && feed.author && authorElement) {
+                        if (details.classList.contains('expanded')) {
+                            // Show full author list when expanded
+                            authorElement.textContent = feed.author;
+                        } else {
+                            // Show shortened author list when collapsed
+                            authorElement.textContent = formatAuthors(feed.author);
+                        }
+                    }
 
                     // Load content if expanding and not already loaded
                     if (details.classList.contains('expanded') && details.getAttribute('data-loaded') !== 'true') {

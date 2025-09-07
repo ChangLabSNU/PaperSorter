@@ -158,7 +158,93 @@ function formatDateTime(timestamp, dateFormat, timezone) {
     return `${datePart} ${timePart}`;
 }
 
+/**
+ * Format author list with intelligent shortening
+ * Shows first N and last M authors with "et al." for long lists
+ * @param {string} authorString - Author string from database
+ * @param {object} options - Formatting options
+ * @returns {string} Formatted author string
+ */
+function formatAuthors(authorString, options = {}) {
+    const config = {
+        maxDisplay: 3,      // Show all if ≤ this many authors
+        firstCount: 1,      // Number of first authors to show
+        lastCount: 1,       // Number of last authors to show
+        separator: ', ',    // Output separator
+        etAl: '…',
+        ...options
+    };
+    
+    // Handle edge cases
+    if (!authorString || typeof authorString !== 'string') {
+        return authorString || '';
+    }
+    
+    // Preserve pre-shortened lists (with ellipsis)
+    if (/[…\.]{2,}/.test(authorString)) {
+        return authorString.replace(/\.{3,}/g, '…').trim();
+    }
+    
+    // Parse authors based on separator patterns
+    let authors;
+    
+    // Priority order: semicolon > special comma patterns > and > simple comma
+    if (authorString.includes(';')) {
+        // Most reliable: semicolon (PubMed format)
+        authors = authorString.split(';');
+    } 
+    else if (authorString.includes(',')) {
+        // Check for "LastName, Initial." pattern (most common in academic papers)
+        if (/[A-Za-z-]+,\s+[A-Z]\./.test(authorString)) {
+            // Split after period+comma pattern (end of author with initials)
+            // Using replace to insert markers for better browser compatibility
+            const markedString = authorString.replace(/\.\s*,\s*(?=[A-Z])/g, '.|SPLIT|');
+            authors = markedString.split('|SPLIT|').map(a => a.replace(/\|$/, ''));
+        } else {
+            // Simple comma split for other formats
+            authors = authorString.split(',');
+        }
+        
+        // Handle "and" in the last element (common pattern)
+        const lastIdx = authors.length - 1;
+        const lastAuthor = authors[lastIdx];
+        if (lastAuthor && / and /i.test(lastAuthor)) {
+            const parts = lastAuthor.split(/\s+and\s+/i);
+            authors.splice(lastIdx, 1, ...parts);
+        }
+    }
+    else if (/ and /i.test(authorString)) {
+        // Only "and" separator
+        authors = authorString.split(/\s+and\s+/i);
+    }
+    else {
+        // Single author
+        authors = [authorString];
+    }
+    
+    // Clean up
+    authors = authors
+        .map(a => a.trim())
+        .filter(a => a.length > 0);
+    
+    // Format output
+    if (authors.length <= config.maxDisplay) {
+        return authors.join(config.separator);
+    }
+    
+    // Shorten with et al.
+    const first = authors.slice(0, config.firstCount);
+    const last = authors.slice(-config.lastCount);
+    
+    // Prevent overlap
+    if (config.firstCount + config.lastCount >= authors.length) {
+        return authors.join(config.separator);
+    }
+    
+    return [...first, config.etAl, ...last].join(config.separator);
+}
+
 // Export for use in other files if needed
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime };
+    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime, formatAuthors };
 }
