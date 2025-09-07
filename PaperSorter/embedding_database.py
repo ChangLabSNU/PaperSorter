@@ -27,6 +27,7 @@ from pgvector.psycopg2 import register_vector
 import numpy as np
 import yaml
 import openai
+from .log import log
 
 
 class EmbeddingDatabase:
@@ -167,7 +168,85 @@ class EmbeddingDatabase:
         self.db.commit()
 
     def write_batch(self):
+        """Context manager for batch embedding insertions.
+
+        Delays commits until the context exits for better performance.
+        Usage:
+            with embdb.write_batch() as batch:
+                batch.insert(feed_id1, embedding1)
+                batch.insert(feed_id2, embedding2)
+        """
         return EmbeddingDatabaseWriteBatch(self)
+
+    def insert_embedding(self, feed_id, embedding):
+        """Insert or update an embedding for a feed.
+
+        Args:
+            feed_id: The feed ID to insert embedding for
+            embedding: The embedding vector (numpy array or list)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Convert to numpy array if needed
+            if not isinstance(embedding, np.ndarray):
+                embedding = np.array(embedding)
+
+            # Insert or update embedding
+            self.cursor.execute(
+                """
+                INSERT INTO embeddings (feed_id, embedding)
+                VALUES (%s, %s)
+                ON CONFLICT (feed_id) DO UPDATE
+                SET embedding = EXCLUDED.embedding
+                """,
+                (feed_id, embedding.tolist() if isinstance(embedding, np.ndarray) else embedding)
+            )
+            self.db.commit()
+            return True
+        except Exception as e:
+            log.error(f"Failed to insert embedding for feed {feed_id}: {e}")
+            self.db.rollback()
+            return False
+
+    def filter_feeds_without_embeddings(self, feed_ids):
+        """Filter feed IDs to return only those without embeddings.
+
+        Args:
+            feed_ids: List of feed IDs to check
+
+        Returns:
+            List of feed IDs that don't have embeddings
+        """
+        if not feed_ids:
+            return []
+
+        # Ensure feed_ids is a list
+        if not isinstance(feed_ids, list):
+            feed_ids = [feed_ids]
+
+        if len(feed_ids) == 1:
+            # Single feed - use simple query
+            self.cursor.execute(
+                """
+                SELECT %s AS feed_id
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM embeddings WHERE feed_id = %s
+                )
+                """, (feed_ids[0], feed_ids[0])
+            )
+        else:
+            # Multiple feeds - use efficient EXCEPT query
+            self.cursor.execute(
+                """
+                SELECT unnest(%s::bigint[]) AS feed_id
+                EXCEPT
+                SELECT feed_id FROM embeddings WHERE feed_id = ANY(%s::bigint[])
+                """, (feed_ids, feed_ids)
+            )
+
+        return [row["feed_id"] for row in self.cursor.fetchall()]
 
     def find_similar(self, feed_id, limit, user_id, model_id, channel_id):
         """Find similar articles using pgvector similarity search"""
@@ -325,48 +404,85 @@ class EmbeddingDatabase:
 
 
 class EmbeddingDatabaseWriteBatch:
+    """Context manager for batch embedding insertions with delayed commit."""
+
     def __init__(self, edb):
         self.edb = edb
         self.db = edb.db
         self.cursor = edb.cursor
         self.dtype = edb.dtype
         self.batch_items = []
+        self.success_count = 0
+        self.fail_count = 0
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         if exc_type is None:
-            # Execute all batch items
-            for key, value in self.batch_items:
-                # Get feed_id from external_id
-                self.cursor.execute(
-                    "SELECT id FROM feeds WHERE external_id = %s", (key,)
-                )
-                result = self.cursor.fetchone()
-                if result:
-                    feed_id = result["id"]
-                    embedding_list = value.tolist()
-
-                    self.cursor.execute(
-                        """
-                        INSERT INTO embeddings (feed_id, embedding)
-                        VALUES (%s, %s)
-                        ON CONFLICT (feed_id) DO UPDATE SET embedding = %s
-                    """,
-                        (feed_id, embedding_list, embedding_list),
-                    )
-
-            self.db.commit()
+            try:
+                # Commit all successful insertions
+                self.db.commit()
+                log.info(f"Batch insert completed: {self.success_count} successful, {self.fail_count} failed")
+            except Exception as e:
+                log.error(f"Failed to commit batch: {e}")
+                self.db.rollback()
         else:
             # Rollback on error
             self.db.rollback()
+            log.error(f"Batch insert failed, rolling back. {self.success_count} were attempted")
             self.batch_items.clear()
 
+    def insert(self, feed_id, embedding):
+        """Insert an embedding by feed_id without immediate commit.
+
+        Args:
+            feed_id: The feed ID to insert embedding for
+            embedding: The embedding vector (numpy array or list)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Convert to numpy array if needed
+            if not isinstance(embedding, np.ndarray):
+                embedding = np.array(embedding)
+
+            # Convert to list for pgvector
+            embedding_list = embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
+
+            # Insert or update embedding (no commit)
+            self.cursor.execute(
+                """
+                INSERT INTO embeddings (feed_id, embedding)
+                VALUES (%s, %s)
+                ON CONFLICT (feed_id) DO UPDATE
+                SET embedding = EXCLUDED.embedding
+                """,
+                (feed_id, embedding_list)
+            )
+            self.success_count += 1
+            self.batch_items.append((feed_id, embedding))  # Keep track for potential rollback
+            return True
+        except Exception as e:
+            log.error(f"Failed to insert embedding for feed {feed_id}: {e}")
+            self.fail_count += 1
+            # Don't rollback here - let other inserts continue
+            return False
+
     def __setitem__(self, key, value):
+        """Legacy interface for backward compatibility with external_id."""
         if not isinstance(value, np.ndarray):
             value = np.array(value)
 
         assert value.dtype == self.dtype
 
-        self.batch_items.append((key, value))
+        # Get feed_id from external_id
+        self.cursor.execute("SELECT id FROM feeds WHERE external_id = %s", (key,))
+        result = self.cursor.fetchone()
+        if result:
+            feed_id = result["id"]
+            self.insert(feed_id, value)
+        else:
+            log.error(f"No feed found with external_id: {key}")
+            self.fail_count += 1

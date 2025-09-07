@@ -46,21 +46,16 @@ class PredictCommand(BaseCommand):
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         """Add predict-specific arguments."""
         parser.add_argument(
-            '--count',
+            '--max-papers',
             type=int,
             default=500,
-            help='Number of recent papers to process (0 for all)'
+            help='Maximum number of recent papers to process (0 for all)'
         )
         parser.add_argument(
             '--all',
             dest='process_all',
             action='store_true',
-            help='Process all papers without limit (equivalent to --count 0)'
-        )
-        parser.add_argument(
-            '--only-without-embeddings',
-            action='store_true',
-            help="Only process papers that don't have embeddings yet"
+            help='Process all papers without limit (equivalent to --max-papers 0)'
         )
         parser.add_argument(
             '--batch-size',
@@ -75,9 +70,8 @@ class PredictCommand(BaseCommand):
         try:
             main(
                 config=args.config,
-                count=args.count,
+                max_papers=args.max_papers,
                 process_all=args.process_all,
-                only_without_embeddings=args.only_without_embeddings,
                 batch_size=args.batch_size,
                 log_file=args.log_file,
                 quiet=args.quiet
@@ -112,16 +106,16 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     return embeddings
 
 
-def main(config, count, process_all, only_without_embeddings, batch_size, log_file, quiet):
+def main(config, max_papers, process_all, batch_size, log_file, quiet):
     """Generate embeddings and predictions for articles in the database.
 
     Creates vector embeddings for articles and optionally generates interest
     predictions using trained models. Essential for semantic search and recommendations.
     """
 
-    # Handle --all flag: set count to 0 to process all papers
+    # Handle --all flag: set max_papers to 0 to process all papers
     if process_all:
-        count = 0
+        max_papers = 0
 
     # Load configuration
     with open(config, "r") as f:
@@ -146,24 +140,58 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
     # Register pgvector extension
     register_vector(db)
 
-    # Process feeds in batches to avoid memory issues
-    if only_without_embeddings:
-        log.info(f"Processing only papers without embeddings in batches of {batch_size}...")
-    elif count == 0:
+    # First, get counts of feeds with and without embeddings
+    if max_papers == 0:
+        # Count all feeds
+        cursor.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
+                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
+            FROM feeds f
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+        """)
+    else:
+        # Count only the most recent 'max_papers' feeds
+        cursor.execute("""
+            WITH recent_feeds AS (
+                SELECT f.id
+                FROM feeds f
+                ORDER BY f.added DESC
+                LIMIT %s
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
+                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
+            FROM recent_feeds rf
+            JOIN feeds f ON f.id = rf.id
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+        """, (max_papers,))
+
+    counts = cursor.fetchone()
+    feeds_with_embeddings_count = counts['with_embeddings'] or 0
+    feeds_without_embeddings_count = counts['without_embeddings'] or 0
+
+    log.info(f"Found {feeds_with_embeddings_count} feeds with embeddings, {feeds_without_embeddings_count} without embeddings")
+
+    if feeds_without_embeddings_count == 0 and feeds_with_embeddings_count == 0:
+        log.info("No papers found")
+        return
+
+    if max_papers == 0:
         log.info(f"Processing all papers in batches of {batch_size}...")
     else:
-        log.info(f"Processing {count} most recent papers in batches of {batch_size}...")
+        log.info(f"Processing {max_papers} most recent papers in batches of {batch_size}...")
 
-    feeds_with_embeddings = []
+    # Now process only feeds without embeddings incrementally
     feeds_without_embeddings = []
-    total_processed = 0
+    feeds_with_embeddings = []  # Will be populated after generating embeddings
     offset = 0
 
-    # Build the base query based on --only-without-embeddings flag
-    if only_without_embeddings:
-        # Only select feeds that don't have embeddings yet
+    # Query for feeds without embeddings
+    if max_papers == 0:
+        # Process all feeds without embeddings
         base_query = """
-            SELECT f.*, NULL as embedding
+            SELECT f.*
             FROM feeds f
             WHERE NOT EXISTS (
                 SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
@@ -172,58 +200,92 @@ def main(config, count, process_all, only_without_embeddings, batch_size, log_fi
             LIMIT %s OFFSET %s
         """
     else:
+        # Process only from the most recent 'max_papers' feeds
         base_query = """
-            SELECT f.*, e.embedding
-            FROM feeds f
-            LEFT JOIN embeddings e ON f.id = e.feed_id
+            WITH recent_feeds AS (
+                SELECT f.id
+                FROM feeds f
+                ORDER BY f.added DESC
+                LIMIT %s
+            )
+            SELECT f.*
+            FROM recent_feeds rf
+            JOIN feeds f ON f.id = rf.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+            )
             ORDER BY f.added DESC
             LIMIT %s OFFSET %s
         """
 
-    # Process in batches - handle count=0 (all feeds) specially
-    while True:
-        # Determine batch size and query
-        if count == 0:
-            # Process all feeds - no total limit
+    # Process feeds without embeddings in batches
+    while offset < feeds_without_embeddings_count:
+        if max_papers == 0:
             cursor.execute(base_query, (batch_size, offset))
         else:
-            # Process specific count
-            current_batch_size = min(batch_size, count - offset)
-            if current_batch_size <= 0:
-                break
-
-            cursor.execute(base_query, (current_batch_size, offset))
+            cursor.execute(base_query, (max_papers, batch_size, offset))
 
         batch_feeds = cursor.fetchall()
 
         if not batch_feeds:
             break
 
-        # Separate feeds with and without embeddings for this batch
-        for feed in batch_feeds:
-            if feed["embedding"] is None:
-                feeds_without_embeddings.append(feed)
-            else:
-                feeds_with_embeddings.append(feed)
-
-        total_processed += len(batch_feeds)
+        feeds_without_embeddings.extend(batch_feeds)
         offset += len(batch_feeds)
 
-        # For specific count, check if we've reached the limit
-        if count > 0 and total_processed >= count:
-            break
-
-        # If we got fewer feeds than batch_size, we've reached the end
-        if len(batch_feeds) < batch_size:
-            break
-
-    if total_processed == 0:
-        log.info("No papers found")
-        return
+        log.debug(f"Loaded batch of {len(batch_feeds)} feeds without embeddings (total: {len(feeds_without_embeddings)}/{feeds_without_embeddings_count})")
 
     log.info(
-        f"Processed {total_processed} papers: {len(feeds_with_embeddings)} with embeddings, {len(feeds_without_embeddings)} without"
+        f"Total papers: {feeds_with_embeddings_count} with embeddings, {feeds_without_embeddings_count} without"
     )
+
+    # If there are feeds with embeddings and we want to run predictions, load them
+    if feeds_with_embeddings_count > 0:
+        log.info(f"Loading {feeds_with_embeddings_count} feeds with existing embeddings for prediction...")
+        offset = 0
+
+        if max_papers == 0:
+            # Load all feeds with embeddings
+            query_with_embeddings = """
+                SELECT f.*, e.embedding
+                FROM feeds f
+                JOIN embeddings e ON f.id = e.feed_id
+                ORDER BY f.added DESC
+                LIMIT %s OFFSET %s
+            """
+        else:
+            # Load only from the most recent 'max_papers' feeds
+            query_with_embeddings = """
+                WITH recent_feeds AS (
+                    SELECT f.id
+                    FROM feeds f
+                    ORDER BY f.added DESC
+                    LIMIT %s
+                )
+                SELECT f.*, e.embedding
+                FROM recent_feeds rf
+                JOIN feeds f ON f.id = rf.id
+                JOIN embeddings e ON f.id = e.feed_id
+                ORDER BY f.added DESC
+                LIMIT %s OFFSET %s
+            """
+
+        # Load feeds with embeddings in batches
+        while offset < feeds_with_embeddings_count:
+            if max_papers == 0:
+                cursor.execute(query_with_embeddings, (batch_size, offset))
+            else:
+                cursor.execute(query_with_embeddings, (max_papers, batch_size, offset))
+
+            batch_feeds = cursor.fetchall()
+
+            if not batch_feeds:
+                break
+
+            feeds_with_embeddings.extend(batch_feeds)
+            offset += len(batch_feeds)
+
+            log.debug(f"Loaded batch of {len(batch_feeds)} feeds with embeddings (total: {len(feeds_with_embeddings)}/{feeds_with_embeddings_count})")
 
     # Generate embeddings for feeds that don't have them
     if feeds_without_embeddings:

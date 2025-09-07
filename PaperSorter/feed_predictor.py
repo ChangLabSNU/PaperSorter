@@ -75,96 +75,78 @@ class FeedPredictor:
         if not isinstance(feed_ids, list):
             feed_ids = [feed_ids]
 
-        # Filter feeds that need embeddings
-        feeds_needing_embeddings = []
-        for feed_id in feed_ids:
-            # Check if embedding exists by trying to get it
-            try:
-                self.embeddingdb.cursor.execute(
-                    "SELECT 1 FROM embeddings WHERE feed_id = %s", (feed_id,)
-                )
-                if not self.embeddingdb.cursor.fetchone():
-                    feeds_needing_embeddings.append(feed_id)
-            except Exception:
-                feeds_needing_embeddings.append(feed_id)
-
+        # Filter feeds that need embeddings using the new EmbeddingDatabase method
+        feeds_needing_embeddings = self.embeddingdb.filter_feeds_without_embeddings(feed_ids)
         if not feeds_needing_embeddings:
             log.info("All papers already have embeddings")
             return feed_ids
 
         successful_feeds = []
 
-        # Process in batches
-        for i in range(0, len(feeds_needing_embeddings), batch_size):
-            batch = feeds_needing_embeddings[i : i + batch_size]
+        # Use batch context manager for efficient batch insertions
+        with self.embeddingdb.write_batch() as batch_writer:
+            # Process in batches
+            for i in range(0, len(feeds_needing_embeddings), batch_size):
+                batch = feeds_needing_embeddings[i : i + batch_size]
 
-            # Get formatted items for this batch
-            formatted_items = []
-            feed_id_map = {}
+                # Get formatted items for this batch
+                formatted_items = []
+                feed_id_map = {}
 
-            for idx, feed_id in enumerate(batch):
-                formatted_item = self.feeddb.get_formatted_item(feed_id)
-                if formatted_item:
-                    formatted_items.append(formatted_item)
-                    feed_id_map[idx] = feed_id
-                else:
-                    log.warning(f"Could not get formatted item for paper {feed_id}")
-
-            if not formatted_items:
-                continue
-
-            # Retry logic for handling overloaded model errors
-            max_retries = 5
-            retry_count = 0
-
-            while retry_count < max_retries:
-                try:
-                    # Generate embeddings for the batch
-                    params = {"input": formatted_items, "model": self.embedding_model}
-
-                    # Add dimensions if specified in config
-                    if self.embedding_dimensions:
-                        params["dimensions"] = self.embedding_dimensions
-
-                    response = self.openai_client.embeddings.create(**params)
-
-                    # Store embeddings
-                    for idx, embedding_data in enumerate(response.data):
-                        if idx in feed_id_map:
-                            feed_id = feed_id_map[idx]
-                            # Store embedding in database
-                            self.embeddingdb.cursor.execute(
-                                """
-                                INSERT INTO embeddings (feed_id, embedding)
-                                VALUES (%s, %s)
-                                ON CONFLICT (feed_id) DO UPDATE
-                                SET embedding = EXCLUDED.embedding
-                            """,
-                                (feed_id, np.array(embedding_data.embedding)),
-                            )
-                            successful_feeds.append(feed_id)
-
-                    break  # Success, exit retry loop
-
-                except Exception as e:
-                    error_str = str(e)
-                    # Check if it's a 503 overloaded error
-                    if "503" in error_str and "overloaded" in error_str.lower():
-                        retry_count += 1
-                        if retry_count < max_retries:
-                            sleep_time = random.uniform(5, 20)
-                            log.warning(f"Model overloaded, retrying in {sleep_time:.1f} seconds (attempt {retry_count}/{max_retries})")
-                            time.sleep(sleep_time)
-                        else:
-                            log.error(f"Failed to generate embeddings for batch after {max_retries} retries: {e}")
+                for idx, feed_id in enumerate(batch):
+                    formatted_item = self.feeddb.get_formatted_item(feed_id)
+                    if formatted_item:
+                        formatted_items.append(formatted_item)
+                        feed_id_map[idx] = feed_id
                     else:
-                        log.error(f"Failed to generate embeddings for batch: {e}")
-                        break  # Non-retryable error, exit
+                        log.warning(f"Could not get formatted item for paper {feed_id}")
 
-        # Commit all embeddings
-        if successful_feeds:
-            self.embeddingdb.db.commit()
+                if not formatted_items:
+                    continue
 
+                # Retry logic for handling overloaded model errors
+                max_retries = 5
+                retry_count = 0
+
+                while retry_count < max_retries:
+                    try:
+                        # Generate embeddings for the batch
+                        params = {"input": formatted_items, "model": self.embedding_model}
+
+                        # Add dimensions if specified in config
+                        if self.embedding_dimensions:
+                            params["dimensions"] = self.embedding_dimensions
+
+                        response = self.openai_client.embeddings.create(**params)
+
+                        # Store embeddings using the batch writer
+                        for idx, embedding_data in enumerate(response.data):
+                            if idx in feed_id_map:
+                                feed_id = feed_id_map[idx]
+                                # Use batch writer's insert method (no immediate commit)
+                                if batch_writer.insert(feed_id, embedding_data.embedding):
+                                    successful_feeds.append(feed_id)
+                                else:
+                                    log.error(f"Failed to store embedding for feed {feed_id}")
+
+                        break  # Success, exit retry loop
+
+                    except Exception as e:
+                        error_str = str(e)
+                        # Check if it's a 503 overloaded error
+                        if "503" in error_str and "overloaded" in error_str.lower():
+                            retry_count += 1
+                            if retry_count < max_retries:
+                                sleep_time = random.uniform(5, 20)
+                                log.warning(f"Model overloaded, retrying in {sleep_time:.1f} seconds (attempt {retry_count}/{max_retries})")
+                                time.sleep(sleep_time)
+                            else:
+                                log.error(f"Failed to generate embeddings for batch after {max_retries} retries: {e}")
+                        else:
+                            log.error(f"Failed to generate embeddings for batch: {e}")
+                            break  # Non-retryable error, exit
+
+        # Commit happens automatically when exiting the context manager
         return successful_feeds
 
     def predict_and_queue_feeds(
