@@ -112,7 +112,7 @@ function createFeedElement(feed) {
                 <h3 class="feed-title">${feed.title}</h3>
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
-                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${feed.author}</span>` : ''}
+                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</span>` : ''}
                     <span class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</span>
                 </div>
             </div>`;
@@ -172,10 +172,22 @@ function createFeedElement(feed) {
         }
         const details = feedDiv.querySelector('.feed-details');
         const abstract = details.querySelector('.feed-abstract');
+        const authorSpan = header.querySelector('.feed-author');
 
         // Toggle expansion
         details.classList.toggle('expanded');
         feedDiv.classList.toggle('expanded');
+
+        // Toggle author display
+        if (feed.author && authorSpan) {
+            if (details.classList.contains('expanded')) {
+                // Show full author list when expanded
+                authorSpan.textContent = feed.author;
+            } else {
+                // Show shortened author list when collapsed
+                authorSpan.textContent = formatAuthors(feed.author);
+            }
+        }
 
         // Load content if expanding and not already loaded
         if (details.classList.contains('expanded') && !abstract.dataset.loaded) {
@@ -832,7 +844,7 @@ function displaySearchResults(results, searchQuery) {
                     <h3 class="feed-title">${result.title}</h3>
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
-                        ${result.author ? `<span class="feed-meta-item feed-author">${result.author}</span>` : ''}
+                        ${result.author ? `<span class="feed-meta-item feed-author" title="${result.author}">${formatAuthors(result.author)}</span>` : ''}
                         <span class="feed-meta-item feed-date">${formatDate(result.published || result.added)}</span>
                     </div>
                 </div>
@@ -877,9 +889,10 @@ function displaySearchResults(results, searchQuery) {
     `).join('');
 
     // Then, add event listeners to all feed items
-    container.querySelectorAll('.feed-item').forEach(feedDiv => {
+    container.querySelectorAll('.feed-item').forEach((feedDiv, index) => {
         const feedId = feedDiv.dataset.feedId;
         const header = feedDiv.querySelector('.feed-header');
+        const result = results[index]; // Get the corresponding result data
 
         header.addEventListener('click', async function(e) {
             // Don't expand if clicking on a link or button
@@ -888,10 +901,22 @@ function displaySearchResults(results, searchQuery) {
             }
             const details = feedDiv.querySelector('.feed-details');
             const abstract = details.querySelector('.feed-abstract');
+            const authorSpan = header.querySelector('.feed-author');
 
             // Toggle expansion
             details.classList.toggle('expanded');
             feedDiv.classList.toggle('expanded');
+
+            // Toggle author display
+            if (result.author && authorSpan) {
+                if (details.classList.contains('expanded')) {
+                    // Show full author list when expanded
+                    authorSpan.textContent = result.author;
+                } else {
+                    // Show shortened author list when collapsed
+                    authorSpan.textContent = formatAuthors(result.author);
+                }
+            }
 
             // Load content if expanding and not already loaded
             if (details.classList.contains('expanded') && !abstract.dataset.loaded) {
@@ -924,7 +949,7 @@ function displayAcademicResults(results) {
                 <div class="search-result-title">${paper.title}</div>
                 <div class="search-result-meta">
                     ${paper.venue ? `<strong>${paper.venue}</strong>` : ''}
-                    ${paper.authors ? `${paper.venue ? ' • ' : ''}${paper.authors.map(a => typeof a === 'object' ? a.name : a).join(', ')}` : ''}
+                    ${paper.authors ? `${paper.venue ? ' • ' : ''}${formatAuthors(paper.authors.map(a => typeof a === 'object' ? a.name : a).join(', '))}` : ''}
                     ${(paper.publicationDate || paper.year) ? `${(paper.venue || paper.authors) ? ' • ' : ''}${paper.publicationDate ? formatDate(paper.publicationDate) : paper.year}` : ''}
                 </div>
                 <div class="search-result-abstract">
