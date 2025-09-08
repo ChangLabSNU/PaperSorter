@@ -129,6 +129,10 @@
             background: var(--event-action-text-search);
         }
 
+        .action-ai-assisted-search {
+            background: var(--event-action-ai-assisted-search);
+        }
+
         .action-ai-summary-text {
             background: var(--event-action-ai-summary);
         }
@@ -290,6 +294,19 @@
                 // For text searches, show the search query
                 const username = event.username || 'Unknown user';
                 primaryInfo = `${username} searched: <span class="search-query">"${event.content}"</span>`;
+                secondaryInfo = feedLink;
+            } else if (event.event_type === 'web:ai-assisted-search') {
+                // For AI-assisted searches, parse the JSON content to show only the original query
+                const username = event.username || 'Unknown user';
+                let query = event.content;
+                try {
+                    const searchData = JSON.parse(event.content);
+                    query = searchData.original || event.content;
+                } catch (e) {
+                    // If parsing fails, use the content as-is
+                    query = event.content;
+                }
+                primaryInfo = `${username} AI-assisted searched: <span class="search-query">"${query}"</span>`;
                 secondaryInfo = feedLink;
             } else if (event.event_type.startsWith('slack:')) {
                 // For Slack events, show the user name and action
