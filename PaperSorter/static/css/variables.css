@@ -306,6 +306,7 @@
 
   /* Event Action Colors - Web */
   --event-action-text-search: #3498db;
+  --event-action-ai-assisted-search: #6c5ce7;  /* Purple for AI-assisted search */
   --event-action-ai-summary: #8B4513;
   --event-action-ai-poster: #C71585;
 
@@ -729,6 +730,7 @@
 
   /* Event Action Colors - Web - Dark Mode */
   --event-action-text-search: #1e40af;     /* 30% darker blue */
+  --event-action-ai-assisted-search: #4834a8;  /* 30% darker purple */
   --event-action-ai-summary: #5c3310;      /* 30% darker brown */
   --event-action-ai-poster: #831843;       /* 30% darker pink */
 
