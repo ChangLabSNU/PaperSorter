@@ -54,8 +54,14 @@ scholarly_database:
   match_date_tolerance_days: ${MATCH_DATE_TOLERANCE_DAYS:-60}
   semantic_scholar:
     api_key: ${SEMANTIC_SCHOLAR_API_KEY}
+    max_retries: ${SEMANTIC_SCHOLAR_MAX_RETRIES:-5}
+    retry_backoff_base: ${SEMANTIC_SCHOLAR_RETRY_BACKOFF_BASE:-2}
+    throttle: ${SEMANTIC_SCHOLAR_THROTTLE:-1}
   openalex:
     email: ${OPENALEX_EMAIL}
+    max_retries: ${OPENALEX_MAX_RETRIES:-5}
+    retry_backoff_base: ${OPENALEX_RETRY_BACKOFF_BASE:-2}
+    throttle: ${OPENALEX_THROTTLE:-0.1}
 
 smtp:
   provider: ${SMTP_PROVIDER:-custom}
