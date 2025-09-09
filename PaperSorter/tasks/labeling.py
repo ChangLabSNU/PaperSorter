@@ -121,6 +121,24 @@ class LabelingCommand(BaseCommand):
             help='User ID whose labeling session to clear'
         )
 
+        # Add status subcommand
+        status_parser = subparsers.add_parser(
+            'status',
+            help='View statistics of labeling sessions'
+        )
+        status_group = status_parser.add_mutually_exclusive_group()
+        status_group.add_argument(
+            'user_id',
+            type=int,
+            nargs='?',
+            help='User ID to show labeling session statistics for'
+        )
+        status_group.add_argument(
+            '--all',
+            action='store_true',
+            help='Show statistics for all users with labeling sessions'
+        )
+
     def handle(self, args: argparse.Namespace, context) -> int:
         """Execute the labeling command."""
         initialize_logging('labeling', args.log_file, args.quiet)
@@ -143,8 +161,11 @@ class LabelingCommand(BaseCommand):
             elif args.subcommand == 'clear':
                 do_clear_labeling_session(args.config, args.labeler_user_id)
                 return 0
+            elif args.subcommand == 'status':
+                do_show_labeling_status(args.config, args.user_id, args.all)
+                return 0
             else:
-                print("Please specify a subcommand: create, clear", file=sys.stderr)
+                print("Please specify a subcommand: create, clear, status", file=sys.stderr)
                 return 1
         except Exception as e:
             log.error(f"Labeling command failed: {e}")
@@ -984,12 +1005,16 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
 
 
 def do_clear_labeling_session(config_path, labeler_user_id):
-    """Clear labeling session for a specific user and show statistics.
+    """Clear labeling session workspace for a specific user and show statistics.
 
     This command:
     1. Finds all labeling sessions for the specified user
     2. Shows statistics about labeled vs unlabeled items
-    3. Removes all associated records from labeling_sessions table
+    3. Removes items from the labeling queue (labeling_sessions table)
+
+    Important: This does NOT delete any user feedback/preferences. All labels
+    that were submitted are permanently saved in the preferences table and
+    will be used for model training.
     """
     # Load database configuration
     with open(config_path, "r") as f:
@@ -1094,8 +1119,9 @@ def do_clear_labeling_session(config_path, labeler_user_id):
         # Ask for confirmation
         log.info("")
         log.info("="*60)
-        log.warning(f"This will permanently delete {stats['total_items']} items from the labeling session.")
-        log.warning("Note: Labels already saved to preferences table will be preserved.")
+        log.info(f"This will clear the labeling session workspace ({stats['total_items']} items).")
+        log.info("✓ All your feedback/labels have been saved and will be preserved.")
+        log.info("✓ This only removes items from the labeling queue, not your actual preferences.")
 
         response = input("Do you want to proceed with clearing this session? [y/N]: ")
         if response.lower() != 'y':
@@ -1116,7 +1142,8 @@ def do_clear_labeling_session(config_path, labeler_user_id):
         log.info("")
         log.info("="*60)
         log.info(f"Successfully cleared labeling session for {username}")
-        log.info(f"Deleted {deleted_count} items from labeling_sessions table")
+        log.info(f"Removed {deleted_count} items from the labeling queue")
+        log.info("All your feedback/labels remain saved in the preferences database")
         log.info("="*60)
 
         cursor.close()
@@ -1126,6 +1153,233 @@ def do_clear_labeling_session(config_path, labeler_user_id):
         log.error(f"Failed to clear labeling session: {e}")
         if 'db' in locals():
             db.rollback()
+            cursor.close()
+            db.close()
+        raise
+
+
+def do_show_labeling_status(config_path, user_id, show_all):
+    """Show statistics for labeling sessions.
+
+    Args:
+        config_path: Path to configuration file
+        user_id: Specific user ID to show stats for (optional)
+        show_all: Show stats for all users with labeling sessions
+    """
+    # Load database configuration
+    with open(config_path, "r") as f:
+        config_data = yaml.safe_load(f)
+
+    db_config = config_data.get("db", {})
+
+    try:
+        # Connect to database
+        db = psycopg2.connect(
+            host=db_config["host"],
+            database=db_config["database"],
+            user=db_config["user"],
+            password=db_config["password"],
+        )
+        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Determine which users to show stats for
+        if user_id:
+            # Validate that the user exists
+            cursor.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+            user_result = cursor.fetchone()
+            if not user_result:
+                log.error(f"User ID {user_id} not found in the database")
+                cursor.close()
+                db.close()
+                return
+            # Show stats for specific user
+            users_to_show = [user_id]
+        elif show_all:
+            # Get all users with labeling sessions
+            cursor.execute("""
+                SELECT DISTINCT user_id
+                FROM labeling_sessions
+                ORDER BY user_id
+            """)
+            users_to_show = [row["user_id"] for row in cursor.fetchall()]
+
+            if not users_to_show:
+                log.info("No labeling sessions found in the database.")
+                cursor.close()
+                db.close()
+                return
+        else:
+            # Default: Show stats for the first user with a session
+            cursor.execute("""
+                SELECT DISTINCT user_id
+                FROM labeling_sessions
+                ORDER BY user_id
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if not result:
+                log.info("No labeling sessions found in the database.")
+                cursor.close()
+                db.close()
+                return
+            users_to_show = [result["user_id"]]
+
+        # Display header for multiple users
+        if len(users_to_show) > 1:
+            log.info("="*60)
+            log.info(f"Labeling Session Statistics for {len(users_to_show)} Users")
+            log.info("="*60)
+            log.info("")
+
+        # Show stats for each user
+        for idx, uid in enumerate(users_to_show):
+            if idx > 0:
+                log.info("")  # Add spacing between users
+                log.info("-"*60)
+                log.info("")
+
+            # Get user information
+            cursor.execute("""
+                SELECT username
+                FROM users
+                WHERE id = %s
+            """, (uid,))
+
+            user_info = cursor.fetchone()
+            username = user_info["username"] if user_info else f"User {uid}"
+
+            # Get session statistics
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_items,
+                    COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
+                    COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
+                    COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
+                    COUNT(CASE WHEN score < 0.5 AND score IS NOT NULL THEN 1 END) as not_interested_items,
+                    MIN(update_time) as first_label_time,
+                    MAX(update_time) as last_label_time,
+                    MIN(id) as first_session_id,
+                    MAX(id) as last_session_id
+                FROM labeling_sessions
+                WHERE user_id = %s
+            """, (uid,))
+
+            stats = cursor.fetchone()
+
+            if not stats or stats["total_items"] == 0:
+                log.info(f"No labeling session found for {username} (ID: {uid})")
+                continue
+
+            # Display statistics
+            if len(users_to_show) == 1:
+                log.info("="*60)
+                log.info("Labeling Session Statistics")
+                log.info("="*60)
+
+            log.info(f"User: {username} (ID: {uid})")
+            log.info(f"Total items: {stats['total_items']}")
+
+            # Progress bar for labeled/unlabeled
+            labeled_pct = stats['labeled_items'] * 100 / stats['total_items']
+            progress_width = 30
+            filled = int(labeled_pct * progress_width / 100)
+            bar = "█" * filled + "░" * (progress_width - filled)
+            log.info(f"Progress: [{bar}] {labeled_pct:.1f}%")
+
+            log.info(f"  Labeled:   {stats['labeled_items']:5d} ({labeled_pct:.1f}%)")
+            log.info(f"  Unlabeled: {stats['unlabeled_items']:5d} ({100-labeled_pct:.1f}%)")
+
+            if stats['labeled_items'] > 0:
+                log.info("")
+                log.info("Label distribution:")
+                interested_pct = stats['interested_items'] * 100 / stats['labeled_items']
+                not_interested_pct = stats['not_interested_items'] * 100 / stats['labeled_items']
+                log.info(f"  Interested:     {stats['interested_items']:5d} ({interested_pct:.1f}%)")
+                log.info(f"  Not interested: {stats['not_interested_items']:5d} ({not_interested_pct:.1f}%)")
+
+                if stats['first_label_time'] and stats['last_label_time']:
+                    log.info("")
+                    log.info("Session timing:")
+                    log.info(f"  First label: {stats['first_label_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+                    log.info(f"  Last label:  {stats['last_label_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+
+                    # Calculate session duration if both timestamps exist
+                    if stats['first_label_time'] != stats['last_label_time']:
+                        duration = stats['last_label_time'] - stats['first_label_time']
+                        days = duration.days
+                        hours = duration.total_seconds() / 3600
+                        minutes = (duration.total_seconds() % 3600) / 60
+
+                        if days > 0:
+                            log.info(f"  Duration: {days} days, {int(hours % 24)} hours")
+                        elif hours >= 1:
+                            log.info(f"  Duration: {int(hours)} hours, {int(minutes)} minutes")
+                        else:
+                            log.info(f"  Duration: {int(minutes)} minutes")
+
+                        # Calculate average time per label
+                        if stats['labeled_items'] > 1:
+                            avg_seconds = duration.total_seconds() / (stats['labeled_items'] - 1)
+                            if avg_seconds < 60:
+                                log.info(f"  Avg time/label: {avg_seconds:.1f} seconds")
+                            else:
+                                avg_minutes = avg_seconds / 60
+                                log.info(f"  Avg time/label: {avg_minutes:.1f} minutes")
+
+                # Get a sample of recent labels
+                cursor.execute("""
+                    SELECT
+                        f.title,
+                        f.author,
+                        ls.score,
+                        ls.update_time
+                    FROM labeling_sessions ls
+                    JOIN feeds f ON ls.feed_id = f.id
+                    WHERE ls.user_id = %s AND ls.score IS NOT NULL
+                    ORDER BY ls.update_time DESC
+                    LIMIT 3
+                """, (uid,))
+
+                recent_labels = cursor.fetchall()
+                if recent_labels:
+                    log.info("")
+                    log.info("Recent labels:")
+                    for item in recent_labels:
+                        label = "✓" if item["score"] >= 0.5 else "✗"
+                        title = item["title"][:60] + "..." if len(item["title"]) > 60 else item["title"]
+                        log.info(f"  {label} {title}")
+
+        # Summary for multiple users
+        if len(users_to_show) > 1:
+            log.info("")
+            log.info("="*60)
+
+            # Get overall statistics
+            cursor.execute("""
+                SELECT
+                    COUNT(DISTINCT user_id) as total_users,
+                    COUNT(*) as total_items,
+                    COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as total_labeled,
+                    COUNT(CASE WHEN score >= 0.5 THEN 1 END) as total_interested
+                FROM labeling_sessions
+            """)
+
+            overall = cursor.fetchone()
+            log.info("Overall Summary:")
+            log.info(f"  Total users with sessions: {overall['total_users']}")
+            log.info(f"  Total items across all sessions: {overall['total_items']}")
+            log.info(f"  Total labeled items: {overall['total_labeled']}")
+            if overall['total_labeled'] > 0:
+                interested_pct = overall['total_interested'] * 100 / overall['total_labeled']
+                log.info(f"  Overall interested rate: {interested_pct:.1f}%")
+            log.info("="*60)
+
+        cursor.close()
+        db.close()
+
+    except Exception as e:
+        log.error(f"Failed to show labeling status: {e}")
+        if 'db' in locals():
             cursor.close()
             db.close()
         raise
