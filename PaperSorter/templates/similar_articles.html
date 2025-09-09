@@ -1150,7 +1150,7 @@
             if (isExpanded) {
                 feedItem.classList.remove('expanded');
                 detailsElement.classList.remove('expanded');
-                
+
                 // Restore shortened author list when collapsing
                 if (authorElement && authorElement.dataset.fullAuthor) {
                     authorElement.textContent = formatAuthors(authorElement.dataset.fullAuthor);
@@ -1158,7 +1158,7 @@
             } else {
                 feedItem.classList.add('expanded');
                 detailsElement.classList.add('expanded');
-                
+
                 // Show full author list when expanding
                 if (authorElement && authorElement.title) {
                     authorElement.dataset.fullAuthor = authorElement.title; // Store full author list

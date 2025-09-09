@@ -343,7 +343,7 @@ class FeedDatabase:
 
     def get_unscored_items(self, model_id=None):
         """Get items that lack scores from specified model(s).
-        
+
         Args:
             model_id: If provided, returns items missing scores for this specific model.
                      If None, returns items missing scores from ANY active model.
@@ -361,7 +361,7 @@ class FeedDatabase:
                 (model_id,)
             )
             return [row["external_id"] for row in self.cursor.fetchall()]
-        
+
         # Original behavior: get items missing scores from any active model
         # Get active model IDs
         self.cursor.execute("SELECT id FROM models WHERE is_active = TRUE")

@@ -174,25 +174,25 @@ function formatAuthors(authorString, options = {}) {
         etAl: '…',
         ...options
     };
-    
+
     // Handle edge cases
     if (!authorString || typeof authorString !== 'string') {
         return authorString || '';
     }
-    
+
     // Preserve pre-shortened lists (with ellipsis)
     if (/[…\.]{2,}/.test(authorString)) {
         return authorString.replace(/\.{3,}/g, '…').trim();
     }
-    
+
     // Parse authors based on separator patterns
     let authors;
-    
+
     // Priority order: semicolon > special comma patterns > and > simple comma
     if (authorString.includes(';')) {
         // Most reliable: semicolon (PubMed format)
         authors = authorString.split(';');
-    } 
+    }
     else if (authorString.includes(',')) {
         // Check for "LastName, Initial." pattern (most common in academic papers)
         if (/[A-Za-z-]+,\s+[A-Z]\./.test(authorString)) {
@@ -204,7 +204,7 @@ function formatAuthors(authorString, options = {}) {
             // Simple comma split for other formats
             authors = authorString.split(',');
         }
-        
+
         // Handle "and" in the last element (common pattern)
         const lastIdx = authors.length - 1;
         const lastAuthor = authors[lastIdx];
@@ -221,26 +221,26 @@ function formatAuthors(authorString, options = {}) {
         // Single author
         authors = [authorString];
     }
-    
+
     // Clean up
     authors = authors
         .map(a => a.trim())
         .filter(a => a.length > 0);
-    
+
     // Format output
     if (authors.length <= config.maxDisplay) {
         return authors.join(config.separator);
     }
-    
+
     // Shorten with et al.
     const first = authors.slice(0, config.firstCount);
     const last = authors.slice(-config.lastCount);
-    
+
     // Prevent overlap
     if (config.firstCount + config.lastCount >= authors.length) {
         return authors.join(config.separator);
     }
-    
+
     return [...first, config.etAl, ...last].join(config.separator);
 }
 

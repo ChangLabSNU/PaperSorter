@@ -842,7 +842,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
             user_ids = list(user_id)  # Convert tuple to list if needed
         else:
             user_ids = None
-        
+
         user_filter_msg = ""
 
         if user_ids:
