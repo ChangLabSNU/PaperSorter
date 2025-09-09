@@ -42,6 +42,8 @@ class SemanticScholarProvider(ScholarlyDatabaseProvider):
         )
         self.throttle_seconds = config.get("throttle", 1)
         self.last_request_time = 0
+        self.max_retries = config.get("max_retries", 5)
+        self.retry_backoff_base = config.get("retry_backoff_base", 2)
 
     @property
     def name(self) -> str:
@@ -52,29 +54,59 @@ class SemanticScholarProvider(ScholarlyDatabaseProvider):
         return True
 
     def _make_request(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        """Make a rate-limited request to the API."""
-        # Rate limiting
-        elapsed = time.time() - self.last_request_time
-        if elapsed < self.throttle_seconds:
-            time.sleep(self.throttle_seconds - elapsed)
-
+        """Make a rate-limited request to the API with retry logic for rate limit errors."""
         headers = {"X-API-KEY": self.api_key} if self.api_key else {}
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            self.last_request_time = time.time()
+        for attempt in range(self.max_retries):
+            # Apply throttling between all requests
+            elapsed = time.time() - self.last_request_time
+            if elapsed < self.throttle_seconds:
+                time.sleep(self.throttle_seconds - elapsed)
 
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404 and "Title match not found" in response.text:
-                # 404 "Title match not found" errors are expected - don't log as error
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                self.last_request_time = time.time()
+
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 404 and "Title match not found" in response.text:
+                    # 404 "Title match not found" errors are expected - don't log as error
+                    return None
+                elif response.status_code == 429:
+                    # Rate limited - handle with retry
+                    if attempt < self.max_retries - 1:
+                        # Extract retry-after header if available
+                        retry_after = response.headers.get('retry-after')
+                        if retry_after:
+                            wait_time = float(retry_after)
+                        else:
+                            # Exponential backoff: 2, 4, 8, 16, etc. seconds
+                            wait_time = self.retry_backoff_base ** (attempt + 1)
+
+                        log.debug(
+                            f"Rate limited by Semantic Scholar (429), "
+                            f"retrying in {wait_time:.1f}s (attempt {attempt + 1}/{self.max_retries})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        # Only log as error if all retries exhausted
+                        log.error(
+                            f"Semantic Scholar API error after {self.max_retries} retries: "
+                            f"{response.status_code} - {response.text}"
+                        )
+                        return None
+                else:
+                    # Other errors - log immediately and don't retry
+                    log.error(f"Semantic Scholar API error: {response.status_code} - {response.text}")
+                    return None
+
+            except requests.RequestException as e:
+                log.error(f"Request failed: {e}")
                 return None
-            else:
-                log.error(f"Semantic Scholar API error: {response.status_code} - {response.text}")
-                return None
-        except requests.RequestException as e:
-            log.error(f"Request failed: {e}")
-            return None
+
+        # Should not reach here unless max_retries is 0
+        return None
 
     def _parse_article(self, data: Dict) -> ScholarlyArticle:
         """Parse Semantic Scholar response into ScholarlyArticle."""

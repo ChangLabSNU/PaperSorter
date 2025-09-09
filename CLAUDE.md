@@ -212,8 +212,16 @@ scholarly_database:
   provider: "semantic_scholar"  # or "openalex"
   semantic_scholar:
     api_key: "your_s2_api_key"
+    # Optional retry configuration (defaults shown)
+    max_retries: 5  # Number of retries for 429 rate limit errors
+    retry_backoff_base: 2  # Base for exponential backoff (2^attempt seconds)
+    throttle: 1  # Minimum seconds between requests
   openalex:
     email: "your_real_email@domain.com"  # MUST be a valid email (test@example.com won't work)
+    # Optional retry configuration (defaults shown)
+    max_retries: 5  # Number of retries for 429 rate limit errors
+    retry_backoff_base: 2  # Base for exponential backoff (2^attempt seconds)
+    throttle: 0.1  # Minimum seconds between requests (OpenAlex allows 10 req/s)
 
 # Legacy configuration (for backward compatibility)
 semanticscholar:

@@ -105,6 +105,9 @@ scholarly_database:
     # api_url: "https://api.semanticscholar.org/graph/v1/paper"
     # Optional: throttle between requests in seconds (default: 1)
     # throttle: 1
+    # Optional: retry configuration for handling rate limits (429 errors)
+    # max_retries: 5  # Number of retries for rate limit errors (default: 5)
+    # retry_backoff_base: 2  # Base for exponential backoff (default: 2, results in 2, 4, 8, 16... seconds)
 
   # OpenAlex configuration (if provider is openalex)
   openalex:
@@ -115,6 +118,9 @@ scholarly_database:
     # api_url: "https://api.openalex.org"
     # Optional: throttle between requests in seconds (default: 0.1)
     # throttle: 0.1
+    # Optional: retry configuration for handling rate limits (429 errors)
+    # max_retries: 5  # Number of retries for rate limit errors (default: 5)
+    # retry_backoff_base: 2  # Base for exponential backoff (default: 2, results in 2, 4, 8, 16... seconds)
 
 # SMTP configuration for email notifications
 # Used when channel endpoint URLs start with "mailto:"
