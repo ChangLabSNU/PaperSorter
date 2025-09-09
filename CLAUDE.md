@@ -24,6 +24,7 @@ The system consists of several key components:
   - `test`: Test various system components
   - `models`: Comprehensive model management (list, show, activate, delete, export, import)
   - `labeling`: Create and manage labeling sessions for training data collection
+  - `embeddings`: Manage embeddings table and HNSW indices (clear, reset, status, index on/off)
 - **Web** (`web/`): Modular web interface implementation
   - `app.py`: Flask application factory
   - `main.py`: Main route handlers for feed list and labeling

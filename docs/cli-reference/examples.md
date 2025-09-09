@@ -269,6 +269,55 @@ papersorter vacuum --analyze
 papersorter vacuum --full
 ```
 
+### Embeddings Management
+
+```bash
+# Check embeddings status
+papersorter embeddings status
+
+# Get detailed statistics
+papersorter embeddings status --detailed
+
+# Clear embeddings before bulk re-import
+papersorter embeddings clear --force
+
+# Reset embeddings when changing vector dimensions
+# 1. Update config.yml with new dimensions
+# 2. Reset the table
+papersorter embeddings reset --force
+
+# Optimize bulk embedding generation
+# Drop index for faster inserts
+papersorter embeddings index off --force
+
+# Generate embeddings for all articles
+papersorter predict --all
+
+# Recreate index after bulk operation
+papersorter embeddings index on
+
+# Create index with custom parameters for better performance
+papersorter embeddings index on --m 32 --ef-construction 128
+```
+
+### Embedding Dimension Changes
+
+```bash
+# Scenario: Changing from 1536 to 768 dimensions
+# 1. Update config.yml:
+#    embedding_api:
+#      dimensions: 768
+
+# 2. Reset embeddings table
+papersorter embeddings reset --force
+
+# 3. Regenerate all embeddings
+papersorter predict --all --force
+
+# 4. Retrain models with new embeddings
+papersorter train --name "Model with 768D embeddings"
+```
+
 ### Exporting Data
 
 ```bash
@@ -554,8 +603,28 @@ papersorter update --parallel --workers $(nproc)
 CREATE INDEX idx_feeds_published ON feeds(published DESC);
 CREATE INDEX idx_preferences_user_score ON preferences(user_id, score);
 
--- Optimize embedding searches
-CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
+-- Optimize embedding searches (use papersorter command instead)
+-- papersorter embeddings index on
+```
+
+### Embedding Performance Optimization
+
+```bash
+# For large-scale embedding operations
+
+# 1. Disable index for bulk insert (10x faster inserts)
+papersorter embeddings index off
+
+# 2. Generate embeddings in parallel
+papersorter predict --all --parallel --workers 8
+
+# 3. Recreate index with optimized parameters
+# Higher m = better recall, slower build
+# Higher ef_construction = better quality, slower build
+papersorter embeddings index on --m 48 --ef-construction 200
+
+# Monitor embedding generation progress
+watch -n 5 'papersorter embeddings status | head -10'
 ```
 
 ### Resource Limits

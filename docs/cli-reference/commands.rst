@@ -283,6 +283,68 @@ Manage trained models.
 Management Commands
 -------------------
 
+embeddings
+~~~~~~~~~~
+
+Manage embeddings table and indices for vector similarity search.
+
+.. code-block:: bash
+
+   papersorter embeddings SUBCOMMAND [OPTIONS]
+
+**Subcommands:**
+
+* ``clear``: Remove all embeddings from the database
+* ``reset``: Drop and recreate embeddings table with updated vector dimensions
+* ``status``: Show embeddings table statistics and index information
+* ``index on``: Create HNSW index for fast similarity search
+* ``index off``: Drop HNSW index (useful for bulk imports)
+
+**Clear Options:**
+
+* ``--force``: Skip confirmation prompt
+
+**Reset Options:**
+
+* ``--force``: Skip confirmation prompt
+
+**Status Options:**
+
+* ``--detailed``: Show detailed statistics including coverage by source and recent activity
+
+**Index On Options:**
+
+* ``--m INTEGER``: HNSW M parameter (default: 16)
+* ``--ef-construction INTEGER``: HNSW ef_construction parameter (default: 64)
+
+**Index Off Options:**
+
+* ``--force``: Skip confirmation prompt
+
+**Example:**
+
+.. code-block:: bash
+
+   # Check embeddings status
+   papersorter embeddings status
+   
+   # Show detailed statistics
+   papersorter embeddings status --detailed
+   
+   # Clear all embeddings
+   papersorter embeddings clear --force
+   
+   # Reset table with new dimensions (from config)
+   papersorter embeddings reset
+   
+   # Optimize for bulk import
+   papersorter embeddings index off
+   papersorter predict --all  # Generate embeddings
+   papersorter embeddings index on
+   
+   # Create index with custom parameters
+   papersorter embeddings index on --m 32 --ef-construction 128
+
 add-feed
 ~~~~~~~~
 
