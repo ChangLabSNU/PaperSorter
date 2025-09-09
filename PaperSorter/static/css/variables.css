@@ -309,6 +309,9 @@
   --event-action-ai-assisted-search: #6c5ce7;  /* Purple for AI-assisted search */
   --event-action-ai-summary: #8B4513;
   --event-action-ai-poster: #C71585;
+  --event-action-shared: #9b59b6;              /* Purple for share action */
+  --event-action-unshared: #7f8c8d;            /* Gray for unshare action */
+  --event-action-feedback-removed: #95a5a6;    /* Light gray for feedback removal */
 
   /* Settings Page */
   --settings-card-bg: white;
@@ -733,6 +736,9 @@
   --event-action-ai-assisted-search: #4834a8;  /* 30% darker purple */
   --event-action-ai-summary: #5c3310;      /* 30% darker brown */
   --event-action-ai-poster: #831843;       /* 30% darker pink */
+  --event-action-shared: #6c3b7f;          /* 30% darker purple */
+  --event-action-unshared: #4b5563;        /* 30% darker gray */
+  --event-action-feedback-removed: #64748b;  /* 30% darker light gray */
 
   /* Settings Page - Dark Mode */
   --settings-card-bg: #2d2d2d;

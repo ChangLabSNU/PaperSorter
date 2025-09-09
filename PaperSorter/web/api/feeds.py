@@ -225,6 +225,16 @@ def api_share_feed(feed_id):
                 (feed_id, channel_id),
             )
 
+        # Log the event (in the same transaction)
+        event_type = "web:shared" if action == "share" else "web:unshared"
+        cursor.execute(
+            """
+            INSERT INTO events (event_type, user_id, feed_id, content)
+            VALUES (%s, %s, %s, %s)
+        """,
+            (event_type, current_user.id, feed_id, json.dumps({"channel_id": channel_id})),
+        )
+
         conn.commit()
         cursor.close()
         conn.close()
@@ -291,6 +301,22 @@ def api_feedback_feed(feed_id):
                 """,
                     (feed_id, user_id, float(score)),
                 )
+
+        # Log the event (in the same transaction)
+        if score is None:
+            event_type = "web:feedback-removed"
+        elif float(score) == 1:
+            event_type = "web:interested"
+        else:
+            event_type = "web:not-interested"
+
+        cursor.execute(
+            """
+            INSERT INTO events (event_type, user_id, feed_id, content)
+            VALUES (%s, %s, %s, %s)
+        """,
+            (event_type, user_id, feed_id, json.dumps({"score": score})),
+        )
 
         conn.commit()
         cursor.close()
@@ -455,6 +481,16 @@ def handle_webhook_feedback(feed_id, score):
             """,
                 (feed_id, user_id, float(score)),
             )
+
+        # Log the event (in the same transaction)
+        event_type = "slack:interested" if score == 1 else "slack:not_interested"
+        cursor.execute(
+            """
+            INSERT INTO events (event_type, user_id, feed_id, content)
+            VALUES (%s, %s, %s, %s)
+        """,
+            (event_type, user_id, feed_id, json.dumps({"score": score, "source": "webhook"})),
+        )
 
         conn.commit()
         cursor.close()
