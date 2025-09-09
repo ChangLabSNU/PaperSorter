@@ -29,7 +29,7 @@ import copy
 CUSTOM_TYPES = {
     "preferences_source": {
         "type": "ENUM",
-        "values": ["feed-share", "interactive", "alert-feedback"]
+        "values": ["feed-star", "interactive", "alert-feedback"]
     }
 }
 
@@ -44,8 +44,8 @@ TABLE_TEMPLATES = [
             ("created", "timestamp with time zone"),
             ("lastlogin", "timestamp with time zone"),
             ("is_admin", "boolean DEFAULT false NOT NULL"),
-            ("theme", "varchar(10) DEFAULT 'light' CHECK (theme IN ('light', 'dark', 'auto'))"),
-            ("timezone", "text DEFAULT 'UTC'"),
+            ("theme", "varchar(10) DEFAULT 'light'"),
+            ("timezone", "text DEFAULT 'Asia/Seoul'"),
             ("date_format", "text DEFAULT 'MMM D, YYYY'"),
             ("bookmark", "bigint"),
             ("feedlist_minscore", "integer DEFAULT 25"),
@@ -104,6 +104,7 @@ TABLE_TEMPLATES = [
             ("notes", "text"),
             ("created", "timestamp with time zone DEFAULT now() NOT NULL"),
             ("is_active", "boolean DEFAULT true NOT NULL"),
+            ("score_name", "varchar(50) DEFAULT 'Score' NOT NULL"),
         ]
     },
     {
@@ -186,6 +187,7 @@ TABLE_TEMPLATES = [
             ("added", "timestamp with time zone DEFAULT now() NOT NULL"),
             ("query", "text NOT NULL UNIQUE"),
             ("last_access", "timestamp with time zone"),
+            ("assisted_query", "text"),
         ]
     },
 ]

@@ -260,7 +260,8 @@ CREATE TABLE papersorter.models (
     name text,
     created timestamp with time zone DEFAULT now() NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
-    notes text
+    notes text,
+    score_name varchar(50) DEFAULT 'Score' NOT NULL
 );
 
 
@@ -318,7 +319,8 @@ CREATE TABLE papersorter.saved_searches (
     user_id integer,
     added timestamp with time zone DEFAULT now() NOT NULL,
     query text NOT NULL,
-    last_access timestamp with time zone
+    last_access timestamp with time zone,
+    assisted_query text
 );
 
 
@@ -343,8 +345,9 @@ CREATE TABLE papersorter.users (
     created timestamp with time zone,
     lastlogin timestamp with time zone,
     is_admin boolean DEFAULT false NOT NULL,
-    theme varchar(10) DEFAULT 'light' CHECK (theme IN ('light', 'dark', 'auto')),
+    theme varchar(10) DEFAULT 'light',
     timezone text DEFAULT 'Asia/Seoul'::text,
+    date_format text DEFAULT 'MMM D, YYYY'::text,
     bookmark bigint,
     feedlist_minscore integer DEFAULT 25,
     primary_channel_id integer
@@ -492,6 +495,11 @@ ALTER TABLE ONLY papersorter.saved_searches
 
 ALTER TABLE ONLY papersorter.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY papersorter.users
+    ADD CONSTRAINT check_theme_valid CHECK (theme IN ('light', 'dark', 'auto'));
 
 
 
