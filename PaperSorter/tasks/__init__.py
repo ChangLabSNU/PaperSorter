@@ -9,4 +9,5 @@ __all__ = [
     "import",
     "labeling",
     "models",
+    "embeddings",
 ]
