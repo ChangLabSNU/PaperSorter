@@ -305,17 +305,20 @@ def api_feedback_feed(feed_id):
         # Log the event (in the same transaction)
         if score is None:
             event_type = "web:feedback-removed"
+            event_content = "Feedback removed"
         elif float(score) == 1:
             event_type = "web:interested"
+            event_content = "From web interface"
         else:
             event_type = "web:not-interested"
+            event_content = "From web interface"
 
         cursor.execute(
             """
             INSERT INTO events (event_type, user_id, feed_id, content)
             VALUES (%s, %s, %s, %s)
         """,
-            (event_type, user_id, feed_id, json.dumps({"score": score})),
+            (event_type, user_id, feed_id, event_content),
         )
 
         conn.commit()
@@ -483,13 +486,13 @@ def handle_webhook_feedback(feed_id, score):
             )
 
         # Log the event (in the same transaction)
-        event_type = "slack:interested" if score == 1 else "slack:not_interested"
+        event_type = "web:interested" if score == 1 else "web:not-interested"
         cursor.execute(
             """
             INSERT INTO events (event_type, user_id, feed_id, content)
             VALUES (%s, %s, %s, %s)
         """,
-            (event_type, user_id, feed_id, json.dumps({"score": score, "source": "webhook"})),
+            (event_type, user_id, feed_id, "From Slack feedback link"),
         )
 
         conn.commit()

@@ -141,6 +141,7 @@
             background: var(--event-action-ai-poster);
         }
 
+
         /* Action colors for new Web events */
         .action-shared {
             background: var(--event-action-shared);
@@ -343,7 +344,8 @@
                 }
                 primaryInfo = `${username} generated ${actionType} for ${articleCount} article${articleCount > 1 ? 's' : ''}`;
                 secondaryInfo = feedLink;
-            } else if (event.event_type === 'web:interested' || event.event_type === 'web:not-interested' || event.event_type === 'web:feedback-removed') {
+            } else if (event.event_type === 'web:interested' || event.event_type === 'web:not-interested' || 
+                       event.event_type === 'web:feedback-removed') {
                 // For feedback events, show the user and action
                 const username = event.username || 'Unknown user';
                 let action = '';
@@ -353,6 +355,12 @@
                     action = 'marked as not interested';
                 } else {
                     action = 'removed feedback';
+                }
+                // Add source note if available
+                if (event.content === 'From Slack feedback link') {
+                    action += ' (via Slack)';
+                } else if (event.content === 'From web interface') {
+                    // Default case, no need to add anything
                 }
                 primaryInfo = `${username} ${action}`;
                 secondaryInfo = feedLink;

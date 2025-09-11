@@ -127,11 +127,16 @@ class SemanticScholarProvider(ScholarlyDatabaseProvider):
         # Extract abstract and tldr
         abstract = data.get("abstract")
         tldr = None
-        if data.get("tldr") and data["tldr"].get("text"):
-            tldr = data["tldr"]["text"]
+        tldr_data = data.get("tldr")
+        if tldr_data and isinstance(tldr_data, dict):
+            tldr = tldr_data.get("text")
 
         # Extract venue
-        venue = data.get("venue") or data.get("journal", {}).get("name")
+        venue = data.get("venue")
+        if not venue:
+            journal = data.get("journal")
+            if journal and isinstance(journal, dict):
+                venue = journal.get("name")
 
         # External IDs
         external_ids = data.get("externalIds", {})
