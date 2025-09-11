@@ -35,6 +35,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.extras import execute_batch
 from pgvector.psycopg2 import register_vector
+from typing import Dict, List, Sequence, Tuple
 
 
 class PredictCommand(BaseCommand):
@@ -58,10 +59,16 @@ class PredictCommand(BaseCommand):
             help='Process all papers without limit (equivalent to --max-papers 0)'
         )
         parser.add_argument(
-            '--batch-size',
+            '--embedding-batch',
             type=int,
             default=100,
-            help='Batch size for database operations and embedding generation'
+            help='Batch size for embedding generation'
+        )
+        parser.add_argument(
+            '--prediction-batch',
+            type=int,
+            default=2000,
+            help='Batch size for model prediction writes'
         )
 
     def handle(self, args: argparse.Namespace, context) -> int:
@@ -72,11 +79,15 @@ class PredictCommand(BaseCommand):
                 config=args.config,
                 max_papers=args.max_papers,
                 process_all=args.process_all,
-                batch_size=args.batch_size,
+                embedding_batch=args.embedding_batch,
+                prediction_batch=args.prediction_batch,
                 log_file=args.log_file,
                 quiet=args.quiet
             )
             return 0
+        except KeyboardInterrupt:
+            log.warning("Interrupted by user; exiting predict cleanly.")
+            return 130
         except Exception as e:
             log.error(f"Predict failed: {e}")
             return 1
@@ -106,7 +117,386 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     return embeddings
 
 
-def main(config, max_papers, process_all, batch_size, log_file, quiet):
+def _load_config(config_path: str) -> Dict:
+    """Load YAML config from a file path."""
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def _connect_postgres(db_cfg: Dict) -> Tuple[psycopg2.extensions.connection, psycopg2.extensions.cursor]:
+    """Connect to PostgreSQL and return connection and RealDictCursor with pgvector registered."""
+    db = psycopg2.connect(
+        host=db_cfg["host"],
+        database=db_cfg["database"],
+        user=db_cfg["user"],
+        password=db_cfg["password"],
+    )
+    register_vector(db)
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    return db, cursor
+
+
+def _count_feeds(cursor, max_papers: int) -> Tuple[int, int]:
+    """Return counts of feeds with and without embeddings based on max_papers window."""
+    if max_papers == 0:
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
+                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
+            FROM feeds f
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            WITH recent_feeds AS (
+                SELECT f.id
+                FROM feeds f
+                ORDER BY f.added DESC
+                LIMIT %s
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
+                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
+            FROM recent_feeds rf
+            JOIN feeds f ON f.id = rf.id
+            LEFT JOIN embeddings e ON f.id = e.feed_id
+            """,
+            (max_papers,),
+        )
+
+    counts = cursor.fetchone() or {}
+    return (counts.get("with_embeddings") or 0, counts.get("without_embeddings") or 0)
+
+
+def _query_without_embeddings(max_papers: int) -> str:
+    if max_papers == 0:
+        return (
+            """
+            SELECT f.*
+            FROM feeds f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+            )
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+            """
+        )
+    return (
+        """
+        WITH recent_feeds AS (
+            SELECT f.id
+            FROM feeds f
+            ORDER BY f.added DESC
+            LIMIT %s
+        )
+        SELECT f.*
+        FROM recent_feeds rf
+        JOIN feeds f ON f.id = rf.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+        )
+        ORDER BY f.added DESC
+        LIMIT %s OFFSET %s
+        """
+    )
+
+
+def _query_with_embeddings(max_papers: int) -> str:
+    if max_papers == 0:
+        return (
+            """
+            SELECT f.*, e.embedding
+            FROM feeds f
+            JOIN embeddings e ON f.id = e.feed_id
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+            """
+        )
+    return (
+        """
+        WITH recent_feeds AS (
+            SELECT f.id
+            FROM feeds f
+            ORDER BY f.added DESC
+            LIMIT %s
+        )
+        SELECT f.*, e.embedding
+        FROM recent_feeds rf
+        JOIN feeds f ON f.id = rf.id
+        JOIN embeddings e ON f.id = e.feed_id
+        ORDER BY f.added DESC
+        LIMIT %s OFFSET %s
+        """
+    )
+
+
+def _query_embeddings_for_prediction_no_offset(max_papers: int) -> str:
+    """Query rows that have embeddings and no prediction for the given model (no OFFSET)."""
+    if max_papers == 0:
+        return (
+            """
+            SELECT f.id, e.embedding
+            FROM feeds f
+            JOIN embeddings e ON f.id = e.feed_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM predicted_preferences pp
+                WHERE pp.feed_id = f.id AND pp.model_id = %s
+            )
+            ORDER BY f.added DESC
+            LIMIT %s
+            """
+        )
+    return (
+        """
+        WITH recent_feeds AS (
+            SELECT f.id
+            FROM feeds f
+            ORDER BY f.added DESC
+            LIMIT %s
+        )
+        SELECT f.id, e.embedding
+        FROM recent_feeds rf
+        JOIN feeds f ON f.id = rf.id
+        JOIN embeddings e ON f.id = e.feed_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM predicted_preferences pp
+            WHERE pp.feed_id = f.id AND pp.model_id = %s
+        )
+        ORDER BY f.added DESC
+        LIMIT %s
+        """
+    )
+
+
+def _query_without_embeddings_no_offset(max_papers: int) -> str:
+    if max_papers == 0:
+        return (
+            """
+            SELECT f.*
+            FROM feeds f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+            )
+            ORDER BY f.added DESC
+            LIMIT %s
+            """
+        )
+    return (
+        """
+        WITH recent_feeds AS (
+            SELECT f.id
+            FROM feeds f
+            ORDER BY f.added DESC
+            LIMIT %s
+        )
+        SELECT f.*
+        FROM recent_feeds rf
+        JOIN feeds f ON f.id = rf.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
+        )
+        ORDER BY f.added DESC
+        LIMIT %s
+        """
+    )
+
+
+def _generate_missing_embeddings_stream(
+    cursor,
+    max_papers: int,
+    feeds_without_count: int,
+    embedding_batch: int,
+    feeddb: FeedDatabase,
+    embeddingdb: EmbeddingDatabase,
+    config_path: str,
+) -> None:
+    """Stream through feeds missing embeddings and generate them in batches without caching in memory."""
+    query = _query_without_embeddings_no_offset(max_papers)
+    processed = 0
+    while processed < feeds_without_count:
+        if max_papers == 0:
+            cursor.execute(query, (embedding_batch,))
+        else:
+            cursor.execute(query, (max_papers, embedding_batch))
+        batch = cursor.fetchall()
+        if not batch:
+            break
+
+        feed_ids = [row["id"] for row in batch]
+        _ = generate_embeddings_for_feeds(
+            feed_ids, feeddb, embeddingdb, config_path, embedding_batch
+        )
+
+        processed += len(batch)
+        remaining = max(0, feeds_without_count - processed)
+        pct = (processed / feeds_without_count * 100.0) if feeds_without_count else 100.0
+        log.info(
+            f"Embeddings progress: {processed}/{feeds_without_count} ({pct:.1f}%), remaining={remaining}"
+        )
+
+
+def _load_active_models(cursor) -> List[Dict]:
+    """Return all active models independent of channels."""
+    cursor.execute(
+        """
+        SELECT m.*
+        FROM models m
+        WHERE m.is_active = TRUE
+        ORDER BY m.id
+        """
+    )
+    return cursor.fetchall() or []
+
+
+def _count_pending_predictions(cursor, model_id: int, max_papers: int) -> int:
+    if max_papers == 0:
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS cnt
+            FROM feeds f
+            JOIN embeddings e ON f.id = e.feed_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM predicted_preferences pp
+                WHERE pp.feed_id = f.id AND pp.model_id = %s
+            )
+            """,
+            (model_id,),
+        )
+    else:
+        cursor.execute(
+            """
+            WITH recent_feeds AS (
+                SELECT f.id
+                FROM feeds f
+                ORDER BY f.added DESC
+                LIMIT %s
+            )
+            SELECT COUNT(*) AS cnt
+            FROM recent_feeds rf
+            JOIN feeds f ON f.id = rf.id
+            JOIN embeddings e ON f.id = e.feed_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM predicted_preferences pp
+                WHERE pp.feed_id = f.id AND pp.model_id = %s
+            )
+            """,
+            (max_papers, model_id),
+        )
+    row = cursor.fetchone() or {}
+    return int(row.get("cnt", 0))
+
+
+def _predict_for_model_stream(
+    cursor,
+    db,
+    model_id: int,
+    model_dir: str,
+    max_papers: int,
+    prediction_batch: int,
+    total_to_predict: int,
+) -> None:
+    """Predict preferences for a single model by streaming embeddings in batches."""
+    query = _query_embeddings_for_prediction_no_offset(max_papers)
+
+    # Load model components
+    model, scaler, _ = _load_model(model_dir, model_id)
+
+    processed = 0
+    sum_scores = 0.0
+    gmin = None
+    gmax = None
+
+    while True:
+        if max_papers == 0:
+            cursor.execute(query, (model_id, prediction_batch))
+        else:
+            cursor.execute(query, (max_papers, model_id, prediction_batch))
+
+        batch = cursor.fetchall()
+        if not batch:
+            break
+
+        feed_ids = [row["id"] for row in batch]
+        emb_matrix = np.array([row["embedding"] for row in batch], dtype=np.float64)
+
+        predictions = _predict_scores(model, scaler, emb_matrix)
+
+        _store_predictions(cursor, db, model_id, feed_ids, predictions, prediction_batch)
+
+        # Batch stats
+        batch_min = float(np.min(predictions)) if len(predictions) else 0.0
+        batch_max = float(np.max(predictions)) if len(predictions) else 0.0
+        batch_mean = float(np.mean(predictions)) if len(predictions) else 0.0
+
+        # Update global stats
+        processed += len(predictions)
+        sum_scores += float(np.sum(predictions))
+        gmin = batch_min if gmin is None else min(gmin, batch_min)
+        gmax = batch_max if gmax is None else max(gmax, batch_max)
+        remaining = max(0, total_to_predict - processed)
+        pct = (processed / total_to_predict * 100.0) if total_to_predict else 100.0
+
+        # Single-line batch log with stats and progress
+        log.info(
+            f"Model {model_id}: batch={len(predictions)} min={batch_min:.3f} max={batch_max:.3f} mean={batch_mean:.3f} | progress {processed}/{total_to_predict} ({pct:.1f}%), remaining={remaining}"
+        )
+
+    if processed > 0:
+        log.info(
+            f"Model {model_id} summary: total={processed}, min={gmin:.3f}, max={gmax:.3f}, mean={(sum_scores/processed):.3f}"
+        )
+
+
+def _load_model(model_dir: str, model_id: int):
+    model_path = f"{model_dir}/model-{model_id}.pkl"
+    with open(model_path, "rb") as f:
+        model_data = pickle.load(f)
+    return model_data["model"], model_data["scaler"], model_path
+
+
+def _predict_scores(model, scaler, embeddings: np.ndarray) -> np.ndarray:
+    embeddings_scaled = scaler.transform(embeddings)
+    dmatrix = xgb.DMatrix(embeddings_scaled)
+    return model.predict(dmatrix)
+
+
+def _store_predictions(
+    cursor,
+    db,
+    model_id: int,
+    feed_ids: Sequence[int],
+    scores: Sequence[float],
+    batch_size: int,
+) -> None:
+    prediction_data = [
+        (feed_id, model_id, float(score)) for feed_id, score in zip(feed_ids, scores)
+    ]
+    execute_batch(
+        cursor,
+        """
+        INSERT INTO predicted_preferences (feed_id, model_id, score)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (feed_id, model_id) DO UPDATE
+        SET score = EXCLUDED.score
+        """,
+        prediction_data,
+        page_size=min(1000, batch_size),
+    )
+    db.commit()
+
+
+def main(
+    config,
+    max_papers,
+    process_all,
+    embedding_batch,
+    prediction_batch,
+    log_file,
+    quiet,
+):
     """Generate embeddings and predictions for articles in the database.
 
     Creates vector embeddings for articles and optionally generates interest
@@ -118,9 +508,7 @@ def main(config, max_papers, process_all, batch_size, log_file, quiet):
         max_papers = 0
 
     # Load configuration
-    with open(config, "r") as f:
-        config_data = yaml.safe_load(f)
-
+    config_data = _load_config(config)
     db_config = config_data["db"]
 
     # Initialize FeedDatabase and EmbeddingDatabase
@@ -129,47 +517,12 @@ def main(config, max_papers, process_all, batch_size, log_file, quiet):
 
     # Connect to PostgreSQL
     log.info("Connecting to PostgreSQL database...")
-    db = psycopg2.connect(
-        host=db_config["host"],
-        database=db_config["database"],
-        user=db_config["user"],
-        password=db_config["password"],
-    )
-    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-    # Register pgvector extension
-    register_vector(db)
+    db, cursor = _connect_postgres(db_config)
 
     # First, get counts of feeds with and without embeddings
-    if max_papers == 0:
-        # Count all feeds
-        cursor.execute("""
-            SELECT
-                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
-                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
-            FROM feeds f
-            LEFT JOIN embeddings e ON f.id = e.feed_id
-        """)
-    else:
-        # Count only the most recent 'max_papers' feeds
-        cursor.execute("""
-            WITH recent_feeds AS (
-                SELECT f.id
-                FROM feeds f
-                ORDER BY f.added DESC
-                LIMIT %s
-            )
-            SELECT
-                COUNT(*) FILTER (WHERE e.embedding IS NOT NULL) as with_embeddings,
-                COUNT(*) FILTER (WHERE e.embedding IS NULL) as without_embeddings
-            FROM recent_feeds rf
-            JOIN feeds f ON f.id = rf.id
-            LEFT JOIN embeddings e ON f.id = e.feed_id
-        """, (max_papers,))
-
-    counts = cursor.fetchone()
-    feeds_with_embeddings_count = counts['with_embeddings'] or 0
-    feeds_without_embeddings_count = counts['without_embeddings'] or 0
+    feeds_with_embeddings_count, feeds_without_embeddings_count = _count_feeds(
+        cursor, max_papers
+    )
 
     log.info(f"Found {feeds_with_embeddings_count} feeds with embeddings, {feeds_without_embeddings_count} without embeddings")
 
@@ -178,149 +531,36 @@ def main(config, max_papers, process_all, batch_size, log_file, quiet):
         return
 
     if max_papers == 0:
-        log.info(f"Processing all papers in batches of {batch_size}...")
+        log.info(
+            f"Processing all papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
+        )
     else:
-        log.info(f"Processing {max_papers} most recent papers in batches of {batch_size}...")
-
-    # Now process only feeds without embeddings incrementally
-    feeds_without_embeddings = []
-    feeds_with_embeddings = []  # Will be populated after generating embeddings
-    offset = 0
-
-    # Query for feeds without embeddings
-    if max_papers == 0:
-        # Process all feeds without embeddings
-        base_query = """
-            SELECT f.*
-            FROM feeds f
-            WHERE NOT EXISTS (
-                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
-            )
-            ORDER BY f.added DESC
-            LIMIT %s OFFSET %s
-        """
-    else:
-        # Process only from the most recent 'max_papers' feeds
-        base_query = """
-            WITH recent_feeds AS (
-                SELECT f.id
-                FROM feeds f
-                ORDER BY f.added DESC
-                LIMIT %s
-            )
-            SELECT f.*
-            FROM recent_feeds rf
-            JOIN feeds f ON f.id = rf.id
-            WHERE NOT EXISTS (
-                SELECT 1 FROM embeddings e WHERE e.feed_id = f.id
-            )
-            ORDER BY f.added DESC
-            LIMIT %s OFFSET %s
-        """
-
-    # Process feeds without embeddings in batches
-    while offset < feeds_without_embeddings_count:
-        if max_papers == 0:
-            cursor.execute(base_query, (batch_size, offset))
-        else:
-            cursor.execute(base_query, (max_papers, batch_size, offset))
-
-        batch_feeds = cursor.fetchall()
-
-        if not batch_feeds:
-            break
-
-        feeds_without_embeddings.extend(batch_feeds)
-        offset += len(batch_feeds)
-
-        log.debug(f"Loaded batch of {len(batch_feeds)} feeds without embeddings (total: {len(feeds_without_embeddings)}/{feeds_without_embeddings_count})")
+        log.info(
+            f"Processing {max_papers} most recent papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
+        )
 
     log.info(
         f"Total papers: {feeds_with_embeddings_count} with embeddings, {feeds_without_embeddings_count} without"
     )
 
-    # If there are feeds with embeddings and we want to run predictions, load them
-    if feeds_with_embeddings_count > 0:
-        log.info(f"Loading {feeds_with_embeddings_count} feeds with existing embeddings for prediction...")
-        offset = 0
-
-        if max_papers == 0:
-            # Load all feeds with embeddings
-            query_with_embeddings = """
-                SELECT f.*, e.embedding
-                FROM feeds f
-                JOIN embeddings e ON f.id = e.feed_id
-                ORDER BY f.added DESC
-                LIMIT %s OFFSET %s
-            """
-        else:
-            # Load only from the most recent 'max_papers' feeds
-            query_with_embeddings = """
-                WITH recent_feeds AS (
-                    SELECT f.id
-                    FROM feeds f
-                    ORDER BY f.added DESC
-                    LIMIT %s
-                )
-                SELECT f.*, e.embedding
-                FROM recent_feeds rf
-                JOIN feeds f ON f.id = rf.id
-                JOIN embeddings e ON f.id = e.feed_id
-                ORDER BY f.added DESC
-                LIMIT %s OFFSET %s
-            """
-
-        # Load feeds with embeddings in batches
-        while offset < feeds_with_embeddings_count:
-            if max_papers == 0:
-                cursor.execute(query_with_embeddings, (batch_size, offset))
-            else:
-                cursor.execute(query_with_embeddings, (max_papers, batch_size, offset))
-
-            batch_feeds = cursor.fetchall()
-
-            if not batch_feeds:
-                break
-
-            feeds_with_embeddings.extend(batch_feeds)
-            offset += len(batch_feeds)
-
-            log.debug(f"Loaded batch of {len(batch_feeds)} feeds with embeddings (total: {len(feeds_with_embeddings)}/{feeds_with_embeddings_count})")
-
-    # Generate embeddings for feeds that don't have them
-    if feeds_without_embeddings:
-        log.info(f"Generating embeddings for {len(feeds_without_embeddings)} papers...")
-
-        # Process embedding generation in batches to avoid overwhelming the API
-        feed_ids_without_embeddings = [f["id"] for f in feeds_without_embeddings]
-
-        # Use FeedPredictor to generate embeddings (it handles batching internally)
-        all_new_embeddings = generate_embeddings_for_feeds(
-            feed_ids_without_embeddings, feeddb, embeddingdb, config, batch_size
+    # Generate embeddings for feeds that don't have them (streamed, no caching)
+    if feeds_without_embeddings_count > 0:
+        log.info(
+            f"Generating embeddings in batches of {embedding_batch} for {feeds_without_embeddings_count} papers without embeddings..."
         )
-
-        # Add newly embedded feeds to the list
-        if all_new_embeddings:
-            log.info(f"Successfully generated {len(all_new_embeddings)} embeddings")
-            # Create a mapping for faster lookup
-            embedding_map = {emb["feed_id"]: emb["embedding"] for emb in all_new_embeddings}
-
-            for feed in feeds_without_embeddings:
-                if feed["id"] in embedding_map:
-                    feed["embedding"] = embedding_map[feed["id"]]
-                    feeds_with_embeddings.append(feed)
+        _generate_missing_embeddings_stream(
+            cursor,
+            max_papers,
+            feeds_without_embeddings_count,
+            embedding_batch,
+            feeddb,
+            embeddingdb,
+            config,
+        )
 
     # Get all active models
     log.info("Loading active models...")
-    cursor.execute("""
-        SELECT m.*, c.name as channel_name
-        FROM models m
-        LEFT JOIN channels c ON m.id = c.model_id
-        WHERE m.is_active = TRUE
-        ORDER BY m.id
-    """)
-
-    active_models = cursor.fetchall()
+    active_models = _load_active_models(cursor)
 
     if not active_models:
         log.warning("No active models found")
@@ -333,91 +573,28 @@ def main(config, max_papers, process_all, batch_size, log_file, quiet):
     # Get model directory from config
     model_dir = config_data.get("models", {}).get("path", ".")
 
-    # Prepare embeddings array
-    feed_ids = [f["id"] for f in feeds_with_embeddings]
-    embeddings = np.array(
-        [f["embedding"] for f in feeds_with_embeddings], dtype=np.float64
-    )
-
-    # Process predictions for each model
+    # Process predictions for each model (streaming batches)
     for model_info in active_models:
         model_id = model_info["id"]
-        model_path = f"{model_dir}/model-{model_id}.pkl"
-        channel_name = model_info["channel_name"] or f"Model {model_id}"
+        model_name = model_info.get("name") or f"Model {model_id}"
 
-        log.info(f"Processing model {model_id} ({channel_name})...")
-
-        # Find feeds that don't have predictions for this model
-        cursor.execute(
-            """
-            SELECT feed_id
-            FROM predicted_preferences
-            WHERE model_id = %s AND feed_id = ANY(%s)
-        """,
-            (model_id, feed_ids),
-        )
-
-        already_predicted = {row["feed_id"] for row in cursor.fetchall()}
-        feeds_to_predict = [fid for fid in feed_ids if fid not in already_predicted]
-
-        if not feeds_to_predict:
-            log.info(f"All papers already have predictions for model {model_id}")
-            continue
-
-        log.info(
-            f"Found {len(feeds_to_predict)} papers without predictions for model {model_id}"
-        )
+        log.info(f"Processing model {model_id} ({model_name})...")
 
         try:
-            # Load model
-            with open(model_path, "rb") as f:
-                model_data = pickle.load(f)
-
-            model = model_data["model"]
-            scaler = model_data["scaler"]
-
-            # Get embeddings for feeds that need predictions
-            feed_idx_map = {fid: idx for idx, fid in enumerate(feed_ids)}
-            predict_indices = [feed_idx_map[fid] for fid in feeds_to_predict]
-            embeddings_to_predict = embeddings[predict_indices]
-
-            # Scale embeddings
-            embeddings_scaled = scaler.transform(embeddings_to_predict)
-
-            # Create DMatrix for prediction
-            dmatrix = xgb.DMatrix(embeddings_scaled)
-
-            # Predict
-            predictions = model.predict(dmatrix)
-
-            # Store predictions in database in batches
-            log.info(f"Storing {len(predictions)} predictions for model {model_id}...")
-
-            # Use execute_batch for better performance with many predictions
-            prediction_data = [
-                (feed_id, model_id, float(score))
-                for feed_id, score in zip(feeds_to_predict, predictions)
-            ]
-
-            execute_batch(
+            pending = _count_pending_predictions(cursor, model_id, max_papers)
+            if pending == 0:
+                log.info(f"All papers already have predictions for model {model_id}")
+                continue
+            log.info(f"Pending predictions for model {model_id}: {pending}")
+            _predict_for_model_stream(
                 cursor,
-                """
-                INSERT INTO predicted_preferences (feed_id, model_id, score)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (feed_id, model_id) DO UPDATE
-                SET score = EXCLUDED.score
-                """,
-                prediction_data,
-                page_size=min(1000, batch_size)  # Use batch_size for consistency
+                db,
+                model_id,
+                model_dir,
+                max_papers,
+                prediction_batch,
+                pending,
             )
-
-            db.commit()
-
-            # Log summary statistics
-            log.info(
-                f"Model {model_id} predictions: min={predictions.min():.3f}, max={predictions.max():.3f}, mean={predictions.mean():.3f}"
-            )
-
         except Exception as e:
             log.error(f"Failed to process model {model_id}: {e}")
             continue

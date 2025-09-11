@@ -210,9 +210,9 @@ papersorter import pubmed --issn 1476-4687 --issn 0036-8075 --issn 1097-6256 --f
 
 # 3. Generate embeddings for all imported articles (essential for search and training)
 # Docker:
-./papersorter-cli predict --all  # or --count 10000
+./papersorter-cli predict --all  # or --max-papers 10000
 # Manual:
-papersorter predict --all  # or --count 10000
+papersorter predict --all  # or --max-papers 10000
 
 # 4. Start web interface
 # Docker: Already running at http://localhost:5001
@@ -306,8 +306,8 @@ For initial setup, generate embeddings for many articles:
 
 ```bash
 # Generate embeddings for up to 10,000 articles
-./papersorter-cli predict --count 10000  # Docker
-papersorter predict --count 10000       # Manual
+./papersorter-cli predict --max-papers 10000  # Docker
+papersorter predict --max-papers 10000       # Manual
 ```
 
 This step is crucial as it creates the vector representations needed for:
@@ -610,9 +610,10 @@ All commands support:
 - `--embeddings-table NAME` - Embeddings table name (default: embeddings)
 
 **predict:**
-- `--count N` - Number of articles to process
-- `--all` - Process all articles without limit
-- `--force` - Force re-prediction even if predictions exist
+- `--max-papers N` - Number of recent articles to process (default: 500)
+- `--all` - Process all articles (equivalent to `--max-papers 0`)
+- `--embedding-batch N` - Batch size for embedding generation (default: 100)
+- `--prediction-batch N` - Batch size for prediction writes (default: 2000)
 
 **models:**
 - `list` - List all models with status and statistics
