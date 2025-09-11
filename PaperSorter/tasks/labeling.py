@@ -1032,7 +1032,7 @@ def do_clear_labeling_session(config_path, labeler_user_id):
         )
         cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # First, get statistics about the current session
+        # First, get statistics about the current session with user timezone-aware display strings
         cursor.execute("""
             SELECT
                 COUNT(*) as total_items,
@@ -1040,10 +1040,15 @@ def do_clear_labeling_session(config_path, labeler_user_id):
                 COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
                 COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
                 COUNT(CASE WHEN score < 0.5 THEN 1 END) as not_interested_items,
-                MIN(update_time) as first_label_time,
-                MAX(update_time) as last_label_time
-            FROM labeling_sessions
-            WHERE user_id = %s
+                MIN(ls.update_time) as first_label_time_utc,
+                MAX(ls.update_time) as last_label_time_utc,
+                to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                        'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
+                to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                        'YYYY-MM-DD HH24:MI:SS') as last_label_time_local
+            FROM labeling_sessions ls
+            JOIN users u ON u.id = ls.user_id
+            WHERE ls.user_id = %s
         """, (labeler_user_id,))
 
         stats = cursor.fetchone()
@@ -1056,13 +1061,14 @@ def do_clear_labeling_session(config_path, labeler_user_id):
 
         # Get user information
         cursor.execute("""
-            SELECT username
+            SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
             FROM users
             WHERE id = %s
         """, (labeler_user_id,))
 
         user_info = cursor.fetchone()
         username = user_info["username"] if user_info else f"User {labeler_user_id}"
+        user_tz = user_info["timezone"] if user_info else "UTC"
 
         # Display statistics before deletion
         log.info("="*60)
@@ -1079,14 +1085,15 @@ def do_clear_labeling_session(config_path, labeler_user_id):
             log.info(f"  Interested: {stats['interested_items']} ({stats['interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
             log.info(f"  Not interested: {stats['not_interested_items']} ({stats['not_interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
 
-            if stats['first_label_time'] and stats['last_label_time']:
+            if stats['first_label_time_utc'] and stats['last_label_time_utc']:
                 log.info("")
-                log.info(f"First label: {stats['first_label_time']}")
-                log.info(f"Last label: {stats['last_label_time']}")
+                # Show times in user's local timezone for readability
+                log.info(f"First label: {stats['first_label_time_local']} ({user_tz})")
+                log.info(f"Last label:  {stats['last_label_time_local']} ({user_tz})")
 
                 # Calculate session duration if both timestamps exist
-                if stats['first_label_time'] != stats['last_label_time']:
-                    duration = stats['last_label_time'] - stats['first_label_time']
+                if stats['first_label_time_utc'] != stats['last_label_time_utc']:
+                    duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
                     hours = duration.total_seconds() / 3600
                     if hours >= 1:
                         log.info(f"Session duration: {hours:.1f} hours")
@@ -1240,13 +1247,14 @@ def do_show_labeling_status(config_path, user_id, show_all):
 
             # Get user information
             cursor.execute("""
-                SELECT username
+                SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
                 FROM users
                 WHERE id = %s
             """, (uid,))
 
             user_info = cursor.fetchone()
             username = user_info["username"] if user_info else f"User {uid}"
+            user_tz = user_info["timezone"] if user_info else "UTC"
 
             # Get session statistics
             cursor.execute("""
@@ -1256,12 +1264,17 @@ def do_show_labeling_status(config_path, user_id, show_all):
                     COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
                     COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
                     COUNT(CASE WHEN score < 0.5 AND score IS NOT NULL THEN 1 END) as not_interested_items,
-                    MIN(update_time) as first_label_time,
-                    MAX(update_time) as last_label_time,
-                    MIN(id) as first_session_id,
-                    MAX(id) as last_session_id
-                FROM labeling_sessions
-                WHERE user_id = %s
+                    MIN(ls.update_time) as first_label_time_utc,
+                    MAX(ls.update_time) as last_label_time_utc,
+                    to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                            'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
+                    to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                            'YYYY-MM-DD HH24:MI:SS') as last_label_time_local,
+                    MIN(ls.id) as first_session_id,
+                    MAX(ls.id) as last_session_id
+                FROM labeling_sessions ls
+                JOIN users u ON u.id = ls.user_id
+                WHERE ls.user_id = %s
             """, (uid,))
 
             stats = cursor.fetchone()
@@ -1297,15 +1310,16 @@ def do_show_labeling_status(config_path, user_id, show_all):
                 log.info(f"  Interested:     {stats['interested_items']:5d} ({interested_pct:.1f}%)")
                 log.info(f"  Not interested: {stats['not_interested_items']:5d} ({not_interested_pct:.1f}%)")
 
-                if stats['first_label_time'] and stats['last_label_time']:
+                if stats['first_label_time_utc'] and stats['last_label_time_utc']:
                     log.info("")
                     log.info("Session timing:")
-                    log.info(f"  First label: {stats['first_label_time'].strftime('%Y-%m-%d %H:%M:%S')}")
-                    log.info(f"  Last label:  {stats['last_label_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+                    # Display using user's timezone for readability, with TZ info at right side
+                    log.info(f"  First label: {stats['first_label_time_local']} ({user_tz})")
+                    log.info(f"  Last label:  {stats['last_label_time_local']} ({user_tz})")
 
                     # Calculate session duration if both timestamps exist
-                    if stats['first_label_time'] != stats['last_label_time']:
-                        duration = stats['last_label_time'] - stats['first_label_time']
+                    if stats['first_label_time_utc'] != stats['last_label_time_utc']:
+                        duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
                         days = duration.days
                         hours = duration.total_seconds() / 3600
                         minutes = (duration.total_seconds() % 3600) / 60
