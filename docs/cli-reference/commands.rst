@@ -79,6 +79,32 @@ Train XGBoost model on labeled papers.
    # Train with more rounds
    papersorter train --name "Accurate Model" --rounds 2000
 
+predict
+~~~~~~~
+
+Generate embeddings and predictions for articles.
+
+.. code-block:: bash
+
+   papersorter predict [OPTIONS]
+
+**Options:**
+
+* ``--config PATH``: Path to configuration file (default: ``./config.yml``)
+* ``--log-file PATH``: Path to log file
+* ``-q, --quiet``: Suppress output
+* ``--max-papers INTEGER``: Number of recent papers to process (default: 500)
+* ``--all``: Process all papers (equivalent to ``--max-papers 0``)
+* ``--embedding-batch INTEGER``: Batch size for embedding generation (default: 100)
+* ``--prediction-batch INTEGER``: Batch size for prediction writes (default: 2000)
+
+**Example:**
+
+.. code-block:: bash
+
+   # Process the most recent 10,000 papers with larger prediction batches
+   papersorter predict --max-papers 10000 --prediction-batch 5000
+
 broadcast
 ~~~~~~~~~
 
