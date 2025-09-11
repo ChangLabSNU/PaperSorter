@@ -81,13 +81,13 @@ class TrainCommand(BaseCommand):
             '--pos-cutoff',
             type=probability_float,
             default=0.5,
-            help='Threshold for considering feeds as interested (positive labels)'
+            help='Threshold for considering papers as interested (positive labels)'
         )
         parser.add_argument(
             '--neg-cutoff',
             type=probability_float,
             default=0.2,
-            help='Threshold for considering feeds as not interested (negative labels)'
+            help='Threshold for considering papers as not interested (negative labels)'
         )
         parser.add_argument(
             '--pseudo-weight',
@@ -189,7 +189,7 @@ def select_training_feeds(db, user_ids, base_model, pos_cutoff, neg_cutoff, max_
     labeled_pos = [fid for fid, score in labeled_feeds if score > 0.5]
     labeled_neg = [fid for fid, score in labeled_feeds if score < 0.5]
 
-    log.info(f"Found {len(labeled_feed_ids)} feeds with user preferences")
+    log.info(f"Found {len(labeled_feed_ids)} papers with user preferences")
 
     # Step 2: Get pseudolabeled feeds if base_model is specified
     pseudo_positives = []
@@ -234,7 +234,7 @@ def select_training_feeds(db, user_ids, base_model, pos_cutoff, neg_cutoff, max_
         pseudo_positives = [fid for fid, score in pseudo_pos_feeds]
         pseudo_negatives = [fid for fid, score in pseudo_neg_feeds]
 
-        log.info(f"Found {len(pseudo_positives)} positive and {len(pseudo_negatives)} negative pseudo-labeled feeds")
+        log.info(f"Found {len(pseudo_positives)} positive and {len(pseudo_negatives)} negative pseudo-labeled papers")
 
     # Step 3: Apply max_papers limit if specified
     if max_papers and len(labeled_feed_ids) + len(pseudo_positives) + len(pseudo_negatives) > max_papers:
@@ -325,7 +325,7 @@ def load_embeddings(db, feed_selection, embeddings_table):
 
     total_loaded = sum(map(len, loaded_embeddings.values()))
 
-    log.info(f"Loaded embeddings for {total_loaded} feeds")
+    log.info(f"Loaded embeddings for {total_loaded} papers")
     return loaded_embeddings
 
 #    X_scaled, Y_all, weights_all, scaler = prepare_training_data(
@@ -628,7 +628,7 @@ def main(
         log.info(f"Maximum papers limited to: {max_papers}")
 
     # Step 1: Select feed IDs to use for training
-    log.info("Selecting feeds for training...")
+    log.info("Selecting papers for training...")
     feed_selection = select_training_feeds(
         db, user_ids, base_model, pos_cutoff, neg_cutoff, max_papers, seed
     )
