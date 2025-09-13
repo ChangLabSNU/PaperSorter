@@ -31,11 +31,16 @@ from ..cli.base import BaseCommand, registry
 from ..log import log, initialize_logging
 import xgboost as xgb
 from datetime import datetime
+from typing import Dict, Set, Optional
 import pickle
 import argparse
 
 
 FEED_EPOCH = (1980, 1, 1)
+
+# Safety threshold: when backfilling a very large number of items,
+# avoid retaining all newly scored IDs in memory.
+MAX_TRACKED_CANDIDATES = 2000
 
 VENUE_UPDATE_BLACKLIST = {
     "Molecules and Cells",  # Molecular Cell (Cell Press) is incorrectly matched to this.
@@ -334,8 +339,8 @@ def _collect_unique_models(channels_list):
     return unique_model_ids
 
 
-def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100):
-    """Score all unscored items for a specific model.
+def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100) -> Optional[Set[int]]:
+    """Score all unscored items for a specific model and return newly scored feed IDs.
 
     Args:
         model_id: ID of the model
@@ -345,20 +350,33 @@ def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100)
         batch_size: Number of items to process in each batch
 
     Returns:
-        Number of items scored
+        Set of internal feed IDs that were newly scored in this run for this model.
     """
     unscored = feeddb.get_unscored_items(model_id=model_id)
 
     if not unscored:
         log.debug(f"No items to score for model {model_id}")
-        return 0
+        return set()
 
-    log.info(f"Scoring {len(unscored)} papers for model {model_id}")
+    total_to_score = len(unscored)
+    log.info(f"Scoring {total_to_score} papers for model {model_id}")
+
+    # Decide whether to track newly scored IDs based on threshold
+    track_candidates = total_to_score <= MAX_TRACKED_CANDIDATES
+    if not track_candidates:
+        log.warning(
+            "Large backfill detected (model %s: %d items). "
+            "Skipping in-memory tracking of newly scored IDs to reduce memory usage.",
+            model_id,
+            total_to_score,
+        )
+
+    newly_scored_feed_ids: Set[int] = set()
 
     for batch_num, batch in enumerate(batched(unscored, batch_size), 1):
         log.debug(f"Model {model_id} - Scoring batch: {batch_num}")
 
-        # Get embeddings for batch
+        # Get embeddings for batch (batch is a list of external_ids)
         embeddings = embeddingdb[batch]
 
         # Transform and predict
@@ -367,24 +385,33 @@ def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100)
         scores = model["model"].predict(dmtx_pred)
 
         # Update scores in database
-        for item_id, score in zip(batch, scores):
-            feeddb.update_score(item_id, score, model_id)
-            item_info = feeddb[item_id]
+        for item_external_id, score in zip(batch, scores):
+            feeddb.update_score(item_external_id, score, model_id)
+            item_info = feeddb[item_external_id]
             log.info(
                 f"New paper (model {model_id}): [{score:.2f}] "
                 f"{item_info['origin']} / {item_info['title']}"
             )
 
-    return len(unscored)
+        if track_candidates:
+            # Map this batch's external_ids to internal feed IDs and add to set
+            feeddb.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = ANY(%s)", (batch,)
+            )
+            for row in feeddb.cursor.fetchall():
+                newly_scored_feed_ids.add(row["id"])
+
+    return newly_scored_feed_ids if track_candidates else None
 
 
-def _queue_high_scoring_items(channel, feeddb, lookback_hours=24):
+def _queue_high_scoring_items(channel, feeddb, lookback_hours=24, candidate_ids: Optional[Set[int]] = None):
     """Add high-scoring recent items to broadcast queue for a channel.
 
     Args:
         channel: Channel configuration dictionary
         feeddb: FeedDatabase instance
         lookback_hours: How many hours back to check for new items
+        candidate_ids: Optional set of feed IDs to restrict selection to (newly scored in this run)
 
     Returns:
         Number of items added to queue
@@ -393,12 +420,16 @@ def _queue_high_scoring_items(channel, feeddb, lookback_hours=24):
     if model_id is None:
         return 0
 
+    # If a candidate filter is provided but empty, nothing to do
+    if candidate_ids is not None and len(candidate_ids) == 0:
+        return 0
+
     score_threshold = channel.get("score_threshold", 0.7)
     channel_id = channel["id"]
     channel_name = channel["name"]
 
-    # Query for high-scoring items not already in queue
-    feeddb.cursor.execute(
+    # Build query for high-scoring items not already in queue
+    query = (
         """
         SELECT f.id as feed_id, f.external_id, pp.score
         FROM feeds f
@@ -407,11 +438,21 @@ def _queue_high_scoring_items(channel, feeddb, lookback_hours=24):
         WHERE pp.model_id = %s
             AND pp.score >= %s
             AND b.feed_id IS NULL  -- Not already in broadcast queue
-            AND f.added >= CURRENT_TIMESTAMP - INTERVAL '%s hours'
-        ORDER BY pp.score DESC
-        """,
-        (channel_id, model_id, score_threshold, lookback_hours)
+        """
     )
+
+    params = [channel_id, model_id, score_threshold]
+
+    # Apply candidate filter if provided
+    if candidate_ids is not None:
+        query += " AND f.id = ANY(%s)"
+        params.append(list(candidate_ids))
+
+    # Apply lookback window and ordering
+    query += " AND f.added >= CURRENT_TIMESTAMP - INTERVAL '%s hours'\n        ORDER BY pp.score DESC\n        "
+    params.append(lookback_hours)
+
+    feeddb.cursor.execute(query, tuple(params))
 
     items_to_broadcast = feeddb.cursor.fetchall()
 
@@ -456,13 +497,16 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
     # Score items for each unique model
     total_scored = 0
+    newly_scored_by_model: Dict[int, Optional[Set[int]]] = {}
     for model_id in unique_model_ids:
         model = _load_model(model_id, model_dir)
         if model:
-            scored_count = _score_items_for_model(
+            newly_scored_ids = _score_items_for_model(
                 model_id, model, feeddb, embeddingdb
             )
-            total_scored += scored_count
+            newly_scored_by_model[model_id] = newly_scored_ids
+            if newly_scored_ids is not None:
+                total_scored += len(newly_scored_ids)
 
     if total_scored > 0:
         log.info(f"Scored {total_scored} total items across all models")
@@ -470,7 +514,18 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
     # Queue high-scoring items for each channel
     total_queued = 0
     for channel in all_channels:
-        queued_count = _queue_high_scoring_items(channel, feeddb)
+        model_id = channel.get("model_id")
+        candidate_ids = newly_scored_by_model.get(model_id)
+        if candidate_ids is None:
+            # Large backfill for this model: skip queueing entirely to avoid flooding
+            log.info(
+                f"Skipping queueing for channel '{channel['name']}' (model {model_id}) due to large backfill"
+            )
+            continue
+        if not candidate_ids:
+            # Nothing newly scored for this channel's model in this run
+            continue
+        queued_count = _queue_high_scoring_items(channel, feeddb, candidate_ids=candidate_ids)
         total_queued += queued_count
 
     if total_queued > 0:
