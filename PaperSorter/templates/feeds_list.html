@@ -3,6 +3,8 @@
 {% block title %}Papers - {{ site_name }}{% endblock %}
 
 {% block styles %}
+    <!-- Feed layout structure and page-specific CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/feed_struct.css') }}">
     <!-- Papers List CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/feeds_list.css') }}">
 {% endblock %}

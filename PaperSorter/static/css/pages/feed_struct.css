@@ -1,0 +1,123 @@
+/* Shared feed list structure (no colors) */
+
+/* Header row inside a feed item */
+.feed-header {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  position: relative;
+}
+
+/* Score badge geometry */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 50px;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Container for score icons */
+.score-icons {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: flex;
+  gap: 2px;
+}
+
+/* Score icon geometry only */
+.score-icon {
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+/* Content column */
+.feed-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Title */
+.feed-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  line-height: 1.3;
+}
+
+/* Meta row */
+.feed-meta {
+  display: flex;
+  gap: 15px;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.feed-meta-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-author { max-width: 200px; }
+.feed-item.expanded .feed-author {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: none;
+}
+
+.feed-origin { font-weight: bold; }
+.feed-date { flex-shrink: 0; }
+
+/* Label badges */
+.feed-labels {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.label-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Details block */
+.feed-details { padding: 20px; }
+.feed-details.expanded { display: block; }
+
+/* Abstract */
+.feed-abstract {
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+/* Actions row */
+.feed-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.badges-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+

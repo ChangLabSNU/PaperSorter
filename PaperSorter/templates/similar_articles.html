@@ -133,13 +133,6 @@
             border-bottom: none;
         }
 
-        .feed-header {
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            position: relative;
-        }
 
         .score-badge {
             display: inline-flex;
@@ -192,10 +185,6 @@
         }
 
 
-        .feed-content {
-            flex: 1;
-            min-width: 0;
-        }
 
         .feed-title {
             font-size: 18px;
@@ -215,46 +204,15 @@
             transition: color var(--transition-base);
         }
 
-        .feed-meta-item {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
 
         .feed-author {
             max-width: 200px;
         }
 
-        /* Allow author text to wrap when feed is expanded */
-        .feed-item.expanded .feed-author {
-            white-space: normal;
-            overflow: visible;
-            text-overflow: unset;
-            max-width: none;
-        }
 
-        .feed-origin {
-            font-weight: bold;
-        }
 
-        .feed-date {
-            flex-shrink: 0;
-        }
 
-        .feed-labels {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-left: auto;
-            flex-shrink: 0;
-        }
 
-        .label-badge {
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: bold;
-        }
 
         .label-shared {
             background: var(--similar-label-shared-icon-bg);
@@ -284,9 +242,6 @@
             transition: background-color var(--transition-base), border-color var(--transition-base);
         }
 
-        .feed-details.expanded {
-            display: block;
-        }
 
         .feed-abstract {
             font-size: 15px;
@@ -296,10 +251,6 @@
             transition: color var(--transition-base);
         }
 
-        .feed-actions {
-            display: flex;
-            gap: 10px;
-        }
 
         .btn {
             padding: 8px 16px;
@@ -431,11 +382,6 @@
             100% { transform: rotate(360deg); }
         }
 
-        .badges-container {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
 
         .btn-text {
             margin-left: 5px;
