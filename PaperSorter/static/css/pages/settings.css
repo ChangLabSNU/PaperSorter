@@ -1,0 +1,265 @@
+/* Shared admin/settings styles extracted from templates */
+
+/* Page container adjustments for settings pages */
+main {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 10px;
+}
+
+/* Card container used across settings pages */
+.content-card {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: var(--shadow-card);
+  transition: background-color var(--transition-base);
+}
+
+/* Action bar header */
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.action-bar h2 {
+  color: var(--text-primary);
+  transition: color var(--transition-base);
+}
+
+/* Buttons used by settings pages */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--text-white);
+}
+
+.btn-primary:hover {
+  background: var(--btn-primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--text-white);
+}
+
+.btn-danger:hover {
+  background: var(--btn-danger-hover);
+}
+
+.btn-edit {
+  background: var(--color-warning);
+  color: var(--text-white);
+  padding: 5px 15px;
+  font-size: 14px;
+}
+
+.btn-edit:hover {
+  background: var(--btn-warning-hover);
+}
+
+/* Tables */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.data-table th {
+  background: var(--bg-table-header);
+  font-weight: bold;
+  color: var(--text-primary);
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+.data-table tr:hover {
+  background: var(--bg-hover);
+}
+
+.data-table td {
+  color: var(--text-primary);
+  transition: border-color var(--transition-base), color var(--transition-base);
+}
+
+.data-table strong {
+  color: var(--text-primary);
+  transition: color var(--transition-base);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Modals used by settings pages */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: var(--z-index-modal);
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  overflow-y: auto;
+}
+
+.modal-content {
+  background-color: var(--bg-card);
+  margin: 10% auto;
+  padding: 30px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 500px;
+  box-shadow: var(--shadow-modal);
+  transition: background-color var(--transition-base);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  transition: color var(--transition-base);
+}
+
+.close {
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--text-meta);
+  cursor: pointer;
+  transition: color var(--transition-base);
+}
+
+.close:hover {
+  color: var(--text-primary);
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: var(--text-primary);
+  transition: color var(--transition-base);
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  font-size: 16px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-sizing: border-box;
+  transition: background-color var(--transition-base), color var(--transition-base), border-color var(--transition-base);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-group small,
+.form-text {
+  color: var(--text-meta);
+  transition: color var(--transition-base);
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Empty state blocks */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-meta);
+  transition: color var(--transition-base);
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+/* Tags */
+.tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* Responsive adjustments for settings pages */
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+
+  .nav-links {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .action-bar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .data-table {
+    font-size: 14px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+

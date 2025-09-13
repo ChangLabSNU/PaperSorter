@@ -109,7 +109,7 @@ function createFeedElement(feed) {
 
     headerHTML += `
             <div class="feed-content">
-                <h3 class="feed-title">${feed.title}</h3>
+                <h3 class="feed-title"><a href="/paper/${feed.rowid}" style="color: inherit; text-decoration: none;">${feed.title}</a></h3>
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
                     ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</span>` : ''}
@@ -841,7 +841,7 @@ function displaySearchResults(results, searchQuery) {
                     </span>
                 </div>
                 <div class="feed-content">
-                    <h3 class="feed-title">${result.title}</h3>
+                    <h3 class="feed-title"><a href="/paper/${result.rowid}" style="color: inherit; text-decoration: none;">${result.title}</a></h3>
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
                         ${result.author ? `<span class="feed-meta-item feed-author" title="${result.author}">${formatAuthors(result.author)}</span>` : ''}

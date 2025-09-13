@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Error - {{ site_name }}{% endblock %}
+
+{% block main_container %}
+    <div class="container" style="text-align: center; padding: 100px 20px;">
+        <h1 style="font-size: 48px; color: var(--text-primary); margin-bottom: 20px;">Error</h1>
+        <p style="font-size: 18px; color: var(--text-secondary); margin-bottom: 30px;">
+            {{ error|default("An error occurred") }}
+        </p>
+        <button onclick="window.history.back()" class="btn btn-primary" style="padding: 10px 24px; font-size: 16px;">
+            ← Go Back
+        </button>
+    </div>
+{% endblock %}
+
+{% block styles %}
+    <style>
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-base);
+        }
+        
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--color-primary-dark);
+        }
+    </style>
+{% endblock %}

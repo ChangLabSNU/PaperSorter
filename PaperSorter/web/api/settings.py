@@ -26,6 +26,7 @@
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, render_template, current_app
+from flask_login import login_required, current_user
 from ..auth.decorators import admin_required
 
 settings_bp = Blueprint("settings", __name__)
@@ -975,3 +976,108 @@ def api_empty_channel_queue(channel_id):
         cursor.close()
         conn.close()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@settings_bp.route("/api/settings/broadcast-queue", methods=["POST"])
+@login_required
+def api_add_to_broadcast_queue():
+    """Add a paper to broadcast queue."""
+    if not current_user.is_admin:
+        return jsonify({"status": "error", "message": "Admin access required"}), 403
+    
+    data = request.get_json()
+    feed_id = data.get("feed_id")
+    channel_id = data.get("channel_id")
+    
+    if not feed_id or not channel_id:
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+    
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+    
+    try:
+        # Add to broadcasts table
+        cursor.execute("""
+            INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+            VALUES (%s, %s, NULL)
+            ON CONFLICT (feed_id, channel_id) DO NOTHING
+        """, (feed_id, channel_id))
+        
+        conn.commit()
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@settings_bp.route("/api/settings/broadcast-now", methods=["POST"])
+@login_required
+def api_broadcast_now():
+    """Broadcast a paper immediately."""
+    if not current_user.is_admin:
+        return jsonify({"status": "error", "message": "Admin access required"}), 403
+    
+    data = request.get_json()
+    feed_id = data.get("feed_id")
+    channel_id = data.get("channel_id")
+    
+    if not feed_id or not channel_id:
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+    
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    try:
+        # Get channel details
+        cursor.execute("SELECT * FROM channels WHERE id = %s", (channel_id,))
+        channel = cursor.fetchone()
+        
+        if not channel or not channel['webhook_url']:
+            return jsonify({"status": "error", "message": "Invalid channel"}), 400
+        
+        # Get paper details
+        cursor.execute("""
+            SELECT f.*, pp.score as predicted_score
+            FROM feeds f
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id 
+                AND pp.model_id = %s
+            WHERE f.id = %s
+        """, (channel['model_id'], feed_id))
+        
+        paper = cursor.fetchone()
+        
+        if not paper:
+            return jsonify({"status": "error", "message": "Paper not found"}), 404
+        
+        # Send to channel webhook
+        from ...broadcast_channels import BroadcastChannels
+        config_path = current_app.config["CONFIG_PATH"]
+        bc = BroadcastChannels(config_path)
+        
+        # Format and send the paper
+        success = bc.send_to_channel(channel, [paper])
+        
+        if success:
+            # Update broadcasts table
+            cursor.execute("""
+                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (feed_id, channel_id) 
+                DO UPDATE SET broadcasted_time = CURRENT_TIMESTAMP
+            """, (feed_id, channel_id))
+            
+            conn.commit()
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to send to channel"}), 500
+            
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()

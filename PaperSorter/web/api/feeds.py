@@ -247,6 +247,87 @@ def api_share_feed(feed_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@feeds_bp.route("/api/feeds/feedback", methods=["POST"])
+@login_required
+def api_feedback():
+    """API endpoint to set feedback for a paper."""
+    data = request.get_json()
+    feed_id = data.get("feed_id")
+    feedback = data.get("feedback")
+    
+    if not feed_id or not feedback:
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+    
+    user_id = current_user.id
+    score = 1 if feedback == "interesting" else 0
+    
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if preference exists
+        cursor.execute("""
+            SELECT id FROM preferences
+            WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+        """, (feed_id, user_id))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            cursor.execute("""
+                UPDATE preferences
+                SET score = %s, time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (float(score), existing[0]))
+        else:
+            cursor.execute("""
+                INSERT INTO preferences (feed_id, user_id, time, score, source)
+                VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
+            """, (feed_id, user_id, float(score)))
+        
+        conn.commit()
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@feeds_bp.route("/api/feeds/remove-label", methods=["POST"])
+@login_required
+def api_remove_label():
+    """API endpoint to remove a label from a paper."""
+    data = request.get_json()
+    feed_id = data.get("feed_id")
+    
+    if not feed_id:
+        return jsonify({"status": "error", "message": "Missing feed_id"}), 400
+    
+    user_id = current_user.id
+    
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            DELETE FROM preferences
+            WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
+        """, (feed_id, user_id))
+        
+        conn.commit()
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @feeds_bp.route("/api/feeds/<int:feed_id>/feedback", methods=["POST"])
 @login_required
 def api_feedback_feed(feed_id):

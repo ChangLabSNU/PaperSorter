@@ -297,6 +297,86 @@ def user_settings():
     return render_template("user_settings.html", user_data=user_data, channels=channels)
 
 
+@main_bp.route("/paper/<int:paper_id>")
+@login_required
+def paper_detail(paper_id):
+    """Paper detail page with rich operations."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    try:
+        # Get paper details without predicted scores (we'll get all scores separately)
+        cursor.execute("""
+            SELECT 
+                f.id,
+                f.external_id,
+                f.title,
+                f.content,
+                f.author,
+                f.origin,
+                f.link,
+                f.published,
+                f.added,
+                f.tldr,
+                p.score as user_score,
+                p.source as label_source
+            FROM feeds f
+            LEFT JOIN preferences p ON f.id = p.feed_id 
+                AND p.user_id = %s
+            WHERE f.id = %s
+        """, (current_user.id, paper_id))
+        
+        paper = cursor.fetchone()
+        
+        if not paper:
+            return render_template("error.html", error="Paper not found"), 404
+        
+        # Get all predicted scores from active models
+        cursor.execute("""
+            SELECT 
+                pp.score,
+                COALESCE(m.score_name, m.name) as model_name,
+                m.id as model_id
+            FROM predicted_preferences pp
+            JOIN models m ON pp.model_id = m.id
+            WHERE pp.feed_id = %s AND m.is_active = TRUE
+            ORDER BY pp.score DESC
+        """, (paper_id,))
+        
+        predicted_scores = cursor.fetchall()
+        
+        # Get available channels for broadcast operations
+        cursor.execute("""
+            SELECT id, name
+            FROM channels
+            WHERE is_active = TRUE
+            ORDER BY id
+        """)
+        channels = cursor.fetchall()
+        
+        # Check if paper is in any broadcast queues
+        cursor.execute("""
+            SELECT channel_id
+            FROM broadcasts
+            WHERE feed_id = %s AND broadcasted_time IS NULL
+        """, (paper_id,))
+        
+        queued_channels = [row['channel_id'] for row in cursor.fetchall()]
+        
+        return render_template(
+            "paper_detail.html",
+            paper=paper,
+            predicted_scores=predicted_scores,
+            similar_papers=None,  # Will be loaded asynchronously
+            channels=channels,
+            queued_channels=queued_channels
+        )
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @main_bp.route("/health")
 def health_check():
     """Health check endpoint for Docker/monitoring."""

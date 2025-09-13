@@ -1,0 +1,741 @@
+{% extends "base.html" %}
+
+{% block title %}{{ paper.title[:50] }}... - {{ site_name }}{% endblock %}
+{% block header_title %}Paper Details{% endblock %}
+
+{% block header_actions %}
+    <a href="/" class="nav-link">← Back to Papers</a>
+    {{ super() }}
+{% endblock %}
+
+{% block styles %}
+    <style>
+        .paper-detail-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .paper-details-section {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+
+        .paper-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .paper-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-meta);
+            margin-bottom: 25px;
+        }
+
+        .meta-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .meta-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .score-badges {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            min-width: 80px;
+            justify-content: center;
+        }
+
+        .score-label {
+            font-size: 12px;
+            margin-right: 5px;
+            opacity: 0.9;
+        }
+
+        .abstract-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            margin-top: 5px;
+        }
+
+        .abstract-content {
+            font-size: 16px;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: var(--labeling-abstract-bg);
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid var(--labeling-abstract-border);
+        }
+
+
+        .operations-section {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+
+        .operations-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        .operations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .operation-group {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .operation-group-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .operation-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .btn-disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-disabled);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .similar-papers-section {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+
+        .similar-papers-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        .similar-papers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .similar-paper-item {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 6px;
+            transition: all var(--transition-base);
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .similar-paper-item:hover {
+            background: var(--bg-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .similar-paper-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .similar-paper-meta {
+            font-size: 13px;
+            color: var(--text-meta);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .similarity-score {
+            background: var(--color-primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .channel-selector {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+
+        .spinner {
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--color-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .paper-detail-container {
+                padding: 0 10px;
+            }
+
+            .paper-details-section,
+            .operations-section,
+            .similar-papers-section {
+                padding: 20px;
+            }
+
+            .paper-title {
+                font-size: 22px;
+            }
+
+            .operations-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block main_container %}
+    <div class="paper-detail-container">
+        <!-- Paper Details Section -->
+        <div class="paper-details-section">
+            <h1 class="paper-title">{{ paper.title }}</h1>
+
+            <!-- Score Badges -->
+            <div class="score-badges">
+                {% if paper.user_score is not none %}
+                <div class="score-badge" style="background: {% if paper.user_score == 1 %}var(--labeling-btn-positive){% elif paper.user_score == 0 %}var(--labeling-btn-negative){% else %}#27ae60{% endif %};">
+                    <span class="score-label">You:</span>
+                    {% if paper.user_score == 1 %}
+                        👍
+                    {% elif paper.user_score == 0 %}
+                        👎
+                    {% else %}
+                        {{ "%.0f"|format(paper.user_score * 100) }}%
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% for score in predicted_scores %}
+                <div class="score-badge predicted-score-badge" data-score="{{ score.score }}">
+                    <span class="score-label">{{ score.model_name }}:</span>
+                    {{ "%.2f"|format(score.score * 100) }}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Meta Information -->
+            <div class="paper-meta">
+                <div class="meta-row">
+                    {% if paper.origin %}
+                    <div class="meta-item">
+                        <span class="meta-label">Journal:</span>
+                        <span>{{ paper.origin }}</span>
+                    </div>
+                    {% endif %}
+                    {% if paper.published %}
+                    <div class="meta-item">
+                        <span class="meta-label">Published:</span>
+                        <span class="item-date" data-timestamp="{{ paper.published.timestamp() }}"></span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if paper.author %}
+                <div class="meta-row">
+                    <div class="meta-item">
+                        <span class="meta-label">Authors:</span>
+                        <span>{{ paper.author }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Abstract -->
+            <h2 class="abstract-title">Abstract</h2>
+            {% if paper.content %}
+            <div class="abstract-content">
+                {{ paper.content }}
+            </div>
+            {% else %}
+            <div class="abstract-content" style="font-style: italic; color: var(--text-meta);">
+                No abstract available
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Operations Section -->
+        <div class="operations-section">
+            <h2 class="operations-title">Actions</h2>
+            <div class="operations-grid">
+                <!-- Labeling Operations -->
+                <div class="operation-group">
+                    <div class="operation-group-title">Your Feedback</div>
+                    <div class="operation-buttons">
+                        {% if paper.user_score == 1 %}
+                        <button class="btn btn-thumbs-up active" onclick="removelabel()">
+                            👍 Unmark as Interested
+                        </button>
+                        {% else %}
+                        <button class="btn btn-thumbs-up" onclick="labelPaper(1)">
+                            👍 Mark as Interested
+                        </button>
+                        {% endif %}
+
+                        {% if paper.user_score == 0 %}
+                        <button class="btn btn-thumbs-down active" onclick="removelabel()">
+                            👎 Unmark as Not Interested
+                        </button>
+                        {% else %}
+                        <button class="btn btn-thumbs-down" onclick="labelPaper(0)">
+                            👎 Mark as Not Interested
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- External Links -->
+                <div class="operation-group">
+                    <div class="operation-group-title">External Links</div>
+                    <div class="operation-buttons">
+                        {% if paper.link %}
+                        <button class="btn btn-primary" onclick="window.open('{{ paper.link }}', '_blank')">
+                            🔗 View Original Article
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-secondary" onclick="searchScholarly()">
+                            🔍 Search in Scholarly DB
+                        </button>
+                        <button class="btn btn-secondary" onclick="searchGoogleScholar()">
+                            📚 Google Scholar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Broadcast Operations -->
+                <div class="operation-group">
+                    <div class="operation-group-title">Broadcast</div>
+                    <select class="channel-selector" id="channelSelect">
+                        <option value="">Select Channel...</option>
+                        {% for channel in channels %}
+                        <option value="{{ channel.id }}" {% if channel.id in queued_channels %}disabled{% endif %}>
+                            {{ channel.name }}{% if channel.id in queued_channels %} (Already Queued){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="operation-buttons">
+                        <button class="btn btn-warning" onclick="addToBroadcast()">
+                            📢 Add to Broadcast Queue
+                        </button>
+                        <button class="btn btn-primary" onclick="broadcastNow()">
+                            ⚡ Broadcast Now
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Operations -->
+                <div class="operation-group">
+                    <div class="operation-group-title">Advanced</div>
+                    <div class="operation-buttons">
+                        <button class="btn btn-secondary" onclick="generateSummary()">
+                            🤖 Generate AI Summary
+                        </button>
+                        <button class="btn btn-secondary" onclick="findSimilar()">
+                            🔄 Find Similar Papers
+                        </button>
+                        <button class="btn btn-secondary" onclick="generatePoster()">
+                            🎨 Generate Infographic
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Similar Papers Section -->
+        <div class="similar-papers-section" id="similarPapersSection" style="display: none;">
+            <h2 class="similar-papers-title">Similar Papers</h2>
+            <div class="similar-papers-list" id="similarPapersList">
+                <div style="text-align: center; padding: 20px;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px; color: var(--text-meta);">Loading similar papers...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        const paperId = {{ paper.id }};
+        const paperTitle = {{ paper.title|tojson }};
+        const paperExternalId = {{ paper.external_id|tojson }};
+
+        // Apply gradient colors to all predicted score badges
+        document.querySelectorAll('.predicted-score-badge').forEach(badge => {
+            const score = parseFloat(badge.getAttribute('data-score'));
+            badge.style.background = getScoreGradientColor(score);
+        });
+
+        // Format dates
+        document.querySelectorAll('.item-date').forEach(elem => {
+            const timestamp = elem.getAttribute('data-timestamp');
+            if (timestamp) {
+                elem.textContent = formatDate(parseFloat(timestamp));
+            }
+        });
+
+        // Load similar papers asynchronously
+        function loadSimilarPapers() {
+            const section = document.getElementById('similarPapersSection');
+            const list = document.getElementById('similarPapersList');
+
+            // Show the section
+            section.style.display = 'block';
+
+            // Fetch similar papers
+            fetch(`/api/feeds/similar/${paperId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.similar_feeds && data.similar_feeds.length > 0) {
+                        let html = '';
+                        data.similar_feeds.forEach(paper => {
+                            const similarity = paper.similarity * 100;
+                            const score = paper.score ? paper.score * 100 : null;
+
+                            html += `
+                                <a href="/paper/${paper.rowid}" class="similar-paper-item">
+                                    <div class="similar-paper-title">${paper.title}</div>
+                                    <div class="similar-paper-meta">
+                                        <span class="similarity-score">${similarity.toFixed(0)}% similar</span>
+                                        ${paper.origin ? `<span>${paper.origin}</span>` : ''}
+                                        ${score !== null ? `
+                                            <span class="score-badge" style="font-size: 11px; padding: 2px 6px; min-width: auto;">
+                                                Score: ${score.toFixed(0)}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </a>
+                            `;
+                        });
+                        list.innerHTML = html;
+                    } else {
+                        list.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-meta);">No similar papers found</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading similar papers:', error);
+                    section.style.display = 'none';
+                });
+        }
+
+        // Load similar papers after a short delay to let the main content render first
+        setTimeout(loadSimilarPapers, 100);
+
+        function labelPaper(score) {
+            fetch('/api/feeds/feedback', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feed_id: paperId,
+                    feedback: score === 1 ? 'interesting' : 'not_interesting'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(score === 1 ? 'Marked as interesting' : 'Marked as not interesting', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }
+            })
+            .catch(error => {
+                showToast('Error updating label', 'error');
+            });
+        }
+
+        function removelabel() {
+            fetch('/api/feeds/remove-label', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({feed_id: paperId})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('Label removed', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }
+            })
+            .catch(error => {
+                showToast('Error removing label', 'error');
+            });
+        }
+
+        function addToBroadcast() {
+            const channelId = document.getElementById('channelSelect').value;
+            if (!channelId) {
+                showToast('Please select a channel', 'warning');
+                return;
+            }
+
+            fetch('/api/settings/broadcast-queue', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feed_id: paperId,
+                    channel_id: parseInt(channelId)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('Added to broadcast queue', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }
+            })
+            .catch(error => {
+                showToast('Error adding to queue', 'error');
+            });
+        }
+
+        function broadcastNow() {
+            const channelId = document.getElementById('channelSelect').value;
+            if (!channelId) {
+                showToast('Please select a channel', 'warning');
+                return;
+            }
+
+            if (!confirm('Broadcast this paper immediately?')) return;
+
+            fetch('/api/settings/broadcast-now', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feed_id: paperId,
+                    channel_id: parseInt(channelId)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('Paper broadcasted successfully', 'success');
+                }
+            })
+            .catch(error => {
+                showToast('Error broadcasting paper', 'error');
+            });
+        }
+
+        function searchScholarly() {
+            const query = paperTitle;
+            window.open(`/?semantic_search=${encodeURIComponent(query)}`, '_blank');
+        }
+
+        function searchGoogleScholar() {
+            const query = paperTitle;
+            window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(query)}`, '_blank');
+        }
+
+        function generateSummary() {
+            showToast('Generating AI summary...', 'info');
+
+            fetch('/api/search/summarize', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({feed_ids: [paperId]})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.summary) {
+                    // Display summary in a modal or update the page
+                    alert(data.summary);
+                }
+            })
+            .catch(error => {
+                showToast('Error generating summary', 'error');
+            });
+        }
+
+        function findSimilar() {
+            window.location.href = `/api/feeds/similar/${paperId}`;
+        }
+
+        function generatePoster() {
+            showToast('Generating infographic poster (this may take 3-5 minutes)...', 'info');
+
+            fetch('/api/user/generate-poster', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feed_ids: [paperId],
+                    title: paperTitle.substring(0, 100)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.poster_id) {
+                    // Poll for completion
+                    checkPosterStatus(data.poster_id);
+                }
+            })
+            .catch(error => {
+                showToast('Error generating poster', 'error');
+            });
+        }
+
+        function checkPosterStatus(posterId) {
+            fetch(`/api/user/poster-status/${posterId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'completed' && data.html_content) {
+                        // Open poster in new window
+                        const win = window.open('', '_blank');
+                        win.document.write(data.html_content);
+                    } else if (data.status === 'processing') {
+                        // Check again in 5 seconds
+                        setTimeout(() => checkPosterStatus(posterId), 5000);
+                    } else if (data.status === 'failed') {
+                        showToast('Poster generation failed', 'error');
+                    }
+                });
+        }
+
+        function showToast(message, type = 'info') {
+            // Simple toast notification
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : type === 'warning' ? '#f39c12' : '#3498db'};
+                color: white;
+                border-radius: 6px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Add slide-in animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+{% endblock %}

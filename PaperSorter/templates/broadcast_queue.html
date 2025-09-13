@@ -11,27 +11,8 @@
 {% endblock %}
 
 {% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/settings.css') }}">
     <style>
-        /* Override base template container for this page */
-        main {
-            background: transparent;
-            box-shadow: none;
-            padding: 0;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 10px;
-        }
-
-
-        .content-card {
-            background: var(--bg-card);
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: var(--shadow-card);
-            transition: background-color var(--transition-base);
-        }
 
         .stats-bar {
             display: flex;
@@ -73,17 +54,7 @@
             margin-left: 4px;
         }
 
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
+        /* Button styles provided by settings.css (.btn, .btn-danger); keep page-specific variants here */
 
         .btn-danger {
             background: var(--btn-danger-bg);
@@ -113,27 +84,11 @@
             transform: translateY(-1px);
         }
 
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        /* Table base styles come from settings.css; override per-queue colors */
         .data-table th,
-        .data-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--queue-table-border);
-        }
-
-        .data-table th {
-            background: var(--queue-table-header-bg);
-            font-weight: bold;
-            color: var(--text-primary);
-        }
-
-        .data-table tr:hover {
-            background: var(--queue-table-hover-bg);
-        }
+        .data-table td { border-bottom: 1px solid var(--queue-table-border); }
+        .data-table th { background: var(--queue-table-header-bg); }
+        .data-table tr:hover { background: var(--queue-table-hover-bg); }
 
         .channel-group {
             margin-bottom: 20px;
