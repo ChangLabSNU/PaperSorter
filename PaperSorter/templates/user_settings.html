@@ -23,6 +23,7 @@
 {% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/settings.css') }}">
 <style>
 
     .settings-section {
@@ -114,28 +115,6 @@
 
 
     /* Button margin adjustment */
-    /* Button styles matching admin settings pages */
-    .btn {
-        padding: 10px 20px;
-        border: none;
-        border-radius: 6px;
-        font-size: 16px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all var(--transition-base);
-        text-decoration: none;
-        display: inline-block;
-    }
-
-    .btn-primary {
-        background: var(--color-primary);
-        color: var(--text-white);
-    }
-
-    .btn-primary:hover {
-        background: var(--btn-primary-hover);
-        transform: translateY(-1px);
-    }
 
     .btn-secondary {
         background: var(--color-secondary);

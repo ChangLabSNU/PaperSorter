@@ -5,6 +5,7 @@
 {% block header %}{% endblock %}
 
 {% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/feedback.css') }}">
     <style>
         /* Override base template for centered layout */
         body {
@@ -76,28 +77,6 @@
             flex-wrap: wrap;
         }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            transition: all var(--transition-base);
-        }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: var(--text-white);
-        }
-
-        .btn-primary:hover {
-            background: var(--btn-primary-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 2px 5px var(--shadow-xl);
-        }
 
         .btn-secondary {
             background: var(--feedback-btn-secondary-bg);

@@ -239,47 +239,16 @@ button.user-info.btn-logout:hover {
     border-bottom: none;
 }
 
-.feed-header {
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    position: relative;
-}
 
 /* Score badges */
 .score-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: bold;
     color: var(--text-white);
-    min-width: 50px;
-    justify-content: center;
-    flex-shrink: 0;
-    position: relative;
 }
 
-.score-icons {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    display: flex;
-    gap: 2px;
-}
 
 .score-icon {
     background: rgba(0, 0, 0, 0.8);
     color: var(--text-white);
-    border-radius: 50%;
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
     border: 1px solid var(--text-white);
 }
 
@@ -298,11 +267,6 @@ button.user-info.btn-logout:hover {
     min-width: 49px;
 }
 
-.badges-container {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
 
 /* Vote count badges */
 .vote-badges-container {
@@ -336,67 +300,23 @@ button.user-info.btn-logout:hover {
 }
 
 /* Feed content */
-.feed-content {
-    flex: 1;
-    min-width: 0;
-}
 
 .feed-title {
-    font-size: 18px;
-    font-weight: bold;
     color: var(--text-primary);
     margin-top: 0;
-    margin-bottom: 5px;
-    line-height: 1.3;
     transition: color var(--transition-base);
 }
 
 .feed-meta {
-    display: flex;
-    gap: 15px;
-    font-size: 14px;
     color: var(--text-meta);
-    margin-bottom: 5px;
     transition: color var(--transition-base);
 }
 
-.feed-meta-item {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
 
-/* Allow author text to wrap when feed is expanded */
-.feed-item.expanded .feed-author {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    max-width: none;
-}
 
-.feed-origin {
-    font-weight: bold;
-}
 
-.feed-date {
-    flex-shrink: 0;
-}
 
-/* Feed labels */
-.feed-labels {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-left: auto;
-    flex-shrink: 0;
-}
 
-.label-badge {
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: bold;
-}
 
 .label-shared {
     background: var(--color-warning);
@@ -427,22 +347,12 @@ button.user-info.btn-logout:hover {
     transition: background-color var(--transition-base), border-color var(--transition-base);
 }
 
-.feed-details.expanded {
-    display: block;
-}
 
 .feed-abstract {
-    font-size: 15px;
-    line-height: 1.6;
     color: var(--text-secondary);
-    margin-bottom: 15px;
     transition: color var(--transition-base);
 }
 
-.feed-actions {
-    display: flex;
-    gap: 10px;
-}
 
 /* Buttons */
 
