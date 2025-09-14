@@ -844,7 +844,7 @@ button.user-info.btn-logout:hover {
 
 .summary-loading, .poster-loading {
     text-align: center;
-    padding: 40px;
+    padding: 20px;
     width: 100%;
     color: var(--text-primary);
 }
