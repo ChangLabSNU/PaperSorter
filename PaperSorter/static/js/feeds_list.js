@@ -155,8 +155,8 @@ function createFeedElement(feed) {
                         onclick="sendFeedback(${feed.rowid}, 0, this)">
                     👎<span class="btn-text">Not Interested</span>
                 </button>
-                <button class="btn btn-similar" onclick="findSimilar(${feed.rowid})">
-                    🔍<span class="btn-text">More Like This</span>
+                <button class="btn btn-details" onclick="viewDetails(${feed.rowid})">
+                    📄<span class="btn-text">Details</span>
                 </button>
             </div>
         </div>`;
@@ -597,8 +597,8 @@ function updateFeedLabels(feedItem, type, add) {
 }
 
 // Find similar articles
-async function findSimilar(feedId) {
-    window.location.href = `/similar/${feedId}`;
+async function viewDetails(feedId) {
+    window.location.href = `/paper/${feedId}`;
 }
 
 // Toast notification
@@ -880,8 +880,8 @@ function displaySearchResults(results, searchQuery) {
                             onclick="sendFeedback(${result.rowid || result.id}, 0, this)">
                         👎<span class="btn-text">Not Interested</span>
                     </button>
-                    <button class="btn btn-similar" onclick="findSimilar(${result.rowid || result.id})">
-                        🔍<span class="btn-text">More Like This</span>
+                    <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})">
+                        📄<span class="btn-text">Details</span>
                     </button>
                 </div>
             </div>

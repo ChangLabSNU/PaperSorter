@@ -421,15 +421,15 @@ button.user-info.btn-logout:hover {
     color: var(--btn-thumbs-down-color-active);
 }
 
-.btn-similar {
-    background: var(--btn-similar-bg);
-    color: var(--btn-similar-color);
-    border: 1px solid var(--btn-similar-border);
+.btn-details {
+    background: var(--btn-details-bg);
+    color: var(--btn-details-color);
+    border: 1px solid var(--btn-details-border);
 }
 
-.btn-similar:hover {
-    background: var(--btn-similar-bg-hover);
-    border-color: var(--btn-similar-border-hover);
+.btn-details:hover {
+    background: var(--btn-details-bg-hover);
+    border-color: var(--btn-details-border-hover);
 }
 
 .btn-secondary-soft {

@@ -1006,9 +1006,9 @@
             .catch(error => console.error('Error providing feedback:', error));
         }
 
-        function moreLikeThis(feedId) {
-            // Open similar articles page in a new tab
-            window.open(`/similar/${feedId}`, '_blank');
+        function viewDetails(feedId) {
+            // Open paper details page in a new tab
+            window.open(`/paper/${feedId}`, '_blank');
         }
 
         // Perform semantic search
@@ -1131,8 +1131,8 @@
                             <button class="btn btn-thumbs-down ${feed.label === 0 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 0, this)" data-label="${feed.label}" title="Not Interested">
                                 👎
                             </button>
-                            <button class="btn btn-similar" onclick="moreLikeThis(${feed.rowid})" title="More Like This">
-                                🔍
+                            <button class="btn btn-details" onclick="viewDetails(${feed.rowid})" title="Details">
+                                📄
                             </button>
                         </div>
                     </div>

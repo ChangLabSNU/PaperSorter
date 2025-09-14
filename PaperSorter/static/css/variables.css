@@ -200,11 +200,11 @@
   --btn-thumbs-down-bg-active: #ef9a9a;
   --btn-thumbs-down-color-active: #c62828;
 
-  --btn-similar-bg: #f3e5f5;
-  --btn-similar-color: #7b1fa2;
-  --btn-similar-border: #ce93d8;
-  --btn-similar-bg-hover: #e1bee7;
-  --btn-similar-border-hover: #ba68c8;
+  --btn-details-bg: #f3e5f5;
+  --btn-details-color: #7b1fa2;
+  --btn-details-border: #ce93d8;
+  --btn-details-bg-hover: #e1bee7;
+  --btn-details-border-hover: #ba68c8;
 
   --btn-pdf-bg: #ffebee;
   --btn-pdf-color: #c62828;
@@ -484,11 +484,11 @@
   --similar-btn-thumbs-down-active-bg: #ef9a9a;
   --similar-btn-thumbs-down-active-border: #ef5350;
   --similar-btn-thumbs-down-active-color: #c62828;
-  --similar-btn-similar-bg: #f3e5f5;
-  --similar-btn-similar-color: #7b1fa2;
-  --similar-btn-similar-border: #ce93d8;
-  --similar-btn-similar-hover-bg: #e1bee7;
-  --similar-btn-similar-hover-border: #ba68c8;
+  --similar-btn-details-bg: #f3e5f5;
+  --similar-btn-details-color: #7b1fa2;
+  --similar-btn-details-border: #ce93d8;
+  --similar-btn-details-hover-bg: #e1bee7;
+  --similar-btn-details-hover-border: #ba68c8;
   --similar-loading-spinner-border: #f3f3f3;
   --similar-loading-spinner-top: #3498db;
   --similar-loading-color: #7f8c8d;
@@ -535,11 +535,11 @@
   --btn-primary-bg-hover: #bbdefb;
   --btn-primary-border-hover: #64b5f6;
 
-  --btn-similar-bg: #f3e5f5;
-  --btn-similar-color: #7b1fa2;
-  --btn-similar-border: #ce93d8;
-  --btn-similar-bg-hover: #e1bee7;
-  --btn-similar-border-hover: #ba68c8;
+  --btn-details-bg: #f3e5f5;
+  --btn-details-color: #7b1fa2;
+  --btn-details-border: #ce93d8;
+  --btn-details-bg-hover: #e1bee7;
+  --btn-details-border-hover: #ba68c8;
 
   --btn-pdf-bg: #ffebee;
   --btn-pdf-color: #c62828;
@@ -664,11 +664,11 @@
   --btn-thumbs-down-bg-active: #6d4c4c;
   --btn-thumbs-down-color-active: #ffffff;
 
-  --btn-similar-bg: #3d3a5f;
-  --btn-similar-color: #9c8fb8;
-  --btn-similar-border: #5d5a7f;
-  --btn-similar-bg-hover: #4d4a6f;
-  --btn-similar-border-hover: #6d6a8f;
+  --btn-details-bg: #3d3a5f;
+  --btn-details-color: #9c8fb8;
+  --btn-details-border: #5d5a7f;
+  --btn-details-bg-hover: #4d4a6f;
+  --btn-details-border-hover: #6d6a8f;
 
   --btn-pdf-bg: #4a2828;
   --btn-pdf-color: #ff8a80;
@@ -911,11 +911,11 @@
   --similar-btn-thumbs-down-active-bg: #f44336;
   --similar-btn-thumbs-down-active-border: #d32f2f;
   --similar-btn-thumbs-down-active-color: #fff;
-  --similar-btn-similar-bg: #3a2f3f;
-  --similar-btn-similar-color: #ce93d8;
-  --similar-btn-similar-border: #9c27b0;
-  --similar-btn-similar-hover-bg: #4a3a4f;
-  --similar-btn-similar-hover-border: #ba68c8;
+  --similar-btn-details-bg: #3a2f3f;
+  --similar-btn-details-color: #ce93d8;
+  --similar-btn-details-border: #9c27b0;
+  --similar-btn-details-hover-bg: #4a3a4f;
+  --similar-btn-details-hover-border: #ba68c8;
   --similar-loading-spinner-border: #3a3a3a;
   --similar-loading-spinner-top: #60a5fa;
   --similar-loading-color: #888888;
@@ -962,11 +962,11 @@
   --btn-primary-bg-hover: #2c5282;
   --btn-primary-border-hover: #42a5f5;
 
-  --btn-similar-bg: #3a1f44;
-  --btn-similar-color: #ce93d8;
-  --btn-similar-border: #6a4572;
-  --btn-similar-bg-hover: #4a2a54;
-  --btn-similar-border-hover: #8a5592;
+  --btn-details-bg: #3a1f44;
+  --btn-details-color: #ce93d8;
+  --btn-details-border: #6a4572;
+  --btn-details-bg-hover: #4a2a54;
+  --btn-details-border-hover: #8a5592;
 
   --btn-secondary-bg: #3a3a3a;
   --btn-secondary-color: #e0e0e0;
