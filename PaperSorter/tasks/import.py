@@ -161,7 +161,8 @@ def upsert_articles_from_dataframe(db: FeedDatabase, df: pd.DataFrame) -> tuple[
                 title=row['title'] if pd.notna(row['title']) else '',
                 content=row['abstract'] if pd.notna(row['abstract']) else '',
                 author=row['authors'] if pd.notna(row['authors']) else '',
-                origin=row['journal'] if pd.notna(row['journal']) else '',
+                origin='PubMed',
+                journal=row['journal'] if pd.notna(row['journal']) else '',
                 link=row['url'] if pd.notna(row['url']) else f"https://pubmed.ncbi.nlm.nih.gov/{row['pmid']}/",
                 published=pub_date.timestamp(),
             )

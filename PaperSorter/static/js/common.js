@@ -72,46 +72,44 @@ function getSimilarityGradientColor(similarity) {
  * @returns {string} Formatted date string
  */
 function formatDate(timestamp, format, timezone) {
-    // Default values
+    // Defaults
     format = format || window.userDateFormat || 'MMM D, YYYY';
     timezone = timezone || window.userTimezone || 'UTC';
 
-    // Convert timestamp to Date object
+    // Normalize to Date
     let date;
     if (typeof timestamp === 'number' || /^\d+$/.test(timestamp)) {
-        // Unix timestamp in seconds
         date = new Date(parseInt(timestamp) * 1000);
     } else {
         date = new Date(timestamp);
     }
+    if (isNaN(date.getTime())) return 'Invalid Date';
 
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-        return 'Invalid Date';
-    }
+    // Use Intl to extract parts in the requested timezone
+    const partsShortMonth = new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'short' }).formatToParts(date);
+    const partsNumeric = new Intl.DateTimeFormat('en-US', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
 
-    // Basic format replacements (simplified version)
-    // For full functionality, would need moment.js or similar
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const fullMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const getPart = (parts, type) => {
+        const p = parts.find(x => x.type === type);
+        return p ? p.value : '';
+    };
 
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const monthStr = (month + 1).toString().padStart(2, '0');
-    const dayStr = day.toString().padStart(2, '0');
+    const year = getPart(partsNumeric, 'year');
+    const month2 = getPart(partsNumeric, 'month');
+    const day2 = getPart(partsNumeric, 'day');
+    const monthShort = getPart(partsShortMonth, 'month');
 
-    let formatted = format;
+    const month = String(parseInt(month2, 10));
+    const day = String(parseInt(day2, 10));
+
+    // Token replacement
+    let formatted = String(format);
     formatted = formatted.replace('YYYY', year);
-    formatted = formatted.replace('MMM', months[month]);
-    formatted = formatted.replace('MM', monthStr);
-    formatted = formatted.replace('M', month + 1);
-    formatted = formatted.replace('DD', dayStr);
+    formatted = formatted.replace('MMM', monthShort);
+    formatted = formatted.replace('MM', month2);
+    formatted = formatted.replace('M', month);
+    formatted = formatted.replace('DD', day2);
     formatted = formatted.replace('D', day);
-    formatted = formatted.replace('年', '年');
-    formatted = formatted.replace('月', '月');
-    formatted = formatted.replace('日', '日');
-
     return formatted;
 }
 
@@ -123,38 +121,28 @@ function formatDate(timestamp, format, timezone) {
  * @returns {string} Formatted datetime string
  */
 function formatDateTime(timestamp, dateFormat, timezone) {
-    // Default values
     dateFormat = dateFormat || window.userDateFormat || 'MMM D, YYYY';
     timezone = timezone || window.userTimezone || 'UTC';
 
-    // Convert timestamp to Date object
+    // Normalize to Date
     let date;
     if (typeof timestamp === 'number' || /^\d+$/.test(timestamp)) {
-        // Unix timestamp in seconds
         date = new Date(parseInt(timestamp) * 1000);
     } else {
         date = new Date(timestamp);
     }
+    if (isNaN(date.getTime())) return 'Invalid Date';
 
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-        return 'Invalid Date';
-    }
-
-    // Format date part
     const datePart = formatDate(timestamp, dateFormat, timezone);
 
-    // Format time part (fixed format: HH:MM:SS AM/PM)
-    let hours = date.getHours();
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; // the hour '0' should be '12'
-    const hoursStr = hours.toString();
-
-    const timePart = `${hoursStr}:${minutes}:${seconds} ${ampm}`;
-
+    // Time via Intl in target timezone
+    const timeParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    }).formatToParts(date);
+    const toMap = (arr) => Object.fromEntries(arr.map(p => [p.type, p.value]));
+    const m = toMap(timeParts);
+    const timePart = `${m.hour}:${m.minute}:${m.second} ${m.dayPeriod || ''}`.trim();
     return `${datePart} ${timePart}`;
 }
 

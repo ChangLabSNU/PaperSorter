@@ -52,11 +52,11 @@ class ScholarlyArticleItem(FeedItem):
             title=article.title,
             content=content or "",
             author=article.format_authors(),
-            origin=article.venue or "Unknown",
+            origin="",  # Source will be set by caller when adding
+            journal=article.venue or "Unknown",
             link=article.url or "",
             published=published_datetime,
         )
 
         # Store raw article for access to all fields
         self.raw_article = article
-

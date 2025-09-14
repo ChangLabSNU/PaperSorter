@@ -98,6 +98,7 @@ class FeedDatabase:
         "content",
         "author",
         "origin",
+        "journal",
         "published",
         "link",
         "mediaUrl",
@@ -195,6 +196,7 @@ class FeedDatabase:
         content=None,
         author=None,
         origin=None,
+        journal=None,
         link=None,
         published=None,
         tldr=None,
@@ -211,12 +213,12 @@ class FeedDatabase:
         # Insert into feeds table
         self.cursor.execute(
             """
-            INSERT INTO feeds (external_id, title, content, author, origin, published, link, tldr)
-            VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s)
+            INSERT INTO feeds (external_id, title, content, author, origin, journal, published, link, tldr)
+            VALUES (%s, %s, %s, %s, %s, %s, to_timestamp(%s), %s, %s)
             ON CONFLICT (external_id) DO NOTHING
             RETURNING id
         """,
-            (external_id, title, content, author, origin, published, link, tldr),
+            (external_id, title, content, author, origin, journal, published, link, tldr),
         )
 
         result = self.cursor.fetchone()
@@ -242,8 +244,10 @@ class FeedDatabase:
             if item["author"]:
                 parts.append(f"Authors: {item['author']}")
 
-            if item["origin"]:
-                parts.append(f"Journal/Source: {item['origin']}")
+            if item.get("journal"):
+                parts.append(f"Journal: {item['journal']}")
+            elif item.get("origin"):
+                parts.append(f"Journal: {item['origin']}")
 
             if item["content"]:
                 parts.append(f"Abstract: {item['content']}")
@@ -328,6 +332,16 @@ class FeedDatabase:
         else:
             self.cursor.execute(
                 "UPDATE feeds SET origin = %s WHERE id = %s", (origin, item_id)
+            )
+
+    def update_journal(self, item_id, journal):
+        if isinstance(item_id, str):
+            self.cursor.execute(
+                "UPDATE feeds SET journal = %s WHERE external_id = %s", (journal, item_id)
+            )
+        else:
+            self.cursor.execute(
+                "UPDATE feeds SET journal = %s WHERE id = %s", (journal, item_id)
             )
 
     def update_content(self, item_id, content):
@@ -491,6 +505,11 @@ class FeedDatabase:
         items = []
         for row in self.cursor.fetchall():
             item = dict(row)
+            # Keep source feed name in origin_source, display journal in origin
+            item["origin_source"] = item.get("origin")
+            # Prefer journal for display where origin was used previously
+            if item.get("journal"):
+                item["origin"] = item["journal"]
             items.append(item)
 
         # Convert to DataFrame to match the existing broadcast.py interface

@@ -97,7 +97,7 @@ def api_feeds():
             f.external_id,
             f.title,
             f.author,
-            f.origin,
+            COALESCE(f.journal, f.origin) AS origin,
             f.link,
             EXTRACT(EPOCH FROM f.published)::integer as published,
             EXTRACT(EPOCH FROM f.added)::integer as added,
@@ -477,7 +477,7 @@ def api_similar_feeds(feed_id):
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             """
-            SELECT title, author, origin
+            SELECT title, author, COALESCE(journal, origin) AS origin
             FROM feeds
             WHERE id = %s
         """,

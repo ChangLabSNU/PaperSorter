@@ -59,7 +59,8 @@ class SemanticScholarItem(FeedItem):
             title=paper_info["title"],
             content=content,
             author=", ".join([a["name"] for a in paper_info["authors"]]),
-            origin=self.determine_journal(paper_info),
+            origin="Semantic Scholar",
+            journal=self.determine_journal(paper_info),
             link=paper_info["url"],
             published=published_datetime,
         )

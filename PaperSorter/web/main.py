@@ -314,6 +314,7 @@ def paper_detail(paper_id):
                 f.content,
                 f.author,
                 f.origin,
+                f.journal,
                 f.link,
                 f.published,
                 f.added,

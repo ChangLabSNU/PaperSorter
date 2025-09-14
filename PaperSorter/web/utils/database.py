@@ -90,7 +90,7 @@ def get_unlabeled_item(conn, user=None):
     if user_id:
         cursor.execute(
             """
-            SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
+            SELECT ls.id, ls.feed_id, f.title, f.author, COALESCE(f.journal, f.origin) AS origin, f.content, ls.score, f.link,
                    pp.score as predicted_score, f.published
             FROM labeling_sessions ls
             JOIN feeds f ON ls.feed_id = f.id
@@ -104,7 +104,7 @@ def get_unlabeled_item(conn, user=None):
     else:
         cursor.execute(
             """
-            SELECT ls.id, ls.feed_id, f.title, f.author, f.origin, f.content, ls.score, f.link,
+            SELECT ls.id, ls.feed_id, f.title, f.author, COALESCE(f.journal, f.origin) AS origin, f.content, ls.score, f.link,
                    pp.score as predicted_score, f.published
             FROM labeling_sessions ls
             JOIN feeds f ON ls.feed_id = f.id

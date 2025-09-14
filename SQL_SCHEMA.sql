@@ -209,6 +209,7 @@ CREATE TABLE papersorter.feeds (
     content text,
     author text,
     origin text,
+    journal text,
     link text,
     mediaurl text,
     tldr text,
@@ -679,7 +680,6 @@ ALTER TABLE ONLY papersorter.saved_searches
 
 ALTER TABLE ONLY papersorter.users
     ADD CONSTRAINT users_primary_channel_fk FOREIGN KEY (primary_channel_id) REFERENCES papersorter.channels(id) ON DELETE SET NULL;
-
 
 
 

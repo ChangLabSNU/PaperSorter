@@ -341,7 +341,7 @@ def api_summarize():
         # Get articles with content/tldr
         placeholders = ",".join(["%s"] * len(feed_ids))
         query = f"""
-            SELECT id, title, author, origin, published, content, tldr
+            SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr
             FROM feeds
             WHERE id IN ({placeholders})
         """
@@ -690,23 +690,21 @@ def api_scholarly_database_add():
         if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
-        # Create FeedItem from ScholarlyArticle
-        item = ScholarlyArticleItem(article)
-
         # Create database connection
         db = FeedDatabase(config_path)
 
         # Check if item already exists
-        if item not in db:
+        if article.unique_id not in db:
             # Add the item without starring
             feed_id = db.insert_feed_item(
-                external_id=item.external_id,
-                title=item.title,
-                content=item.content,
-                author=item.author,
-                origin=item.origin,
-                link=item.link,
-                published=item.published.timestamp() if hasattr(item.published, 'timestamp') else item.published,
+                external_id=article.unique_id,
+                title=article.title,
+                content=article.abstract or (f"(tl;dr) {article.tldr}" if article.tldr else None),
+                author=article.format_authors(),
+                origin=provider.name,
+                journal=article.venue or "Unknown",
+                link=article.url,
+                published=(article.publication_date.timestamp() if isinstance(article.publication_date, datetime) else None),
                 tldr=None
             )
             db.commit()

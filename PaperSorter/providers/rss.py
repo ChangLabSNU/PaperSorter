@@ -255,6 +255,7 @@ class RSSProvider(FeedProvider):
                 content=entry.get("summary", entry.get("description", "")),
                 author=entry.get("author", ""),
                 origin=source["name"],
+                journal=source["name"],
                 link=entry.get("link", ""),
                 published=published,
             )
@@ -503,4 +504,3 @@ class RSSProvider(FeedProvider):
 
         # Default to current time only if no date found
         return datetime.now(timezone.utc)
-

@@ -134,6 +134,7 @@ def retrieve_items_into_db(db, items_iterator, date_cutoff):
                 content=item.content,
                 author=item.author,
                 origin=item.origin,
+                journal=item.journal or item.origin,
                 link=item.link,
                 published=item.published.timestamp(),
             )
@@ -289,7 +290,8 @@ def update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=60):
             and article.venue.strip()
             and article.venue not in VENUE_UPDATE_BLACKLIST
         ):
-            feeddb.update_origin(feed_id, article.venue)
+            # Update only journal on scholarly updates
+            feeddb.update_journal(feed_id, article.venue)
 
         feeddb.commit()
 

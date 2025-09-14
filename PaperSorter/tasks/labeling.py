@@ -336,7 +336,7 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids, max_age=0):
                 f.external_id,
                 f.title,
                 f.author,
-                f.origin,
+                COALESCE(f.journal, f.origin) AS origin,
                 f.published,
                 f.added,
                 pp.score as prediction_score
@@ -358,7 +358,7 @@ def get_feeds_for_model_mode(cursor, base_model, user_ids, max_age=0):
                 f.external_id,
                 f.title,
                 f.author,
-                f.origin,
+                COALESCE(f.journal, f.origin) AS origin,
                 f.published,
                 f.added,
                 pp.score as prediction_score
@@ -549,7 +549,7 @@ def build_distance_calculation_query(user_ids, min_feed_id_filter, age_filter):
                 f.external_id,
                 f.title,
                 f.author,
-                f.origin,
+                COALESCE(f.journal, f.origin) AS origin,
                 f.published,
                 f.added,
                 MIN(e.embedding <=> i.embedding) as min_distance
@@ -562,14 +562,14 @@ def build_distance_calculation_query(user_ids, min_feed_id_filter, age_filter):
             )
             {min_feed_id_filter}
             {age_filter}
-            GROUP BY f.id, f.external_id, f.title, f.author, f.origin, f.published, f.added
+            GROUP BY f.id, f.external_id, f.title, f.author, COALESCE(f.journal, f.origin), f.published, f.added
         )
         SELECT
             id as feed_id,
             external_id,
             title,
             author,
-            origin,
+            COALESCE(f.journal, f.origin) AS origin,
             published,
             added,
             min_distance

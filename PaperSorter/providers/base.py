@@ -38,6 +38,7 @@ class FeedItem:
     content: Optional[str] = None
     author: Optional[str] = None
     origin: str = ""
+    journal: Optional[str] = None
     link: Optional[str] = None
     published: datetime = None
 
@@ -108,4 +109,3 @@ class FeedProvider(ABC):
             True if valid, False otherwise
         """
         return True
-

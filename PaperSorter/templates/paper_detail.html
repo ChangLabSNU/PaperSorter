@@ -415,16 +415,22 @@
             <!-- Meta Information -->
             <div class="paper-meta">
                 <div class="meta-row">
-                    {% if paper.origin %}
+                    {% if paper.journal or paper.origin %}
                     <div class="meta-item">
                         <span class="meta-label">Journal:</span>
-                        <span>{{ paper.origin }}</span>
+                        <span>{{ paper.journal or paper.origin }}</span>
                     </div>
                     {% endif %}
                     {% if paper.published %}
                     <div class="meta-item">
                         <span class="meta-label">Published:</span>
                         <span class="item-date" data-timestamp="{{ paper.published.timestamp() }}"></span>
+                    </div>
+                    {% endif %}
+                    {% if paper.origin %}
+                    <div class="meta-item">
+                        <span class="meta-label">Source:</span>
+                        <span>{{ paper.origin }}</span>
                     </div>
                     {% endif %}
                 </div>

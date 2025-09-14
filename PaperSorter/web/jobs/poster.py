@@ -60,7 +60,7 @@ def process_poster_job(app, job_id, feed_ids, config_path):
             # Get articles with content/tldr
             placeholders = ",".join(["%s"] * len(feed_ids))
             query = f"""
-                SELECT id, title, author, origin, published, content, tldr, link
+                SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr, link
                 FROM feeds
                 WHERE id IN ({placeholders})
             """

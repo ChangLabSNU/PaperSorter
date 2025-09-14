@@ -82,9 +82,9 @@ registry.register(BroadcastCommand)
 
 def normalize_item_for_display(item, max_content_length):
     # XXX: Fix the source field for the aggregated items.
-    if item["origin"] == "QBio Feed Aggregation" and "  " in item["content"]:
+    if item.get("origin_source") == "QBio Feed Aggregation" and "  " in item["content"]:
         source, content = item["content"].split("  ", 1)
-        item["origin"] = source
+        item["origin"] = source  # Override journal display with parsed source
         item["content"] = normalize_text(content)
 
     # Replace the abstract content with the TLDR if it's available.

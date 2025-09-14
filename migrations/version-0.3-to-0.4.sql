@@ -158,6 +158,19 @@ UPDATE papersorter.models
 SET score_name = 'Score'
 WHERE score_name IS NULL;
 
+-- =====================================================================
+-- 8. Add journal column to feeds and backfill
+-- =====================================================================
+
+-- Add journal column if not exists
+ALTER TABLE papersorter.feeds
+ADD COLUMN IF NOT EXISTS journal TEXT;
+
+-- Backfill journal from origin where journal is NULL
+UPDATE papersorter.feeds
+SET journal = origin
+WHERE journal IS NULL;
+
 -- Make the column NOT NULL after setting defaults
 ALTER TABLE papersorter.models
 ALTER COLUMN score_name SET NOT NULL;

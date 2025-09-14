@@ -78,7 +78,7 @@
 
 #similar-section hr {
   border: none;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-medium);
   margin: 20px 0 16px;
 }
 
