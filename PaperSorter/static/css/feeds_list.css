@@ -93,23 +93,6 @@ body {
     color: var(--text-primary);
 }
 
-/* Navigation links */
-.nav-link {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-weight: bold;
-    padding: 10px 20px;
-    border: 2px solid var(--color-primary);
-    border-radius: 6px;
-    transition: all 0.2s ease;
-}
-
-.nav-link:hover {
-    background: var(--color-primary);
-    color: var(--text-white);
-}
-
-
 /* User info */
 .user-info {
     display: flex;

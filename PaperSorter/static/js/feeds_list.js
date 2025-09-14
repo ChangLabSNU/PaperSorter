@@ -140,7 +140,7 @@ function createFeedElement(feed) {
             <div class="feed-abstract">Click to load abstract...</div>
             <div class="feed-actions">
                 <a href="${feed.link}" target="_blank" class="btn btn-open-article">
-                    🔗<span class="btn-text">Open Article</span>
+                    📄<span class="btn-text">Open Article</span>
                 </a>
                 <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}"
                         onclick="toggleShare(${feed.rowid}, this, ${isBroadcasted})"
@@ -865,7 +865,7 @@ function displaySearchResults(results, searchQuery) {
                 <div class="feed-abstract">Click to load abstract...</div>
                 <div class="feed-actions">
                     <a href="${result.link}" target="_blank" class="btn btn-open-article">
-                        🔗<span class="btn-text">Open Article</span>
+                        📄<span class="btn-text">Open Article</span>
                     </a>
                     <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}"
                             onclick="toggleShare(${result.rowid || result.id}, this, ${result.broadcasted})"
@@ -962,7 +962,7 @@ function displayAcademicResults(results) {
                         ➕ Add to Database
                      </button>`
         }
-                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-open-article">🔗<span class="btn-text">Open Article</span></a>` : ''}
+                    ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn-open-article">📄<span class="btn-text">Open Article</span></a>` : ''}
                 </div>
             </div>
         `;
