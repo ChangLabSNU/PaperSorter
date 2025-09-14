@@ -109,7 +109,7 @@ function createFeedElement(feed) {
 
     headerHTML += `
             <div class="feed-content">
-                <h3 class="feed-title"><a href="/paper/${feed.rowid}" style="color: inherit; text-decoration: none;">${feed.title}</a></h3>
+                <h3 class="feed-title">${feed.title}</h3>
                 <div class="feed-meta">
                     <span class="feed-meta-item feed-origin">${feed.origin}</span>
                     ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</span>` : ''}
@@ -142,6 +142,9 @@ function createFeedElement(feed) {
                 <a href="${feed.link}" target="_blank" class="btn btn-open-article">
                     📄<span class="btn-text">Open Article</span>
                 </a>
+                <button class="btn btn-details" onclick="viewDetails(${feed.rowid})">
+                    📄<span class="btn-text">Details</span>
+                </button>
                 <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}"
                         onclick="toggleShare(${feed.rowid}, this, ${isBroadcasted})"
                         ${isBroadcasted ? 'disabled title="Already broadcasted"' : ''}>
@@ -154,9 +157,6 @@ function createFeedElement(feed) {
                 <button class="btn btn-thumbs-down ${hasNegativeFeedback ? 'active' : ''}"
                         onclick="sendFeedback(${feed.rowid}, 0, this)">
                     👎<span class="btn-text">Not Interested</span>
-                </button>
-                <button class="btn btn-details" onclick="viewDetails(${feed.rowid})">
-                    📄<span class="btn-text">Details</span>
                 </button>
             </div>
         </div>`;
@@ -841,7 +841,7 @@ function displaySearchResults(results, searchQuery) {
                     </span>
                 </div>
                 <div class="feed-content">
-                    <h3 class="feed-title"><a href="/paper/${result.rowid}" style="color: inherit; text-decoration: none;">${result.title}</a></h3>
+                    <h3 class="feed-title">${result.title}</h3>
                     <div class="feed-meta">
                         <span class="feed-meta-item feed-origin">${result.origin}</span>
                         ${result.author ? `<span class="feed-meta-item feed-author" title="${result.author}">${formatAuthors(result.author)}</span>` : ''}
@@ -867,6 +867,9 @@ function displaySearchResults(results, searchQuery) {
                     <a href="${result.link}" target="_blank" class="btn btn-open-article">
                         📄<span class="btn-text">Open Article</span>
                     </a>
+                    <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})">
+                        📄<span class="btn-text">Details</span>
+                    </button>
                     <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}"
                             onclick="toggleShare(${result.rowid || result.id}, this, ${result.broadcasted})"
                             ${result.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
@@ -879,9 +882,6 @@ function displaySearchResults(results, searchQuery) {
                     <button class="btn btn-thumbs-down ${result.label === 0 ? 'active' : ''}"
                             onclick="sendFeedback(${result.rowid || result.id}, 0, this)">
                         👎<span class="btn-text">Not Interested</span>
-                    </button>
-                    <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})">
-                        📄<span class="btn-text">Details</span>
                     </button>
                 </div>
             </div>

@@ -1118,6 +1118,9 @@
                         <div class="feed-abstract">Loading content...</div>
                         <div class="feed-actions">
                             ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article" title="Open Paper">📄</a>` : ''}
+                            <button class="btn btn-details" onclick="viewDetails(${feed.rowid})" title="Details">
+                                📄
+                            </button>
                             <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
                                     onclick="shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
                                     data-shared="${feed.shared ? 'true' : 'false'}"
@@ -1130,9 +1133,6 @@
                             </button>
                             <button class="btn btn-thumbs-down ${feed.label === 0 ? 'active' : ''}" onclick="feedbackFeed(${feed.rowid}, 0, this)" data-label="${feed.label}" title="Not Interested">
                                 👎
-                            </button>
-                            <button class="btn btn-details" onclick="viewDetails(${feed.rowid})" title="Details">
-                                📄
                             </button>
                         </div>
                     </div>
