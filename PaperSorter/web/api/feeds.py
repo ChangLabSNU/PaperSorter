@@ -28,6 +28,7 @@ import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
+from ..auth.decorators import admin_required
 from ...log import log
 from ..utils.database import get_user_model_id
 
@@ -494,6 +495,32 @@ def api_similar_feeds(feed_id):
     except Exception as e:
         log.error(f"Error finding similar articles: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@feeds_bp.route("/api/feeds/<int:feed_id>/delete", methods=["POST"])
+@admin_required
+def api_delete_feed(feed_id):
+    """Delete a paper (admin only)."""
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor()
+    try:
+        # Log the deletion event
+        cursor.execute(
+            "INSERT INTO events (event_type, user_id, feed_id, content) VALUES (%s, %s, %s, %s)",
+            ("web:delete", current_user.id, feed_id, "Deleted from paper details page"),
+        )
+
+        # Delete the feed; cascades will clean dependent rows
+        cursor.execute("DELETE FROM feeds WHERE id = %s", (feed_id,))
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @feeds_bp.route("/feedback/<int:feed_id>/interested")

@@ -525,6 +525,18 @@
                         </button>
                     </div>
                 </div>
+
+                {% if current_user.is_admin %}
+                <!-- Admin Row -->
+                <div class="action-row">
+                    <div class="action-label">Admin</div>
+                    <div class="action-buttons">
+                        <button class="btn" style="background:#fdecea;color:#c0392b;border:1px solid #f5b7b1;" onclick="deletePaper()">
+                            🗑️ Delete Paper
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -691,6 +703,23 @@
             .catch(error => {
                 showToast('Error broadcasting paper', 'error');
             });
+        }
+
+        function deletePaper() {
+            if (!confirm('Delete this paper? This cannot be undone.')) return;
+            fetch(`/api/feeds/${paperId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(r => r.json())
+             .then(data => {
+                if (data && data.success) {
+                    showToast('Paper deleted', 'success');
+                    setTimeout(() => { window.location.href = '/'; }, 800);
+                } else {
+                    showToast(data && data.error ? data.error : 'Delete failed', 'error');
+                }
+             })
+             .catch(() => showToast('Delete failed', 'error'));
         }
 
         function searchSemanticScholar() {
