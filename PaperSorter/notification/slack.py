@@ -144,50 +144,20 @@ class SlackProvider(NotificationProvider):
                 }
             )
 
-        # More Like This button
+        # Details button
         if base_url and "id" in item:
-            similar_url = f"{base_url.rstrip('/')}/similar/{item['id']}"
+            details_url = f"{base_url.rstrip('/')}/paper/{item['id']}"
             button_elements.append(
                 {
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "More Like This",
+                        "text": "More",
                         "emoji": True,
                     },
-                    "value": f"similar_{item['id']}",
-                    "url": similar_url,
-                    "action_id": "similar-action",
-                }
-            )
-
-            # Interested button
-            interested_url = f"{base_url.rstrip('/')}/feedback/{item['id']}/interested"
-            button_elements.append(
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Interested", "emoji": True},
-                    "value": f"interested_{item['id']}",
-                    "url": interested_url,
-                    "action_id": "interested-action",
-                }
-            )
-
-            # Not Interested button
-            not_interested_url = (
-                f"{base_url.rstrip('/')}/feedback/{item['id']}/not-interested"
-            )
-            button_elements.append(
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "Not Interested",
-                        "emoji": True,
-                    },
-                    "value": f"not_interested_{item['id']}",
-                    "url": not_interested_url,
-                    "action_id": "not-interested-action",
+                    "value": f"details_{item['id']}",
+                    "url": details_url,
+                    "action_id": "details-action",
                 }
             )
 

@@ -124,6 +124,10 @@
             background: var(--event-action-similar);
         }
 
+        .action-details {
+            background: var(--event-action-details, #6c757d);
+        }
+
         /* Action colors for Web events */
         .action-text-search {
             background: var(--event-action-text-search);
@@ -297,7 +301,7 @@
 
         function renderEvent(event) {
             const feedLink = event.feed_id ?
-                `<a href="/similar/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown paper'}</a>` :
+                `<a href="/paper/${event.feed_id}" target="_blank">${event.feed_title || 'Unknown paper'}</a>` :
                 'No paper associated';
 
             // Determine what to display based on event type
@@ -322,8 +326,12 @@
                 }
                 primaryInfo = `${username} AI-assisted searched: <span class="search-query">"${query}"</span>`;
                 secondaryInfo = feedLink;
+            } else if (event.event_type === 'slack:details') {
+                // For Slack details button clicks
+                primaryInfo = `${event.content || event.external_id || 'Unknown user'} viewed paper details`;
+                secondaryInfo = feedLink;
             } else if (event.event_type.startsWith('slack:')) {
-                // For Slack events, show the user name and action
+                // For other Slack events, show the user name and action
                 primaryInfo = event.content || event.external_id || 'Unknown user';
                 secondaryInfo = feedLink;
             } else if (event.event_type === 'web:ai-summary-text' || event.event_type === 'web:ai-poster-infographic') {
@@ -344,7 +352,7 @@
                 }
                 primaryInfo = `${username} generated ${actionType} for ${articleCount} article${articleCount > 1 ? 's' : ''}`;
                 secondaryInfo = feedLink;
-            } else if (event.event_type === 'web:interested' || event.event_type === 'web:not-interested' || 
+            } else if (event.event_type === 'web:interested' || event.event_type === 'web:not-interested' ||
                        event.event_type === 'web:feedback-removed') {
                 // For feedback events, show the user and action
                 const username = event.username || 'Unknown user';

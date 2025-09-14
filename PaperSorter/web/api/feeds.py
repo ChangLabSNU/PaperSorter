@@ -254,25 +254,25 @@ def api_feedback():
     data = request.get_json()
     feed_id = data.get("feed_id")
     feedback = data.get("feedback")
-    
+
     if not feed_id or not feedback:
         return jsonify({"status": "error", "message": "Missing parameters"}), 400
-    
+
     user_id = current_user.id
     score = 1 if feedback == "interesting" else 0
-    
+
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
-    
+
     try:
         # Check if preference exists
         cursor.execute("""
             SELECT id FROM preferences
             WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
         """, (feed_id, user_id))
-        
+
         existing = cursor.fetchone()
-        
+
         if existing:
             cursor.execute("""
                 UPDATE preferences
@@ -284,10 +284,10 @@ def api_feedback():
                 INSERT INTO preferences (feed_id, user_id, time, score, source)
                 VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
             """, (feed_id, user_id, float(score)))
-        
+
         conn.commit()
         return jsonify({"status": "success"})
-        
+
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -302,24 +302,24 @@ def api_remove_label():
     """API endpoint to remove a label from a paper."""
     data = request.get_json()
     feed_id = data.get("feed_id")
-    
+
     if not feed_id:
         return jsonify({"status": "error", "message": "Missing feed_id"}), 400
-    
+
     user_id = current_user.id
-    
+
     conn = current_app.config["get_db_connection"]()
     cursor = conn.cursor()
-    
+
     try:
         cursor.execute("""
             DELETE FROM preferences
             WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
         """, (feed_id, user_id))
-        
+
         conn.commit()
         return jsonify({"status": "success"})
-        
+
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -608,7 +608,7 @@ def slack_interactivity():
     if "user" in payload and "actions" in payload:
         external_id = payload["user"]["id"]
         content = payload["user"]["name"]
-        # Split from the right to handle actions like "not_interested_12345"
+        # Split from the right to handle actions like "not_interested_12345" or "details_12345"
         value_parts = payload["actions"][0]["value"].rsplit("_", 1)
         if len(value_parts) == 2:
             action, related_feed_id = value_parts

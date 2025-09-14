@@ -156,17 +156,9 @@ class DiscordProvider(NotificationProvider):
             if item.get("link"):
                 links.append(f"[📖 Read Article]({item['link']})")
 
-            # More Like This link
-            similar_url = f"{base_url.rstrip('/')}/similar/{item['id']}"
-            links.append(f"[🔍 More Like This]({similar_url})")
-
-            # Feedback links
-            interested_url = f"{base_url.rstrip('/')}/feedback/{item['id']}/interested"
-            not_interested_url = (
-                f"{base_url.rstrip('/')}/feedback/{item['id']}/not-interested"
-            )
-            links.append(f"[👍 Interested]({interested_url})")
-            links.append(f"[👎 Not Interested]({not_interested_url})")
+            # Details view link
+            details_url = f"{base_url.rstrip('/')}/paper/{item['id']}"
+            links.append(f"[🔍 Details]({details_url})")
 
             if links:
                 # Split links into multiple lines for better readability
