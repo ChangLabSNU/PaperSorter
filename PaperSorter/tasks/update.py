@@ -485,22 +485,21 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
     """
     log.info("Scoring new papers...")
 
-    # Get channel configurations
+    # Get channel configurations (may be empty)
     all_channels = channels.get_all_channels()
-    if not all_channels:
-        log.warning("No channels configured")
-        return
 
-    # Identify unique models needed
-    unique_model_ids = _collect_unique_models(all_channels)
-    if not unique_model_ids:
-        log.error("No channels have valid models assigned. Cannot score feeds.")
+    # Identify all active models (independent of channels)
+    feeddb.cursor.execute("SELECT id FROM models WHERE is_active = TRUE ORDER BY id")
+    active_model_ids = [row["id"] for row in feeddb.cursor.fetchall()]
+    if not active_model_ids:
+        log.error("No active models found. Cannot score feeds.
+")
         return
 
     # Score items for each unique model
     total_scored = 0
     newly_scored_by_model: Dict[int, Optional[Set[int]]] = {}
-    for model_id in unique_model_ids:
+    for model_id in active_model_ids:
         model = _load_model(model_id, model_dir)
         if model:
             newly_scored_ids = _score_items_for_model(
@@ -515,7 +514,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
 
     # Queue high-scoring items for each channel
     total_queued = 0
-    for channel in all_channels:
+    for channel in all_channels or []:
         model_id = channel.get("model_id")
         candidate_ids = newly_scored_by_model.get(model_id)
         if candidate_ids is None:
