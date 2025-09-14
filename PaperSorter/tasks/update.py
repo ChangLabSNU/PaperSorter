@@ -492,8 +492,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
     feeddb.cursor.execute("SELECT id FROM models WHERE is_active = TRUE ORDER BY id")
     active_model_ids = [row["id"] for row in feeddb.cursor.fetchall()]
     if not active_model_ids:
-        log.error("No active models found. Cannot score feeds.
-")
+        log.error("No active models found. Cannot score feeds.")
         return
 
     # Score items for each unique model

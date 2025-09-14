@@ -738,36 +738,22 @@
         }
 
 
-        function showToast(message, type = 'info') {
-            // Simple toast notification
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.textContent = message;
-            toast.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                padding: 12px 20px;
-                background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : type === 'warning' ? '#f39c12' : '#3498db'};
-                color: white;
-                border-radius: 6px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                z-index: 10000;
-                animation: slideIn 0.3s ease;
-            `;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
+        function showToast(message, type = 'success') {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) existingToast.remove();
 
-        // Add slide-in animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-        `;
-        document.head.appendChild(style);
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Trigger CSS transition
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
     </script>
 
     <script src="{{ url_for('static', filename='js/similar_section.js') }}"></script>
