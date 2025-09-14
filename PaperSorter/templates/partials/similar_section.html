@@ -1,0 +1,41 @@
+<div id="similar-section">
+<hr/>
+
+<a id="similar"></a>
+<h2 class="paper-title" style="font-size: 22px; margin-bottom: 12px;">Similar Articles</h2>
+
+<!-- AI Summary Section -->
+<div class="summary-section" id="similarSummarySection" style="display: none; margin-bottom: 20px;">
+  <div class="summary-header">
+    <h3>AI Summary</h3>
+  </div>
+  <div class="summary-content" id="similarSummaryContent">
+    <div class="summary-initial" id="similarSummaryInitial">
+      <button class="btn btn-primary-soft btn-generate" id="similarGenerateSummaryBtn">Generate Summary</button>
+      <button class="btn btn-primary-soft btn-generate" id="similarGeneratePosterBtn">Generate Infographic</button>
+    </div>
+    <div class="summary-loading" id="similarSummaryLoading" style="display: none;">
+      <div class="spinner"></div>
+      <p>Generating summary...</p>
+    </div>
+    <div class="poster-loading" id="similarPosterLoading" style="display: none;">
+      <div class="spinner"></div>
+      <p>Generating infographic poster...</p>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-top: 10px;">This may take 3-5 minutes. Please wait...</p>
+    </div>
+    <div class="summary-text" id="similarSummaryText" style="display: none;"></div>
+    <div class="poster-content" id="similarPosterContent" style="display: none;"></div>
+  </div>
+</div>
+
+<!-- Similar Feeds -->
+<div class="feeds-container">
+  <div class="similarity-header">30 Most Similar Articles (ordered by semantic similarity)</div>
+  <div id="similarFeedsList"></div>
+  <div id="similarLoading" class="loading">
+    <div class="loading-spinner"></div>
+    Loading similar articles...
+  </div>
+</div>
+
+</div>

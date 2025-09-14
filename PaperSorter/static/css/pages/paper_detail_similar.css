@@ -1,0 +1,94 @@
+/* Similar section styles embedded in paper details */
+
+.summary-section {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-subtle);
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0; /* align content to top */
+}
+
+.summary-header h3 {
+  margin: 0;
+  color: var(--similar-summary-header-color);
+  font-size: 20px;
+}
+
+.summary-text { font-size: 15px; line-height: 1.8; color: var(--similar-summary-text-color); }
+.summary-text strong { color: var(--similar-summary-strong-color); }
+/* Align list indentation with similar_articles.html */
+.summary-text ul,
+.summary-text ol {
+  margin: 10px 0;
+  padding-left: 25px;
+}
+
+.summary-text ul ul,
+.summary-text ol ol,
+.summary-text ul ol,
+.summary-text ol ul {
+  margin-top: 5px;
+  padding-left: 25px; /* incremental per level */
+}
+
+.summary-disclaimer {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background-color: var(--similar-disclaimer-bg);
+  border-left: 3px solid var(--similar-disclaimer-border);
+  border-radius: 4px;
+}
+
+.poster-content { width: 100%; margin-top: 16px; }
+.poster-iframe {
+  width: 100%;
+  height: 800px;
+  border: 1px solid var(--similar-disclaimer-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-subtle);
+}
+
+.poster-actions { display: flex; gap: 10px; margin-bottom: 12px; justify-content: flex-end; }
+
+.btn-print { display: inline-flex; align-items: center; gap: 8px; }
+
+#similarFeedsList,
+.similarFeedsList {
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.similarity-header {
+  background: var(--bg-table-header);
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-light);
+  font-weight: bold;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+#similar-section hr {
+  border: none;
+  border-top: 1px solid var(--border-light);
+  margin: 20px 0 16px;
+}
+
+#similar-section .summary-loading .spinner,
+#similar-section .poster-loading .spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 20px;
+  border: 4px solid var(--similar-loading-spinner-border);
+  border-top: 4px solid var(--similar-btn-generate-bg);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}

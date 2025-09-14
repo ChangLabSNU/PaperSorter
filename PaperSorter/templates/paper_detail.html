@@ -9,7 +9,9 @@
 {% endblock %}
 
 {% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/feed_struct.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/feeds_list.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/paper_detail_similar.css') }}">
 
     <style>
         .paper-detail-container {
@@ -68,7 +70,7 @@
             flex-wrap: wrap;
         }
 
-        .score-badge {
+        .score-badges .score-badge {
             display: inline-flex;
             align-items: center;
             padding: 6px 14px;
@@ -135,8 +137,8 @@
             flex-wrap: wrap;
         }
 
-        .btn {
-            padding: 10px 16px;
+        .paper-details-section .btn {
+            padding: 7px 12px;
             border-radius: 6px;
             font-size: 14px;
             font-weight: bold;
@@ -520,16 +522,7 @@
             </div>
         </div>
 
-        <!-- Similar Papers Section -->
-        <div class="similar-papers-section" id="similarPapersSection" style="display: none;">
-            <h2 class="similar-papers-title">Similar Papers</h2>
-            <div class="similar-papers-list" id="similarPapersList">
-                <div style="text-align: center; padding: 20px;">
-                    <div class="spinner"></div>
-                    <p style="margin-top: 10px; color: var(--text-meta);">Loading similar papers...</p>
-                </div>
-            </div>
-        </div>
+        {% include 'partials/similar_section.html' %}
     </div>
 {% endblock %}
 
@@ -740,5 +733,14 @@
             }
         `;
         document.head.appendChild(style);
+    </script>
+
+    <script src="{{ url_for('static', filename='js/similar_section.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof SimilarSection !== 'undefined') {
+                SimilarSection.init({ sourceFeedId: {{ paper.id }} });
+            }
+        });
     </script>
 {% endblock %}

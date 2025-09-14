@@ -77,7 +77,7 @@ function createFeedElement(feed) {
     let headerHTML = `
         <div class="feed-header">
             <div class="badges-container">
-                <span class="score-badge preference-score" style="background: ${getGradientColor(feed.score)}">
+                <span class="score-badge preference-score" style="background: ${getGradientColor(feed.score)}" title="Predicted preference">
                     ${(feed.score * 100).toFixed(0)}`;
 
     // Add icons container if needed
@@ -830,7 +830,7 @@ function displaySearchResults(results, searchQuery) {
                             ${Math.round(result.similarity * 100)}
                         </span>
                     ` : ''}
-                    <span class="score-badge preference-score" style="background: ${getGradientColor(result.score)}">
+                    <span class="score-badge preference-score" style="background: ${getGradientColor(result.score)}" title="Predicted preference">
                         ${(result.score * 100).toFixed(0)}
                         ${(result.shared || result.broadcasted) ? `
                             <div class="score-icons">

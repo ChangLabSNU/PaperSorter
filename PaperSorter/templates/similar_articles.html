@@ -176,7 +176,6 @@
 
 
         /* Badge styles: use shared score/similarity badge geometry from feed_struct.css */
-        /* Keep label-badge if used elsewhere */
         .label-badge {
             padding: 2px 8px;
             border-radius: 10px;
@@ -225,7 +224,6 @@
 
 
 
-        /* old label styles removed; using vote-badge styles from feeds_list.css */
 
         .feed-details {
             display: none;
@@ -488,7 +486,6 @@
 
             /* Mobile button tweaks are provided by feeds_list.css */
 
-            /* Use shared button styles from feeds_list.css */
         }
     </style>
 {% endblock %}
@@ -589,7 +586,7 @@
                 <div class="feed-item" data-feed-rowid="${feed.rowid}" data-positive-votes="${posCount}" data-negative-votes="${negCount}">
                     <div class="feed-header">
                         <div class="badges-container">
-                            <span class="score-badge preference-score" style="background: ${scoreColor}">
+                            <span class="score-badge preference-score" style="background: ${scoreColor}" title="Predicted preference">
                                 ${scoreText}
                                 ${iconsHtml}
                             </span>

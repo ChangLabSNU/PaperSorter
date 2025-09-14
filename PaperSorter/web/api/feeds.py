@@ -417,8 +417,9 @@ def api_feedback_feed(feed_id):
 @feeds_bp.route("/similar/<int:feed_id>")
 @login_required
 def similar_articles(feed_id):
-    """Show articles similar to the given paper."""
-    return render_template("similar_articles.html", source_feed_id=feed_id)
+    """Back-compat: redirect to paper details with similar section anchor."""
+    from flask import redirect, url_for
+    return redirect(url_for("main.paper_detail", paper_id=feed_id) + "#similar")
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/similar")
