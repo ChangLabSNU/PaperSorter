@@ -41,7 +41,7 @@ Summary:
 
 Full Paper: {{ paper.link }}
 {%- if base_url and paper.id %}
-Similar Papers: {{ base_url }}/similar/{{ paper.id }}
+Paper Details: {{ base_url }}/paper/{{ paper.id }}
 {%- endif %}
 
 {% if not loop.last %}
