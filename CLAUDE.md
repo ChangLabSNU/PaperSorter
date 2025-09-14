@@ -302,6 +302,7 @@ The PostgreSQL database includes tables for:
 - Shareable search URLs with query parameters (`?q=search+terms`)
 - Real-time feed content loading and interactive labeling
 - AI-powered summarization and infographic generation for article collections
+- PDF search functionality (`/pdf-search`) is branded as "Paper Connect" in the UI
 
 ## Recent Updates
 
