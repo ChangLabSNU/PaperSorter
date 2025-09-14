@@ -748,7 +748,7 @@ async function searchSemanticScholar(event) {
     if (!query || isSearching) return;
 
     isSearching = true;
-    const searchBtn = event ? event.target : document.querySelector('#semanticSearchContainer .btn-primary');
+    const searchBtn = event ? event.target : document.querySelector('#semanticSearchContainer .btn-primary-soft');
     const originalText = searchBtn.innerHTML;
     searchBtn.innerHTML = '<span class="loading-spinner" style="display:inline-block;width:16px;height:16px;margin-right:5px;"></span>Searching...';
     searchBtn.disabled = true;

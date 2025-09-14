@@ -58,7 +58,7 @@
 Tip: Longer text (e.g., full abstracts) provides better results for finding relevant matches. Press Enter to search, Shift+Enter for new line." class="search-textarea" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); performGeneralSearch(); }"></textarea>
                 <div style="margin-top: 10px;">
                     <div style="margin-bottom: 10px;">
-                        <button onclick="performGeneralSearch()" class="btn btn-primary search-btn">🔍 Search</button>
+                        <button onclick="performGeneralSearch()" class="btn btn-primary-soft search-btn">🔍 Search</button>
                     </div>
                     <div>
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px; color: var(--text-primary);">
@@ -83,8 +83,8 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 20px;">
-                    <button onclick="copySearchLink(event)" class="btn btn-primary">📋 Copy Link</button>
-                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
+                    <button onclick="copySearchLink(event)" class="btn btn-primary-soft">📋 Copy Link</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary-soft">← Back to Paper List</button>
                 </div>
             </div>
 
@@ -95,8 +95,8 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                 </div>
                 <div class="summary-content" id="searchSummaryContent">
                     <div class="summary-initial" id="searchSummaryInitial">
-                        <button class="btn btn-primary btn-generate" id="generateSearchSummaryBtn">Generate Summary</button>
-                        <button class="btn btn-primary btn-generate" id="generateSearchPosterBtn">Generate Infographic</button>
+                        <button class="btn btn-primary-soft btn-generate" id="generateSearchSummaryBtn">Generate Summary</button>
+                        <button class="btn btn-primary-soft btn-generate" id="generateSearchPosterBtn">Generate Infographic</button>
                     </div>
                     <div class="summary-loading" id="searchSummaryLoading" style="display: none;">
                         <div class="spinner"></div>
@@ -125,8 +125,8 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
         <div id="semanticSearchContainer" style="display: none;">
             <div class="search-interface">
                 <input type="text" id="semanticSearchInput" placeholder="Search for papers in scholarly database..." class="search-input" onkeydown="if(event.key === 'Enter') { searchSemanticScholar(event); }">
-                <button onclick="searchSemanticScholar(event)" class="btn btn-primary">🔍 Search</button>
-                <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
+                <button onclick="searchSemanticScholar(event)" class="btn btn-primary-soft">🔍 Search</button>
+                <button onclick="backToFeedList()" class="btn btn-secondary-soft">← Back to Paper List</button>
             </div>
         </div>
 
@@ -135,8 +135,8 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
             <div class="search-results-header">
                 <h2 id="searchResultsTitle">Scholarly Database Search Results</h2>
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="backToSearchInput()" class="btn btn-secondary">← Back to Search</button>
-                    <button onclick="backToFeedList()" class="btn btn-secondary">← Back to Paper List</button>
+                    <button onclick="backToSearchInput()" class="btn btn-secondary-soft">← Back to Search</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary-soft">← Back to Paper List</button>
                 </div>
             </div>
             <div id="searchResults">

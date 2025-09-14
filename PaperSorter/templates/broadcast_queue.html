@@ -55,14 +55,14 @@
         }
 
 
-        .btn-danger {
+        .btn-danger-queue {
             background: var(--btn-danger-bg);
             color: var(--text-white);
             padding: 5px 15px;
             font-size: 14px;
         }
 
-        .btn-danger:hover {
+        .btn-danger-queue:hover {
             background: var(--btn-danger-hover);
         }
 
@@ -468,7 +468,7 @@
                                     </td>
                                     <td class="article-date">${formatDateForQueue(item.published)}</td>
                                     <td>
-                                        <button class="btn btn-danger"
+                                        <button class="btn btn-danger-queue"
                                                 onclick="removeFromQueue(${item.feed_id}, ${item.channel_id})"
                                                 title="Remove from broadcast queue">
                                             Remove
