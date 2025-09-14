@@ -105,58 +105,48 @@
         }
 
 
-        .operations-section {
-            background: var(--bg-card);
-            border-radius: 8px;
-            padding: 25px;
-            box-shadow: var(--shadow-card);
-            margin-bottom: 20px;
+        .actions-container {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
         }
 
-        .operations-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 20px;
+        .action-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 7px 0;
         }
 
-        .operations-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-
-        .operation-group {
-            background: var(--bg-secondary);
-            padding: 15px;
-            border-radius: 6px;
-        }
-
-        .operation-group-title {
+        .action-label {
+            min-width: 140px;
             font-size: 14px;
             font-weight: 600;
             color: var(--text-secondary);
-            margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        .operation-buttons {
+        .action-buttons {
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .btn {
             padding: 10px 16px;
             border-radius: 6px;
             font-size: 14px;
+            font-weight: bold;
             cursor: pointer;
             transition: all var(--transition-base);
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            white-space: nowrap;
         }
 
         .btn-primary {
@@ -182,26 +172,83 @@
         }
 
 
+        /* Define external button variables similar to thumbs-up pattern */
+        :root {
+            --btn-external-bg: #e3f2fd;
+            --btn-external-color: #1976d2;
+            --btn-external-border: #90caf9;
+            --btn-external-bg-hover: #bbdefb;
+            --btn-external-border-hover: #64b5f6;
+        }
+
+        [data-theme="dark"] {
+            --btn-external-bg: #1e3a5f;
+            --btn-external-color: #64b5f6;
+            --btn-external-border: #42a5f5;
+            --btn-external-bg-hover: #2e4a6f;
+            --btn-external-border-hover: #52b5f6;
+        }
+
         .btn-external {
-            background: var(--bg-secondary);
-            color: var(--color-primary);
-            border: 1px solid var(--color-primary);
-            font-weight: 500;
+            background: var(--btn-external-bg);
+            color: var(--btn-external-color);
+            border: 1px solid var(--btn-external-border);
         }
 
         .btn-external:hover {
-            background: var(--color-primary);
-            color: white;
-            border-color: var(--color-primary);
+            background: var(--btn-external-bg-hover);
+            border-color: var(--btn-external-border-hover);
         }
 
-        .btn-warning {
-            background: #f39c12;
-            color: white;
+        /* Define broadcast button variables */
+        :root {
+            --btn-broadcast-bg: #fff3e0;
+            --btn-broadcast-color: #e67e22;  /* Darker orange */
+            --btn-broadcast-border: #ffcc80;
+            --btn-broadcast-bg-hover: #ffe0b2;
+            --btn-broadcast-border-hover: #ffb74d;
+
+            --btn-broadcast-now-bg: #e8f5e9;
+            --btn-broadcast-now-color: #27ae60;  /* Darker green */
+            --btn-broadcast-now-border: #a5d6a7;
+            --btn-broadcast-now-bg-hover: #c8e6c9;
+            --btn-broadcast-now-border-hover: #81c784;
         }
 
-        .btn-warning:hover {
-            background: #e67e22;
+        [data-theme="dark"] {
+            --btn-broadcast-bg: #3e2c1a;
+            --btn-broadcast-color: #ff9800;  /* Adjusted for dark mode */
+            --btn-broadcast-border: #5d4e37;
+            --btn-broadcast-bg-hover: #4e3c2a;
+            --btn-broadcast-border-hover: #6d5e47;
+
+            --btn-broadcast-now-bg: #1b4a1f;
+            --btn-broadcast-now-color: #4caf50;  /* Adjusted for dark mode */
+            --btn-broadcast-now-border: #357a38;
+            --btn-broadcast-now-bg-hover: #2b5a2f;
+            --btn-broadcast-now-border-hover: #458a48;
+        }
+
+        .btn-broadcast {
+            background: var(--btn-broadcast-bg);
+            color: var(--btn-broadcast-color);
+            border: 1px solid var(--btn-broadcast-border);
+        }
+
+        .btn-broadcast:hover {
+            background: var(--btn-broadcast-bg-hover);
+            border-color: var(--btn-broadcast-border-hover);
+        }
+
+        .btn-broadcast-now {
+            background: var(--btn-broadcast-now-bg);
+            color: var(--btn-broadcast-now-color);
+            border: 1px solid var(--btn-broadcast-now-border);
+        }
+
+        .btn-broadcast-now:hover {
+            background: var(--btn-broadcast-now-bg-hover);
+            border-color: var(--btn-broadcast-now-border-hover);
         }
 
         .btn-disabled {
@@ -276,14 +323,14 @@
         }
 
         .channel-selector {
-            width: 100%;
-            padding: 8px;
+            min-width: 200px;
+            padding: 8px 12px;
             border: 1px solid var(--border-primary);
-            border-radius: 4px;
+            border-radius: 6px;
             background: var(--bg-primary);
             color: var(--text-primary);
             font-size: 14px;
-            margin-bottom: 10px;
+            height: 40px;
         }
 
 
@@ -305,7 +352,6 @@
             }
 
             .paper-details-section,
-            .operations-section,
             .similar-papers-section {
                 padding: 20px;
             }
@@ -314,8 +360,23 @@
                 font-size: 22px;
             }
 
-            .operations-grid {
-                grid-template-columns: 1fr;
+            .action-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .action-label {
+                min-width: auto;
+                margin-bottom: 5px;
+            }
+
+            .action-buttons {
+                width: 100%;
+            }
+
+            .channel-selector {
+                width: 100%;
             }
         }
     </style>
@@ -386,16 +447,34 @@
                 No abstract available
             </div>
             {% endif %}
-        </div>
 
-        <!-- Operations Section -->
-        <div class="operations-section">
-            <h2 class="operations-title">Actions</h2>
-            <div class="operations-grid">
-                <!-- Labeling Operations -->
-                <div class="operation-group">
-                    <div class="operation-group-title">Your Feedback</div>
-                    <div class="operation-buttons">
+            <!-- Actions -->
+            <div class="actions-container">
+                <!-- External Links Row -->
+                <div class="action-row">
+                    <div class="action-label">External Links</div>
+                    <div class="action-buttons">
+                        {% if paper.link %}
+                        <button class="btn btn-open-article" onclick="window.open('{{ paper.link }}', '_blank')">
+                            📄 View Original Article
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-external" onclick="searchPubMed()">
+                            📖 PubMed
+                        </button>
+                        <button class="btn btn-external" onclick="searchGoogleScholar()">
+                            📚 Google Scholar
+                        </button>
+                        <button class="btn btn-external" onclick="searchSemanticScholar()">
+                            🎓 Semantic Scholar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Your Feedback Row -->
+                <div class="action-row">
+                    <div class="action-label">Your Feedback</div>
+                    <div class="action-buttons">
                         {% if paper.user_score == 1 %}
                         <button class="btn btn-thumbs-up active" onclick="removelabel()">
                             👍 Unmark as Interested
@@ -418,60 +497,23 @@
                     </div>
                 </div>
 
-                <!-- External Links -->
-                <div class="operation-group">
-                    <div class="operation-group-title">External Links</div>
-                    <div class="operation-buttons">
-                        {% if paper.link %}
-                        <button class="btn btn-primary" onclick="window.open('{{ paper.link }}', '_blank')">
-                            📄 View Original Article
+                <!-- Broadcast Row -->
+                <div class="action-row">
+                    <div class="action-label">Broadcast</div>
+                    <div class="action-buttons">
+                        <select class="channel-selector" id="channelSelect">
+                            <option value="">Select Channel...</option>
+                            {% for channel in channels %}
+                            <option value="{{ channel.id }}" {% if channel.id in queued_channels %}disabled{% endif %}>
+                                {{ channel.name }}{% if channel.id in queued_channels %} (Already Queued){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-broadcast" onclick="addToBroadcast()">
+                            📢 Add to Queue
                         </button>
-                        {% endif %}
-                        <button class="btn btn-external" onclick="searchSemanticScholar()">
-                            🎓 Semantic Scholar
-                        </button>
-                        <button class="btn btn-external" onclick="searchGoogleScholar()">
-                            📚 Google Scholar
-                        </button>
-                        <button class="btn btn-external" onclick="searchPubMed()">
-                            📖 PubMed
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Broadcast Operations -->
-                <div class="operation-group">
-                    <div class="operation-group-title">Broadcast</div>
-                    <select class="channel-selector" id="channelSelect">
-                        <option value="">Select Channel...</option>
-                        {% for channel in channels %}
-                        <option value="{{ channel.id }}" {% if channel.id in queued_channels %}disabled{% endif %}>
-                            {{ channel.name }}{% if channel.id in queued_channels %} (Already Queued){% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <div class="operation-buttons">
-                        <button class="btn btn-warning" onclick="addToBroadcast()">
-                            📢 Add to Broadcast Queue
-                        </button>
-                        <button class="btn btn-primary" onclick="broadcastNow()">
+                        <button class="btn btn-broadcast-now" onclick="broadcastNow()">
                             ⚡ Broadcast Now
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Advanced Operations -->
-                <div class="operation-group">
-                    <div class="operation-group-title">Advanced</div>
-                    <div class="operation-buttons">
-                        <button class="btn btn-secondary" onclick="generateSummary()">
-                            🤖 Generate AI Summary
-                        </button>
-                        <button class="btn btn-secondary" onclick="findSimilar()">
-                            🔄 Find Similar Papers
-                        </button>
-                        <button class="btn btn-secondary" onclick="generatePoster()">
-                            🎨 Generate Infographic
                         </button>
                     </div>
                 </div>
@@ -667,69 +709,6 @@
             window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(query)}`, '_blank');
         }
 
-        function generateSummary() {
-            showToast('Generating AI summary...', 'info');
-
-            fetch('/api/search/summarize', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({feed_ids: [paperId]})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.summary) {
-                    // Display summary in a modal or update the page
-                    alert(data.summary);
-                }
-            })
-            .catch(error => {
-                showToast('Error generating summary', 'error');
-            });
-        }
-
-        function findSimilar() {
-            window.location.href = `/api/feeds/similar/${paperId}`;
-        }
-
-        function generatePoster() {
-            showToast('Generating infographic poster (this may take 3-5 minutes)...', 'info');
-
-            fetch('/api/user/generate-poster', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    feed_ids: [paperId],
-                    title: paperTitle.substring(0, 100)
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.poster_id) {
-                    // Poll for completion
-                    checkPosterStatus(data.poster_id);
-                }
-            })
-            .catch(error => {
-                showToast('Error generating poster', 'error');
-            });
-        }
-
-        function checkPosterStatus(posterId) {
-            fetch(`/api/user/poster-status/${posterId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'completed' && data.html_content) {
-                        // Open poster in new window
-                        const win = window.open('', '_blank');
-                        win.document.write(data.html_content);
-                    } else if (data.status === 'processing') {
-                        // Check again in 5 seconds
-                        setTimeout(() => checkPosterStatus(posterId), 5000);
-                    } else if (data.status === 'failed') {
-                        showToast('Poster generation failed', 'error');
-                    }
-                });
-        }
 
         function showToast(message, type = 'info') {
             // Simple toast notification
