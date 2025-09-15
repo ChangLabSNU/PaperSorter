@@ -355,25 +355,30 @@ class FeedDatabase:
                 "UPDATE feeds SET content = %s WHERE id = %s", (content, item_id)
             )
 
-    def get_unscored_items(self, model_id=None):
+    def get_unscored_items(self, model_id=None, lookback_hours=None):
         """Get items that lack scores from specified model(s).
 
         Args:
             model_id: If provided, returns items missing scores for this specific model.
                      If None, returns items missing scores from ANY active model.
+            lookback_hours: If provided, only return items added/published within this many hours.
         """
         if model_id is not None:
             # Get unscored items for a specific model
-            self.cursor.execute(
-                """
+            query = """
                 SELECT DISTINCT f.external_id
                 FROM feeds f
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
                 WHERE f.external_id IS NOT NULL
                   AND pp.score IS NULL
-                """,
-                (model_id,)
-            )
+            """
+            params = [model_id]
+
+            if lookback_hours is not None:
+                query += " AND f.added >= NOW() - INTERVAL '%s hours'"
+                params.append(lookback_hours)
+
+            self.cursor.execute(query, params)
             return [row["external_id"] for row in self.cursor.fetchall()]
 
         # Original behavior: get items missing scores from any active model
@@ -386,18 +391,26 @@ class FeedDatabase:
             return []
 
         placeholders = ",".join(["%s"] * active_model_count)
-        self.cursor.execute(
-            f"""
+        query = f"""
             SELECT f.external_id
             FROM feeds f
             LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
                 AND pp.model_id IN ({placeholders})
             WHERE f.external_id IS NOT NULL
+        """
+        params = list(active_model_ids)
+
+        if lookback_hours is not None:
+            query += " AND f.added >= NOW() - INTERVAL '%s hours'"
+            params.append(lookback_hours)
+
+        query += """
             GROUP BY f.id, f.external_id
             HAVING COUNT(pp.score) < %s
-        """,
-            (*active_model_ids, active_model_count),
-        )
+        """
+        params.append(active_model_count)
+
+        self.cursor.execute(query, params)
         return [row["external_id"] for row in self.cursor.fetchall()]
 
     def add_to_broadcast_queue(self, feed_id, channel_id):

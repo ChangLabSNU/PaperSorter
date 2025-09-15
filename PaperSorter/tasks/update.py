@@ -341,7 +341,7 @@ def _collect_unique_models(channels_list):
     return unique_model_ids
 
 
-def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100) -> Optional[Set[int]]:
+def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100, lookback_hours=None) -> Optional[Set[int]]:
     """Score all unscored items for a specific model and return newly scored feed IDs.
 
     Args:
@@ -350,11 +350,12 @@ def _score_items_for_model(model_id, model, feeddb, embeddingdb, batch_size=100)
         feeddb: FeedDatabase instance
         embeddingdb: EmbeddingDatabase instance
         batch_size: Number of items to process in each batch
+        lookback_hours: If provided, only score items added within this many hours
 
     Returns:
         Set of internal feed IDs that were newly scored in this run for this model.
     """
-    unscored = feeddb.get_unscored_items(model_id=model_id)
+    unscored = feeddb.get_unscored_items(model_id=model_id, lookback_hours=lookback_hours)
 
     if not unscored:
         log.debug(f"No items to score for model {model_id}")
@@ -469,7 +470,7 @@ def _queue_high_scoring_items(channel, feeddb, lookback_hours=24, candidate_ids:
     return len(items_to_broadcast)
 
 
-def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
+def score_new_feeds(feeddb, embeddingdb, channels, model_dir, lookback_hours=72):
     """Score new feeds using active models and queue high-scoring items.
 
     This function:
@@ -482,6 +483,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
         embeddingdb: EmbeddingDatabase instance
         channels: Channels configuration manager
         model_dir: Directory containing model files
+        lookback_hours: Only score items added within this many hours (default: 72)
     """
     log.info("Scoring new papers...")
 
@@ -502,7 +504,7 @@ def score_new_feeds(feeddb, embeddingdb, channels, model_dir):
         model = _load_model(model_id, model_dir)
         if model:
             newly_scored_ids = _score_items_for_model(
-                model_id, model, feeddb, embeddingdb
+                model_id, model, feeddb, embeddingdb, lookback_hours=lookback_hours
             )
             newly_scored_by_model[model_id] = newly_scored_ids
             if newly_scored_ids is not None:
