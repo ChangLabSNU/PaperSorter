@@ -13,6 +13,12 @@ body {
     gap: 15px;
 }
 
+.quick-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .score-filter {
     display: flex;
     flex-direction: column;
@@ -661,6 +667,13 @@ button.user-info.btn-logout:hover {
     .filter-controls {
         flex-direction: column;
         gap: 15px;
+        width: 100%;
+    }
+
+    .quick-actions {
+        display: inline-flex;
+        gap: 12px;
+        flex-wrap: wrap;
     }
 
     .search-interface {

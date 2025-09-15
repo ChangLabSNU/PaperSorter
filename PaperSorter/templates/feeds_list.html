@@ -15,12 +15,14 @@
             <h1>{{ site_name }}</h1>
             <div class="filter-controls">
                 <!-- Control buttons for all users -->
-                <button id="generalSearchToggleBtn" class="user-info btn-search" onclick="toggleGeneralSearch()">
-                    <span style="margin-left: 0;">🔍 Search</span>
-                </button>
-                <button class="user-info btn-pdf" onclick="window.location.href='/pdf-search'">
-                    <span style="margin-left: 0;">🌌 PDF</span>
-                </button>
+                <div class="quick-actions">
+                    <button id="generalSearchToggleBtn" class="user-info btn-search" onclick="toggleGeneralSearch()">
+                        <span style="margin-left: 0;">🔍 Search</span>
+                    </button>
+                    <button class="user-info btn-pdf" onclick="window.location.href='/pdf-search'">
+                        <span style="margin-left: 0;">🌌 PDF</span>
+                    </button>
+                </div>
                 <div class="score-filter">
                     <div class="score-filter-label">Min Score</div>
                     <input type="range" id="scoreSlider" class="score-slider" min="0" max="4" value="2" step="1" oninput="updateScoreFilter(this.value)">
