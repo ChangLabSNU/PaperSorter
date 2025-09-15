@@ -390,6 +390,11 @@
                             <input type="checkbox" id="channelIsActive" checked style="margin-right: 8px;">
                             <span>Channel is Active</span>
                         </label>
+                        <br style="margin-bottom: 8px;">
+                        <label style="display: inline-flex; align-items: center; font-weight: normal; white-space: nowrap;">
+                            <input type="checkbox" id="channelShowOtherScores" style="margin-right: 8px;">
+                            <span>Show Other Model Scores</span>
+                        </label>
                     </div>
                 </div>
                 <div class="form-group">
@@ -687,6 +692,7 @@
 
             document.getElementById('channelBroadcastLimit').value = channel.broadcast_limit || 20;
             document.getElementById('channelIsActive').checked = channel.is_active !== false;
+            document.getElementById('channelShowOtherScores').checked = channel.show_other_scores === true;
 
             // Set broadcast hours
             setHoursFromArray(channel.broadcast_hours_array);
@@ -801,6 +807,7 @@
                 model_id: parseInt(document.getElementById('channelModelId').value),
                 broadcast_limit: parseInt(document.getElementById('channelBroadcastLimit').value),
                 is_active: document.getElementById('channelIsActive').checked,
+                show_other_scores: document.getElementById('channelShowOtherScores').checked,
                 broadcast_hours_array: getHoursAsArray()
             };
 

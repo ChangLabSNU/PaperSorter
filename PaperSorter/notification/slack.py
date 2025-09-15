@@ -79,14 +79,23 @@ class SlackProvider(NotificationProvider):
         if item.get("score") is not None:
             # Use score_name from model if available, default to "Score"
             score_name = message_options.get("score_name", "Score")
+
+            # Build score text starting with primary score
+            score_text = f":heart_decoration: {score_name}: *{int(item['score'] * 100)}*"
+
+            # Add other model scores if available
+            if item.get("other_scores"):
+                for other_score in item["other_scores"]:
+                    if other_score.get("score") is not None:
+                        score_text += f"  •  {other_score['score_name']}: *{int(other_score['score'] * 100)}*"
+
             blocks.append(
                 {
                     "type": "context",
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": f":heart_decoration: {score_name}: "
-                            f"*{int(item['score'] * 100)}*",
+                            "text": score_text,
                         }
                     ],
                 }
@@ -102,7 +111,7 @@ class SlackProvider(NotificationProvider):
                 {
                     "type": "context",
                     "elements": [
-                        {"type": "mrkdwn", "text": f":inbox_tray: Source: *{origin}*"}
+                        {"type": "mrkdwn", "text": f":inbox_tray: Journal: *{origin}*"}
                     ],
                 }
             )

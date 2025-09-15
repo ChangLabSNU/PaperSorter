@@ -129,10 +129,26 @@ class DiscordProvider(NotificationProvider):
 
             # Use score_name from model if available, default to "Score"
             score_name = message_options.get("score_name", "Score")
+
+            # Build score value including other model scores if available
+            score_value = f"{indicator} {score_percent}"
+
+            # Add other model scores if available
+            if item.get("other_scores"):
+                other_scores_text = []
+                for other_score in item["other_scores"]:
+                    if other_score.get("score") is not None:
+                        other_score_percent = int(other_score["score"] * 100)
+                        other_scores_text.append(
+                            f"• {other_score['score_name']}: {other_score_percent}"
+                        )
+                if other_scores_text:
+                    score_value += "\n" + "\n".join(other_scores_text)
+
             fields.append(
                 {
                     "name": f"📊 {score_name}",
-                    "value": f"{indicator} {score_percent}",
+                    "value": score_value,
                     "inline": True,
                 }
             )

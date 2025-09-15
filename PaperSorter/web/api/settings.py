@@ -81,7 +81,7 @@ def api_get_channels():
 
     cursor.execute("""
         SELECT c.id, c.name, c.endpoint_url, c.score_threshold, c.model_id, c.is_active,
-               c.broadcast_limit, c.broadcast_hours,
+               c.broadcast_limit, c.broadcast_hours, c.show_other_scores,
                m.name as model_name
         FROM channels c
         LEFT JOIN models m ON c.model_id = m.id
@@ -204,8 +204,8 @@ def api_create_channel():
         cursor.execute(
             """
             INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active,
-                                broadcast_limit, broadcast_hours)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                broadcast_limit, broadcast_hours, show_other_scores)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -216,6 +216,7 @@ def api_create_channel():
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
                 broadcast_hours,
+                data.get("show_other_scores", False),
             ),
         )
 
@@ -266,7 +267,7 @@ def api_update_channel(channel_id):
             """
             UPDATE channels
             SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s,
-                broadcast_limit = %s, broadcast_hours = %s
+                broadcast_limit = %s, broadcast_hours = %s, show_other_scores = %s
             WHERE id = %s
         """,
             (
@@ -277,6 +278,7 @@ def api_update_channel(channel_id):
                 data.get("is_active", True),
                 data.get("broadcast_limit", 20),
                 broadcast_hours,
+                data.get("show_other_scores", False),
                 channel_id,
             ),
         )

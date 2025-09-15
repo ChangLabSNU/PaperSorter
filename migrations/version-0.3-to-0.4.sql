@@ -178,7 +178,26 @@ ALTER COLUMN score_name SET NOT NULL;
 COMMENT ON COLUMN papersorter.models.score_name IS 'Display name for model prediction scores';
 
 -- =====================================================================
--- 8. Verify migration success
+-- 9. Add show_other_scores column to channels table
+-- =====================================================================
+
+-- Add show_other_scores column with default value FALSE
+ALTER TABLE papersorter.channels
+ADD COLUMN IF NOT EXISTS show_other_scores BOOLEAN DEFAULT FALSE;
+
+-- Update any NULL values to the default
+UPDATE papersorter.channels
+SET show_other_scores = FALSE
+WHERE show_other_scores IS NULL;
+
+-- Make the column NOT NULL after setting defaults
+ALTER TABLE papersorter.channels
+ALTER COLUMN show_other_scores SET NOT NULL;
+
+COMMENT ON COLUMN papersorter.channels.show_other_scores IS 'Whether to show scores from other models in addition to the channel''s primary model';
+
+-- =====================================================================
+-- 10. Verify migration success
 -- =====================================================================
 
 -- Check that all expected columns exist
@@ -243,11 +262,19 @@ BEGIN
         RAISE EXCEPTION 'Migration failed: models.user_id column still exists';
     END IF;
 
+    -- Check channels.show_other_scores column
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'papersorter'
+                   AND table_name = 'channels'
+                   AND column_name = 'show_other_scores') THEN
+        RAISE EXCEPTION 'Migration failed: channels.show_other_scores column not found';
+    END IF;
+
     RAISE NOTICE 'Migration completed successfully!';
 END $$;
 
 -- =====================================================================
--- 9. Add assisted_query column to saved_searches table for AI Assist
+-- 11. Add assisted_query column to saved_searches table for AI Assist
 -- =====================================================================
 
 -- Add column to store AI-enhanced version of search queries
@@ -268,4 +295,5 @@ COMMIT;
 -- 4. The notes field in models table can store any descriptive information
 -- 5. Users can now set theme preference (light/dark/auto) and timezone
 -- 6. Models now have a score_name field for customizing score display names
+-- 7. Channels can now show scores from multiple models with show_other_scores field
 -- =====================================================================

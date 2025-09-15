@@ -214,6 +214,15 @@
                     <span class="paper-score {% if paper.score >= 0.8 %}score-high{% elif paper.score >= 0.5 %}score-medium{% else %}score-low{% endif %}">
                         Score: {{ "%.0f"|format(paper.score * 100) }}
                     </span>
+                    {% if paper.other_scores %}
+                        {% for other_score in paper.other_scores %}
+                            {% if other_score.score is defined %}
+                            <span class="paper-score {% if other_score.score >= 0.8 %}score-high{% elif other_score.score >= 0.5 %}score-medium{% else %}score-low{% endif %}" style="margin-left: 8px;">
+                                {{ other_score.score_name }}: {{ "%.0f"|format(other_score.score * 100) }}
+                            </span>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                 </div>
                 {% endif %}
 

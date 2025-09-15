@@ -132,7 +132,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     # Get all active channels
     feeddb.cursor.execute("""
         SELECT c.id, c.name, c.endpoint_url, c.model_id, c.broadcast_limit,
-               c.broadcast_hours, m.name as model_name, m.score_name
+               c.broadcast_hours, c.show_other_scores, m.name as model_name, m.score_name
         FROM channels c
         LEFT JOIN models m ON c.model_id = m.id
         WHERE c.is_active = TRUE AND c.endpoint_url IS NOT NULL
@@ -209,11 +209,52 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
 
         # Prepare items for batch sending
         items_to_send = []
+
+        # If show_other_scores is enabled, fetch scores from all active models
+        other_model_scores = {}
+        if channel.get("show_other_scores", False):
+            # Get all active models except the channel's primary model
+            feeddb.cursor.execute("""
+                SELECT id, name, score_name
+                FROM models
+                WHERE is_active = TRUE AND id != %s
+                ORDER BY id DESC
+            """, (model_id,))
+            other_models = feeddb.cursor.fetchall()
+
+            if other_models:
+                # Get feed IDs from queue items
+                feed_ids = [feed_id for feed_id, _ in queue_items.iterrows()]
+
+                # Fetch scores for all other models
+                for other_model in other_models:
+                    feeddb.cursor.execute("""
+                        SELECT feed_id, score
+                        FROM predicted_preferences
+                        WHERE model_id = %s AND feed_id = ANY(%s)
+                    """, (other_model["id"], feed_ids))
+
+                    for row in feeddb.cursor.fetchall():
+                        if row["feed_id"] not in other_model_scores:
+                            other_model_scores[row["feed_id"]] = []
+                        other_model_scores[row["feed_id"]].append({
+                            "model_id": other_model["id"],
+                            "model_name": other_model["name"] or f"Model {other_model['id']}",
+                            "score_name": other_model["score_name"] or "Score",
+                            "score": row["score"]
+                        })
+
         for feed_id, info in queue_items.iterrows():
             # Add the feed_id to info dict for the More Like This button
             info["id"] = feed_id
             normalize_item_for_display(info, max_content_length)
-            items_to_send.append(info.to_dict())
+            item_dict = info.to_dict()
+
+            # Add other model scores if available
+            if feed_id in other_model_scores:
+                item_dict["other_scores"] = other_model_scores[feed_id]
+
+            items_to_send.append(item_dict)
 
         log.info(
             f'Sending {len(items_to_send)} notifications to channel "{channel_name}"'

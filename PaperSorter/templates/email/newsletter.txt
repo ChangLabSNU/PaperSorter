@@ -29,6 +29,13 @@ Published: {{ paper.published.strftime('%Y-%m-%d') }}
 {% endif -%}
 {%- if paper.score is defined -%}
 Score: {{ "%.0f"|format(paper.score * 100) }}
+{%- if paper.other_scores %}
+{%- for other_score in paper.other_scores %}
+{%- if other_score.score is defined %}
+{{ other_score.score_name }}: {{ "%.0f"|format(other_score.score * 100) }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
 {% endif %}
 
 {% if paper.content -%}
