@@ -26,6 +26,7 @@
 import argparse
 from .base import registry
 from .context import CommandContext
+from ..config import get_config
 from ..__version__ import __version__
 
 
@@ -60,9 +61,17 @@ def execute_command(args: argparse.Namespace) -> int:
     if not hasattr(args, 'command_handler'):
         return 1
 
-    # Create context
+    try:
+        if getattr(args, 'config', None):
+            get_config(args.config)
+        else:
+            get_config()
+    except Exception:
+        # Defer errors to individual commands where appropriate
+        pass
+
+    # Create context (no config argument)
     context = CommandContext(
-        config_path=args.config,
         log_file=getattr(args, 'log_file', None),
         quiet=getattr(args, 'quiet', False)
     )

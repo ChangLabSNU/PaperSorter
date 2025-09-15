@@ -189,7 +189,6 @@ def api_search():
             else:
                 log.warning("AI assist failed, falling back to original query")
 
-        # Load embedding database using singleton config
         edb = EmbeddingDatabase()
 
         # Get user ID and default model ID for filtering
@@ -324,7 +323,6 @@ def api_summarize():
         if not feed_ids:
             return jsonify({"error": "No paper IDs provided"}), 400
 
-        # Load summarization API configuration via centralized loader
         from ...config import get_config
         config = get_config().raw
 
@@ -688,7 +686,6 @@ def api_scholarly_database_add():
         if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
-        # Create database connection using singleton config
         db = FeedDatabase()
 
         # Check if item already exists
@@ -709,7 +706,7 @@ def api_scholarly_database_add():
 
             # Generate embeddings and predict preferences
             embeddingdb = EmbeddingDatabase()
-            predictor = FeedPredictor(db, embeddingdb, config_path)
+            predictor = FeedPredictor(db, embeddingdb)
             model_dir = config_yaml.get("models", {}).get("path", ".")
 
             try:

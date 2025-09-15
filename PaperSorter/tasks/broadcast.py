@@ -113,7 +113,6 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     based on their score thresholds and broadcast hours.
     """
 
-    # Load configuration to get base URL via centralized loader
     config_data = get_config(config).raw
 
     base_url = config_data.get("web", {}).get("base_url", None)
@@ -122,7 +121,6 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     else:
         log.info("No base URL configured - More Like This buttons will not be shown")
 
-    # Prime singleton and use zero-arg DB helper
     from ..config import get_config as _gc
     _gc(config)
     feeddb = FeedDatabase()
@@ -204,7 +202,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
 
         # Create notification provider based on webhook URL
         try:
-            provider = create_notification_provider(endpoint, config_path=config)
+            provider = create_notification_provider(endpoint)
         except ValueError as e:
             log.error(f'Invalid webhook URL for channel "{channel_name}": {e}')
             continue

@@ -30,7 +30,7 @@ from .discord import DiscordProvider
 from .email import EmailProvider
 
 
-def create_notification_provider(webhook_url, config_path="./config.yml"):
+def create_notification_provider(webhook_url):
     """Create appropriate notification provider based on webhook URL.
 
     Automatically detects the webhook type based on the URL scheme or hostname:
@@ -54,7 +54,7 @@ def create_notification_provider(webhook_url, config_path="./config.yml"):
     # Check for mailto: URLs first
     if webhook_url.startswith("mailto:"):
         log.debug(f"Detected email notification: {webhook_url}")
-        return EmailProvider(webhook_url, config_path)
+        return EmailProvider(webhook_url)
 
     # Parse the URL to get hostname
     try:

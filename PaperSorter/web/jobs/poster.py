@@ -37,7 +37,6 @@ from datetime import datetime
 def process_poster_job(app, job_id, feed_ids, config_path):
     """Process poster generation in background thread."""
     try:
-        # Load summarization API configuration via centralized loader
         config = get_config(config_path).raw
 
         api_config = config.get("summarization_api")

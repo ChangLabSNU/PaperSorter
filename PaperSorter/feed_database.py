@@ -109,7 +109,6 @@ class FeedDatabase:
     ]
 
     def __init__(self):
-        # Load database configuration from singleton
         config = get_config().raw
         db_config = config["db"]
 

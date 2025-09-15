@@ -84,7 +84,6 @@ class EmbeddingsCommand(BaseCommand):
         """Execute the embeddings command."""
         initialize_logging('embeddings', args.log_file, args.quiet)
 
-        # Load configuration via centralized loader
         self.config = get_config(args.config).raw
 
         self.db_config = self.config['db']

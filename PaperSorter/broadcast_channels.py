@@ -29,9 +29,8 @@ from .config import get_config
 class BroadcastChannels:
     """Manages broadcast channel configurations."""
 
-    def __init__(self, config_path="./config.yml"):
-        # Load database configuration via centralized loader
-        config = get_config(config_path).raw
+    def __init__(self):
+        config = get_config().raw
 
         db_config = config["db"]
 

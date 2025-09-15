@@ -367,14 +367,13 @@ def api_test_channel(channel_id):
             "score_name": channel.get("score_name", "Score"),  # Default to "Score" if not set
         }
 
-        # Get base URL from centralized config
         from ...config import get_config
         config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
         get_config(config_path)
         base_url = get_config().get("web.base_url", None)
 
         # Create provider and send notification
-        provider = create_notification_provider(channel["endpoint_url"], config_path)
+        provider = create_notification_provider(channel["endpoint_url"])
 
         # Use batch interface - send as a list with one item
         results = provider.send_notifications([test_item], message_options, base_url)
@@ -1055,8 +1054,7 @@ def api_broadcast_now():
         
         # Send to channel webhook
         from ...broadcast_channels import BroadcastChannels
-        config_path = current_app.config["CONFIG_PATH"]
-        bc = BroadcastChannels(config_path)
+        bc = BroadcastChannels()
         
         # Format and send the paper
         success = bc.send_to_channel(channel, [paper])

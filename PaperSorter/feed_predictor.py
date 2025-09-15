@@ -35,13 +35,10 @@ import random
 class FeedPredictor:
     """Common functionality for generating embeddings, predicting feed preferences and managing broadcast queues."""
 
-    def __init__(self, feeddb, embeddingdb, config_path="./config.yml"):
+    def __init__(self, feeddb, embeddingdb):
         self.feeddb = feeddb
         self.embeddingdb = embeddingdb
-        self.config_path = config_path
-
-        # Load configuration via centralized loader
-        self.config = get_config(config_path).raw
+        self.config = get_config().raw
 
         # Set up OpenAI client for embeddings
         embedding_config = self.config.get("embedding_api", {})

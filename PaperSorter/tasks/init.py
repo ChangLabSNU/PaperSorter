@@ -72,7 +72,6 @@ def main(config, schema, drop_existing, quiet):
     if not quiet:
         log.info("Initializing PaperSorter database...")
 
-    # Load database configuration via centralized loader
     cfg = get_config(config).raw
 
     db_config = cfg["db"]

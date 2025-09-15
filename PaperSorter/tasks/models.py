@@ -118,7 +118,6 @@ class ModelsCommand(BaseCommand):
         """Execute the models command."""
         initialize_logging('models', args.log_file, args.quiet)
 
-        # Load configuration via centralized loader
         self.config = get_config(args.config).raw
 
         self.db_config = self.config['db']

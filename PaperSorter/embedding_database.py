@@ -34,7 +34,6 @@ class EmbeddingDatabase:
     dtype = np.float64
 
     def __init__(self):
-        # Load database configuration from singleton
         config = get_config().raw
 
         db_config = config["db"]

@@ -36,7 +36,7 @@ from ..config import get_config
 class EmailProvider(NotificationProvider):
     """Email notification provider that sends batched newsletters."""
 
-    def __init__(self, endpoint_url, config_path="./config.yml"):
+    def __init__(self, endpoint_url):
         """Initialize email provider.
 
         Args:
@@ -54,9 +54,8 @@ class EmailProvider(NotificationProvider):
         if not self.recipient:
             raise ValueError(f"No email address found in URL: {endpoint_url}")
 
-        # Load configuration via centralized loader
         try:
-            self.config = get_config(config_path).raw
+            self.config = get_config().raw
         except Exception as e:
             raise ValueError(f"Failed to load configuration: {e}")
 

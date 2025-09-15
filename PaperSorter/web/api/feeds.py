@@ -430,7 +430,6 @@ def api_similar_feeds(feed_id):
     try:
         from ...embedding_database import EmbeddingDatabase
 
-        # Load embedding database using singleton config
         edb = EmbeddingDatabase()
 
         # Get similar articles filtered by current user with default model

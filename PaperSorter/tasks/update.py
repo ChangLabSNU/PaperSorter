@@ -228,7 +228,7 @@ def update_embeddings(feeddb, embeddingdb, config_path, batch_size):
             feed_ids_to_update.append(result["id"])
 
     # Use FeedPredictor to generate embeddings
-    predictor = FeedPredictor(feeddb, embeddingdb, config_path)
+    predictor = FeedPredictor(feeddb, embeddingdb)
     successful_feeds = predictor.generate_embeddings_batch(feed_ids_to_update, batch_size)
 
     return len(successful_feeds)
@@ -543,17 +543,15 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
     generates embeddings, and queues high-scoring items for broadcast.
     """
 
-    # Load configuration via centralized loader
     from ..config import get_config
     full_config = get_config(config).raw
 
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
-    # Prime singleton and use zero-arg DB helpers
     from ..config import get_config as _gc
     _gc(config)
     feeddb = FeedDatabase()
     embeddingdb = EmbeddingDatabase()
-    channels = BroadcastChannels(config)
+    channels = BroadcastChannels()
 
     # Update feeds from RSS feeds
     new_item_ids = update_feeds(

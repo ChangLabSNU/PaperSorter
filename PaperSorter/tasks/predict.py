@@ -503,13 +503,11 @@ def main(
     if process_all:
         max_papers = 0
 
-    # Initialize singleton (first call can provide path), then use it
     if config:
         get_config(config)
     config_data = _load_config()
     db_config = config_data["db"]
 
-    # Initialize FeedDatabase and EmbeddingDatabase with singleton
     feeddb = FeedDatabase()
     embeddingdb = EmbeddingDatabase()
 

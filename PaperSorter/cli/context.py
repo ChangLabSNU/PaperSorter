@@ -30,16 +30,14 @@ from ..config import get_config
 class CommandContext:
     """Context object passed to all commands."""
 
-    def __init__(self, config_path: str, log_file: Optional[str] = None, quiet: bool = False):
+    def __init__(self, log_file: Optional[str] = None, quiet: bool = False):
         """
         Initialize command context.
 
         Args:
-            config_path: Path to configuration file
             log_file: Optional log file path
             quiet: Whether to suppress output
         """
-        self.config_path = config_path
         self.log_file = log_file
         self.quiet = quiet
         self._config = None
@@ -50,8 +48,7 @@ class CommandContext:
     def config(self) -> dict:
         """Load and cache configuration."""
         if self._config is None:
-            # Centralized configuration access
-            self._config = get_config(self.config_path).raw
+            self._config = get_config().raw
         return self._config
 
     @property
@@ -59,8 +56,6 @@ class CommandContext:
         """Get database connection (lazy loading)."""
         if self._db is None:
             from ..feed_database import FeedDatabase
-            from ..config import get_config
-            get_config(self.config_path)
             self._db = FeedDatabase()
         return self._db
 
@@ -69,8 +64,6 @@ class CommandContext:
         """Get embedding database connection (lazy loading)."""
         if self._embedding_db is None:
             from ..embedding_database import EmbeddingDatabase
-            from ..config import get_config
-            get_config(self.config_path)
             self._embedding_db = EmbeddingDatabase()
         return self._embedding_db
 
