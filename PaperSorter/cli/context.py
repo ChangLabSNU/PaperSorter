@@ -23,8 +23,8 @@
 
 """Command context management for PaperSorter CLI."""
 
-import yaml
 from typing import Optional
+from ..config import get_config
 
 
 class CommandContext:
@@ -50,8 +50,8 @@ class CommandContext:
     def config(self) -> dict:
         """Load and cache configuration."""
         if self._config is None:
-            with open(self.config_path, 'r') as f:
-                self._config = yaml.safe_load(f)
+            # Centralized configuration access
+            self._config = get_config(self.config_path).raw
         return self._config
 
     @property
@@ -59,7 +59,9 @@ class CommandContext:
         """Get database connection (lazy loading)."""
         if self._db is None:
             from ..feed_database import FeedDatabase
-            self._db = FeedDatabase(self.config_path)
+            from ..config import get_config
+            get_config(self.config_path)
+            self._db = FeedDatabase()
         return self._db
 
     @property
@@ -67,7 +69,9 @@ class CommandContext:
         """Get embedding database connection (lazy loading)."""
         if self._embedding_db is None:
             from ..embedding_database import EmbeddingDatabase
-            self._embedding_db = EmbeddingDatabase(self.config_path)
+            from ..config import get_config
+            get_config(self.config_path)
+            self._embedding_db = EmbeddingDatabase()
         return self._embedding_db
 
     def cleanup(self):

@@ -23,7 +23,6 @@
 
 """Authentication routes."""
 
-import yaml
 import psycopg2
 import psycopg2.extras
 from flask import (
@@ -71,12 +70,11 @@ def check_and_update_admin_status(username, user_id, conn):
             return True
 
         # Load config to check if user should be promoted
-        config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
+        from ...config import get_config
         try:
-            with open(config_path, "r") as f:
-                config = yaml.safe_load(f)
-        except (FileNotFoundError, IOError):
-            # If config file doesn't exist or can't be read, return current status
+            config = get_config().raw
+        except Exception:
+            # If config cannot be loaded, return current status
             return current_is_admin
 
         # Get admin users from config

@@ -25,7 +25,7 @@ import psycopg2
 import psycopg2.extras
 import pandas as pd
 import re
-import yaml
+from .config import get_config
 import unicodedata
 from difflib import SequenceMatcher
 from typing import List, Callable
@@ -108,11 +108,9 @@ class FeedDatabase:
         "tldr",
     ]
 
-    def __init__(self, config_path="./config.yml"):
-        # Load database configuration
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
+    def __init__(self):
+        # Load database configuration from singleton
+        config = get_config().raw
         db_config = config["db"]
 
         # Connect to PostgreSQL

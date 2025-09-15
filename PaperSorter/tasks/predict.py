@@ -28,7 +28,7 @@ from ..log import log, initialize_logging
 from ..cli.base import BaseCommand, registry
 import xgboost as xgb
 import numpy as np
-import yaml
+from ..config import get_config
 import pickle
 import argparse
 import psycopg2
@@ -96,12 +96,12 @@ class PredictCommand(BaseCommand):
 registry.register(PredictCommand)
 
 
-def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, batch_size):
+def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, batch_size):
     """Generate embeddings using the unified FeedPredictor implementation."""
     if not feed_ids:
         return []
 
-    predictor = FeedPredictor(feeddb, embeddingdb, config_path)
+    predictor = FeedPredictor(feeddb, embeddingdb)
     successful_feeds = predictor.generate_embeddings_batch(feed_ids, batch_size)
 
     # Return the embeddings for successful feeds
@@ -117,10 +117,9 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, config_path, ba
     return embeddings
 
 
-def _load_config(config_path: str) -> Dict:
-    """Load YAML config from a file path."""
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+def _load_config() -> Dict:
+    """Load config using centralized singleton."""
+    return get_config().raw
 
 
 def _connect_postgres(db_cfg: Dict) -> Tuple[psycopg2.extensions.connection, psycopg2.extensions.cursor]:
@@ -311,7 +310,6 @@ def _generate_missing_embeddings_stream(
     embedding_batch: int,
     feeddb: FeedDatabase,
     embeddingdb: EmbeddingDatabase,
-    config_path: str,
 ) -> None:
     """Stream through feeds missing embeddings and generate them in batches without caching in memory."""
     query = _query_without_embeddings_no_offset(max_papers)
@@ -326,9 +324,7 @@ def _generate_missing_embeddings_stream(
             break
 
         feed_ids = [row["id"] for row in batch]
-        _ = generate_embeddings_for_feeds(
-            feed_ids, feeddb, embeddingdb, config_path, embedding_batch
-        )
+        _ = generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, embedding_batch)
 
         processed += len(batch)
         remaining = max(0, feeds_without_count - processed)
@@ -507,13 +503,15 @@ def main(
     if process_all:
         max_papers = 0
 
-    # Load configuration
-    config_data = _load_config(config)
+    # Initialize singleton (first call can provide path), then use it
+    if config:
+        get_config(config)
+    config_data = _load_config()
     db_config = config_data["db"]
 
-    # Initialize FeedDatabase and EmbeddingDatabase
-    feeddb = FeedDatabase(config)
-    embeddingdb = EmbeddingDatabase(config)
+    # Initialize FeedDatabase and EmbeddingDatabase with singleton
+    feeddb = FeedDatabase()
+    embeddingdb = EmbeddingDatabase()
 
     # Connect to PostgreSQL
     log.info("Connecting to PostgreSQL database...")
@@ -555,7 +553,6 @@ def main(
             embedding_batch,
             feeddb,
             embeddingdb,
-            config,
         )
 
     # Get all active models

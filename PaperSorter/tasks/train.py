@@ -34,7 +34,7 @@ import psycopg2
 import argparse
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-import yaml
+from ..config import get_config
 from psycopg2 import sql
 import os
 
@@ -588,8 +588,7 @@ def main(
         return
 
     # Load database configuration
-    with open(config, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = get_config(config).raw
 
     db_config = config_data["db"]
 

@@ -200,8 +200,10 @@ def do_import_pubmed(config_path, files, chunksize, tmpdir, parse_only, limit, s
             random.seed(seed)
             log.info(f"Using random seed: {seed}")
 
-    # Initialize database
-    feeddb = FeedDatabase(config_path)
+    # Initialize database (prime singleton then use zero-arg constructor)
+    from ..config import get_config
+    get_config(config_path)
+    feeddb = FeedDatabase()
 
     # Convert ISSN filter to set for efficient lookup
     issn_filter = set(issn) if issn else None

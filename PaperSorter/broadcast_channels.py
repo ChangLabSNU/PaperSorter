@@ -23,16 +23,15 @@
 
 import psycopg2
 import psycopg2.extras
-import yaml
+from .config import get_config
 
 
 class BroadcastChannels:
     """Manages broadcast channel configurations."""
 
     def __init__(self, config_path="./config.yml"):
-        # Load database configuration
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+        # Load database configuration via centralized loader
+        config = get_config(config_path).raw
 
         db_config = config["db"]
 

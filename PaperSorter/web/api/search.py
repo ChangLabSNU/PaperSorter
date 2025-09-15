@@ -24,7 +24,6 @@
 """Search API endpoints."""
 
 import json
-import yaml
 import markdown2
 import psycopg2
 import psycopg2.extras
@@ -145,8 +144,8 @@ def api_search():
     try:
         # Load configuration
         config_path = current_app.config["CONFIG_PATH"]
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+        from ...config import get_config
+        config = get_config(config_path).raw
 
         # Get database connection for saved search lookup
         conn = current_app.config["get_db_connection"]()
@@ -190,8 +189,8 @@ def api_search():
             else:
                 log.warning("AI assist failed, falling back to original query")
 
-        # Load embedding database
-        edb = EmbeddingDatabase(config_path)
+        # Load embedding database using singleton config
+        edb = EmbeddingDatabase()
 
         # Get user ID and default model ID for filtering
         user_id = current_user.id
@@ -325,10 +324,9 @@ def api_summarize():
         if not feed_ids:
             return jsonify({"error": "No paper IDs provided"}), 400
 
-        # Load summarization API configuration
-        config_path = current_app.config["CONFIG_PATH"]
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+        # Load summarization API configuration via centralized loader
+        from ...config import get_config
+        config = get_config().raw
 
         api_config = config.get("summarization_api")
         if not api_config:
@@ -519,9 +517,8 @@ def api_scholarly_database_search():
 
     try:
         # Load configuration and create provider
-        config_path = current_app.config["CONFIG_PATH"]
-        with open(config_path, "r") as f:
-            config_yaml = yaml.safe_load(f)
+        from ...config import get_config
+        config_yaml = get_config().raw
 
         # Get scholarly database configuration
         scholarly_config = config_yaml.get("scholarly_database", {})
@@ -604,10 +601,11 @@ def api_scholarly_database_add():
         return jsonify({"error": "Paper data is required"}), 400
 
     try:
-        # Load configuration
+        # Load configuration and config path
+        from ...config import get_config
+        config_yaml = get_config().raw
+        from flask import current_app
         config_path = current_app.config["CONFIG_PATH"]
-        with open(config_path, "r") as f:
-            config_yaml = yaml.safe_load(f)
 
         # Get scholarly database configuration
         scholarly_config = config_yaml.get("scholarly_database", {})
@@ -690,8 +688,8 @@ def api_scholarly_database_add():
         if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
-        # Create database connection
-        db = FeedDatabase(config_path)
+        # Create database connection using singleton config
+        db = FeedDatabase()
 
         # Check if item already exists
         if article.unique_id not in db:
@@ -710,7 +708,7 @@ def api_scholarly_database_add():
             db.commit()
 
             # Generate embeddings and predict preferences
-            embeddingdb = EmbeddingDatabase(config_path)
+            embeddingdb = EmbeddingDatabase()
             predictor = FeedPredictor(db, embeddingdb, config_path)
             model_dir = config_yaml.get("models", {}).get("path", ".")
 

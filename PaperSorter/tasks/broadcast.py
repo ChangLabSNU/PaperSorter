@@ -27,7 +27,7 @@ from ..notification import create_notification_provider, NotificationError
 from ..utils.broadcast_hours import is_broadcast_allowed
 from ..cli.base import BaseCommand, registry
 import re
-import yaml
+from ..config import get_config
 import argparse
 from datetime import datetime
 
@@ -113,9 +113,8 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     based on their score thresholds and broadcast hours.
     """
 
-    # Load configuration to get base URL
-    with open(config, "r") as f:
-        config_data = yaml.safe_load(f)
+    # Load configuration to get base URL via centralized loader
+    config_data = get_config(config).raw
 
     base_url = config_data.get("web", {}).get("base_url", None)
     if base_url:
@@ -123,7 +122,10 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
     else:
         log.info("No base URL configured - More Like This buttons will not be shown")
 
-    feeddb = FeedDatabase(config)
+    # Prime singleton and use zero-arg DB helper
+    from ..config import get_config as _gc
+    _gc(config)
+    feeddb = FeedDatabase()
 
     # Clear old processed items from the queue
     feeddb.clear_old_broadcast_queue(clear_old_days)

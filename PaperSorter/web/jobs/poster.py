@@ -25,7 +25,7 @@
 
 import json
 import time
-import yaml
+from ...config import get_config
 import psycopg2
 import psycopg2.extras
 from openai import OpenAI
@@ -37,9 +37,8 @@ from datetime import datetime
 def process_poster_job(app, job_id, feed_ids, config_path):
     """Process poster generation in background thread."""
     try:
-        # Load summarization API configuration
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+        # Load summarization API configuration via centralized loader
+        config = get_config(config_path).raw
 
         api_config = config.get("summarization_api")
         if not api_config:

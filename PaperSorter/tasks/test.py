@@ -24,7 +24,7 @@
 """Test commands for PaperSorter system components."""
 
 import sys
-import yaml
+from ..config import get_config
 from typing import Optional
 import argparse
 from ..cli.base import BaseCommand, registry
@@ -106,10 +106,9 @@ def test_smtp(config_path: str, recipient: Optional[str], subject: str, verbose:
     """
     # Load configuration file
     try:
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+        config = get_config(config_path).raw
     except Exception as e:
-        print(f"Error loading configuration from {config_path}: {e}", file=sys.stderr)
+        print(f"Error loading configuration: {e}", file=sys.stderr)
         return 1
 
     # Check if SMTP is configured

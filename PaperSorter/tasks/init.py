@@ -22,7 +22,7 @@
 #
 
 import psycopg2
-import yaml
+from ..config import get_config
 import argparse
 from ..log import log
 from ..data.schema import get_schema
@@ -72,9 +72,8 @@ def main(config, schema, drop_existing, quiet):
     if not quiet:
         log.info("Initializing PaperSorter database...")
 
-    # Load database configuration
-    with open(config, "r") as f:
-        cfg = yaml.safe_load(f)
+    # Load database configuration via centralized loader
+    cfg = get_config(config).raw
 
     db_config = cfg["db"]
 

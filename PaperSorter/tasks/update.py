@@ -543,15 +543,16 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
     generates embeddings, and queues high-scoring items for broadcast.
     """
 
-    # Load configuration
-    import yaml
-
-    with open(config, "r") as f:
-        full_config = yaml.safe_load(f)
+    # Load configuration via centralized loader
+    from ..config import get_config
+    full_config = get_config(config).raw
 
     date_cutoff = datetime(*FEED_EPOCH).timestamp()
-    feeddb = FeedDatabase(config)
-    embeddingdb = EmbeddingDatabase(config)
+    # Prime singleton and use zero-arg DB helpers
+    from ..config import get_config as _gc
+    _gc(config)
+    feeddb = FeedDatabase()
+    embeddingdb = EmbeddingDatabase()
     channels = BroadcastChannels(config)
 
     # Update feeds from RSS feeds

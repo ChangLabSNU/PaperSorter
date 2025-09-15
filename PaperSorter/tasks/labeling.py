@@ -26,7 +26,7 @@ import psycopg2
 import argparse
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-import yaml
+from ..config import get_config
 import sys
 from datetime import datetime, timedelta
 from ..log import log, initialize_logging
@@ -832,8 +832,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
     - The oldest admin user (lowest ID) otherwise
     """
     # Load database configuration
-    with open(config_path, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = get_config(config_path).raw
 
     db_config = config_data["db"]
 
@@ -1017,8 +1016,7 @@ def do_clear_labeling_session(config_path, labeler_user_id):
     will be used for model training.
     """
     # Load database configuration
-    with open(config_path, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = get_config(config_path).raw
 
     db_config = config_data.get("db", {})
 
@@ -1174,8 +1172,7 @@ def do_show_labeling_status(config_path, user_id, show_all):
         show_all: Show stats for all users with labeling sessions
     """
     # Load database configuration
-    with open(config_path, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = get_config(config_path).raw
 
     db_config = config_data.get("db", {})
 

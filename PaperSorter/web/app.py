@@ -23,7 +23,6 @@
 
 """Flask application factory for PaperSorter web interface."""
 
-import yaml
 import secrets
 import psycopg2
 import psycopg2.extras
@@ -35,6 +34,7 @@ from flask_login import LoginManager, login_user
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 from ..log import log
+from ..config import get_config
 from .auth import User, auth_bp
 from .main import main_bp
 from .api import feeds_bp, settings_bp, search_bp, user_bp
@@ -50,10 +50,8 @@ def create_app(config_path, skip_authentication=None):
     # Configure for reverse proxy (fixes HTTPS redirect URIs)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-    # Load database configuration
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
+    # Load configuration
+    config = get_config(config_path).raw
     db_config = config["db"]
 
     # Get OAuth config with backward compatibility for google_oauth only

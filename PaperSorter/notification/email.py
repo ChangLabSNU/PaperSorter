@@ -26,11 +26,11 @@
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 import os
-import yaml
 from urllib.parse import urlparse
 from ..log import log
 from ..utils.email import SMTPClient
 from .base import NotificationProvider, NotificationError
+from ..config import get_config
 
 
 class EmailProvider(NotificationProvider):
@@ -54,12 +54,11 @@ class EmailProvider(NotificationProvider):
         if not self.recipient:
             raise ValueError(f"No email address found in URL: {endpoint_url}")
 
-        # Load configuration
+        # Load configuration via centralized loader
         try:
-            with open(config_path, "r") as f:
-                self.config = yaml.safe_load(f)
+            self.config = get_config(config_path).raw
         except Exception as e:
-            raise ValueError(f"Failed to load configuration from {config_path}: {e}")
+            raise ValueError(f"Failed to load configuration: {e}")
 
         # Initialize SMTP client
         self.smtp_client = SMTPClient(self.config)

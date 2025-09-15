@@ -25,7 +25,7 @@ import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import numpy as np
-import yaml
+from .config import get_config
 import openai
 from .log import log
 
@@ -33,10 +33,9 @@ from .log import log
 class EmbeddingDatabase:
     dtype = np.float64
 
-    def __init__(self, config_path="./config.yml"):
-        # Load database configuration
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+    def __init__(self):
+        # Load database configuration from singleton
+        config = get_config().raw
 
         db_config = config["db"]
         self.config = config

@@ -367,13 +367,11 @@ def api_test_channel(channel_id):
             "score_name": channel.get("score_name", "Score"),  # Default to "Score" if not set
         }
 
-        # Get base URL from config
-        import yaml
-
+        # Get base URL from centralized config
+        from ...config import get_config
         config_path = current_app.config.get("CONFIG_PATH", "./config.yml")
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-        base_url = config.get("web", {}).get("base_url", None)
+        get_config(config_path)
+        base_url = get_config().get("web.base_url", None)
 
         # Create provider and send notification
         provider = create_notification_provider(channel["endpoint_url"], config_path)

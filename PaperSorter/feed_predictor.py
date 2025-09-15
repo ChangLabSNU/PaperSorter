@@ -25,7 +25,7 @@ import numpy as np
 import xgboost as xgb
 import pickle
 import os
-import yaml
+from .config import get_config
 import openai
 from .log import log
 import time
@@ -40,9 +40,8 @@ class FeedPredictor:
         self.embeddingdb = embeddingdb
         self.config_path = config_path
 
-        # Load configuration
-        with open(config_path, "r") as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration via centralized loader
+        self.config = get_config(config_path).raw
 
         # Set up OpenAI client for embeddings
         embedding_config = self.config.get("embedding_api", {})

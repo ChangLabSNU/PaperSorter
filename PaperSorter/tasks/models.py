@@ -28,7 +28,7 @@ import pickle
 import argparse
 import psycopg2
 import psycopg2.extras
-import yaml
+from ..config import get_config
 import json
 from datetime import datetime
 from pathlib import Path
@@ -118,9 +118,8 @@ class ModelsCommand(BaseCommand):
         """Execute the models command."""
         initialize_logging('models', args.log_file, args.quiet)
 
-        # Load configuration
-        with open(args.config, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration via centralized loader
+        self.config = get_config(args.config).raw
 
         self.db_config = self.config['db']
         self.model_dir = self.config.get('models', {}).get('path', './models')

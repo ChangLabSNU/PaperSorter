@@ -26,7 +26,7 @@
 import argparse
 import psycopg2
 import psycopg2.extras
-import yaml
+from ..config import get_config
 from tabulate import tabulate
 
 from ..log import log, initialize_logging
@@ -84,9 +84,8 @@ class EmbeddingsCommand(BaseCommand):
         """Execute the embeddings command."""
         initialize_logging('embeddings', args.log_file, args.quiet)
 
-        # Load configuration
-        with open(args.config, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration via centralized loader
+        self.config = get_config(args.config).raw
 
         self.db_config = self.config['db']
         self.embedding_dimensions = self.config.get('embedding_api', {}).get('dimensions', 1536)
