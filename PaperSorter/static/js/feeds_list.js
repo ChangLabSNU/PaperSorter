@@ -1025,7 +1025,15 @@ function backToFeedList() {
     document.getElementById('generalSearchResultsContainer').style.display = 'none';
     document.getElementById('semanticSearchContainer').style.display = 'none';
     document.getElementById('searchResultsContainer').style.display = 'none';
-    document.getElementById('feedsContainer').style.display = 'block';
+    const feedsContainer = document.getElementById('feedsContainer');
+    if (feedsContainer) {
+        feedsContainer.style.display = 'block';
+
+        // Users arriving via shared search links never loaded feeds; fetch them before showing the list.
+        if (!feedsContainer.querySelector('.feed-item') && !isLoading) {
+            loadFeeds();
+        }
+    }
 
     // Hide assisted query display
     document.getElementById('assistedQueryDisplay').style.display = 'none';
