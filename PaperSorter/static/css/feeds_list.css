@@ -536,16 +536,94 @@ button.user-info.btn-logout:hover {
     background: var(--search-bg);
     border-radius: 8px;
     padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     box-shadow: var(--search-shadow);
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
-.search-results-header h2 {
+.search-header-info {
+    flex: 1;
+    min-width: 260px;
+}
+
+.search-query {
     margin: 0;
+    color: var(--text-meta);
+    font-size: 14px;
+}
+
+.assisted-query {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--ai-assist-bg);
+    border-left: 3px solid var(--ai-assist-color);
+    border-radius: 4px;
     color: var(--text-primary);
+}
+
+.assisted-query-label {
+    font-weight: 600;
+    color: var(--ai-assist-color);
+    margin-bottom: 5px;
+}
+
+.assisted-query-text {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.search-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.btn-action {
+    white-space: nowrap;
+}
+
+.search-results-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding-top: 10px;
+}
+
+.search-results-title {
+    margin: 0;
+    font-size: 22px;
+    color: var(--text-primary);
+}
+
+.search-results-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+.search-results-actions .btn {
+    white-space: nowrap;
+}
+
+.search-results-actions .btn-generate.btn-sm {
+    padding: 6px 16px;
+    font-size: 14px;
+    border-radius: var(--radius-base);
+}
+
+.summary-placeholder {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
 }
 
 .search-result-item {
@@ -693,6 +771,21 @@ button.user-info.btn-logout:hover {
         flex-direction: column;
         gap: 15px;
         text-align: center;
+    }
+
+    .search-header-actions {
+        justify-content: center;
+    }
+
+    .search-results-heading {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .search-results-actions {
+        justify-content: center;
     }
 
     .search-result-actions {

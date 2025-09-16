@@ -139,12 +139,12 @@ function createFeedElement(feed) {
         <div class="feed-details">
             <div class="feed-abstract">Click to load abstract...</div>
             <div class="feed-actions">
-                <a href="${feed.link}" target="_blank" class="btn btn-open-article">
-                    📄<span class="btn-text">Open Article</span>
-                </a>
                 <button class="btn btn-details" onclick="viewDetails(${feed.rowid})">
                     📄<span class="btn-text">Details</span>
                 </button>
+                <a href="${feed.link}" target="_blank" class="btn btn-open-article">
+                    📄<span class="btn-text">Open Article</span>
+                </a>
                 <button class="btn btn-share ${isShared ? 'shared' : ''} ${isBroadcasted ? 'disabled' : ''}"
                         onclick="toggleShare(${feed.rowid}, this, ${isBroadcasted})"
                         ${isBroadcasted ? 'disabled title="Already broadcasted"' : ''}>
@@ -681,6 +681,8 @@ async function performGeneralSearch(savedSearchName = null) {
     // Hide the header and AI summary section during loading
     const resultsHeader = resultsSection.querySelector('.search-results-header');
     if (resultsHeader) resultsHeader.style.display = 'none';
+    const resultsHeading = document.getElementById('searchResultsHeading');
+    if (resultsHeading) resultsHeading.style.display = 'none';
 
     const summarySection = document.getElementById('searchSummarySection');
     if (summarySection) summarySection.style.display = 'none';
@@ -716,6 +718,8 @@ async function performGeneralSearch(savedSearchName = null) {
         // Show the header now that we have results
         const resultsHeader = resultsSection.querySelector('.search-results-header');
         if (resultsHeader) resultsHeader.style.display = 'flex';
+        const resultsHeading = document.getElementById('searchResultsHeading');
+        if (resultsHeading) resultsHeading.style.display = 'flex';
 
         // Display assisted query if present
         const assistedQueryDisplay = document.getElementById('assistedQueryDisplay');
@@ -733,6 +737,8 @@ async function performGeneralSearch(savedSearchName = null) {
         // Show header so user can navigate back
         const resultsHeader = resultsSection.querySelector('.search-results-header');
         if (resultsHeader) resultsHeader.style.display = 'flex';
+        const resultsHeading = document.getElementById('searchResultsHeading');
+        if (resultsHeading) resultsHeading.style.display = 'none';
         // Hide AI summary section on error
         const summarySection = document.getElementById('searchSummarySection');
         if (summarySection) summarySection.style.display = 'none';
@@ -802,16 +808,22 @@ function displaySearchResults(results, searchQuery) {
     // Show AI Summary section if admin and has results
     const summarySection = document.getElementById('searchSummarySection');
     if (summarySection) {
-        if (window.feedsConfig.isAdmin && results && results.length > 0) {
-            summarySection.style.display = 'block';
-            // Reset to initial state
-            document.getElementById('searchSummaryInitial').style.display = 'flex';
-            document.getElementById('searchSummaryLoading').style.display = 'none';
-            document.getElementById('searchPosterLoading').style.display = 'none';
-            document.getElementById('searchSummaryText').style.display = 'none';
-            document.getElementById('searchPosterContent').style.display = 'none';
-        } else {
-            summarySection.style.display = 'none';
+        summarySection.style.display = 'none';
+        const initial = document.getElementById('searchSummaryInitial');
+        const loading = document.getElementById('searchSummaryLoading');
+        const posterLoading = document.getElementById('searchPosterLoading');
+        const text = document.getElementById('searchSummaryText');
+        const poster = document.getElementById('searchPosterContent');
+        if (initial) initial.style.display = 'flex';
+        if (loading) loading.style.display = 'none';
+        if (posterLoading) posterLoading.style.display = 'none';
+        if (text) {
+            text.style.display = 'none';
+            text.innerHTML = '';
+        }
+        if (poster) {
+            poster.style.display = 'none';
+            poster.innerHTML = '';
         }
     }
 
@@ -864,12 +876,12 @@ function displaySearchResults(results, searchQuery) {
             <div class="feed-details">
                 <div class="feed-abstract">Click to load abstract...</div>
                 <div class="feed-actions">
-                    <a href="${result.link}" target="_blank" class="btn btn-open-article">
-                        📄<span class="btn-text">Open Article</span>
-                    </a>
                     <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})">
                         📄<span class="btn-text">Details</span>
                     </button>
+                    <a href="${result.link}" target="_blank" class="btn btn-open-article">
+                        📄<span class="btn-text">Open Article</span>
+                    </a>
                     <button class="btn btn-share ${result.shared ? 'shared' : ''} ${result.broadcasted ? 'disabled' : ''}"
                             onclick="toggleShare(${result.rowid || result.id}, this, ${result.broadcasted})"
                             ${result.broadcasted ? 'disabled title="Already broadcasted"' : ''}>
@@ -1090,20 +1102,26 @@ async function copySearchLink(event) {
     }
 }
 
+function revealSearchSummarySection() {
+    const summarySection = document.getElementById('searchSummarySection');
+    if (summarySection && window.feedsConfig.isAdmin) {
+        summarySection.style.display = 'block';
+    }
+}
+
 // Summary generation
 async function generateSummary(papers) {
     const summarySection = document.getElementById('searchSummarySection');
-    const summaryContent = document.getElementById('searchSummaryContent');
     const summaryInitial = document.getElementById('searchSummaryInitial');
     const summaryLoading = document.getElementById('searchSummaryLoading');
     const summaryText = document.getElementById('searchSummaryText');
 
-    if (!summaryContent) return;
+    if (!summarySection || !summaryInitial || !summaryLoading || !summaryText) return;
 
-    // Show the summary section
-    summarySection.style.display = 'block';
+    revealSearchSummarySection();
     summaryInitial.style.display = 'none';
     summaryLoading.style.display = 'block';
+    summaryText.style.display = 'none';
     summaryText.innerHTML = '';
 
     try {
@@ -1149,14 +1167,15 @@ async function generatePoster(papers) {
     const summaryInitial = document.getElementById('searchSummaryInitial');
     const posterLoading = document.getElementById('searchPosterLoading');
     const posterContent = document.getElementById('searchPosterContent');
+    const summaryText = document.getElementById('searchSummaryText');
 
-    if (!posterContent) return;
+    if (!summarySection || !summaryInitial || !posterLoading || !posterContent) return;
 
-    // Show the summary section and poster loading
-    summarySection.style.display = 'block';
+    revealSearchSummarySection();
     summaryInitial.style.display = 'none';
     posterLoading.style.display = 'block';
     posterContent.style.display = 'none';
+    if (summaryText) summaryText.style.display = 'none';
 
     try {
         const response = await fetch('/api/generate-poster', {
@@ -1200,6 +1219,7 @@ async function generatePoster(papers) {
                 posterLoading.style.display = 'none';
                 posterContent.style.display = 'block';
                 posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
+                summaryInitial.style.display = 'flex';
             }
         };
 
@@ -1210,6 +1230,7 @@ async function generatePoster(papers) {
         posterLoading.style.display = 'none';
         posterContent.style.display = 'block';
         posterContent.innerHTML = '<div class="error">Failed to generate poster</div>';
+        summaryInitial.style.display = 'flex';
     }
 }
 

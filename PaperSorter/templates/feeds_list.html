@@ -76,17 +76,26 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
         <!-- General Search Results Container -->
         <div id="generalSearchResultsContainer" style="display: none;">
             <div class="search-results-header">
-                <div style="flex: 1;">
-                    <h2 style="margin-bottom: 8px;">Search Results</h2>
-                    <p id="searchQueryDisplay" style="margin: 0; color: var(--text-meta); font-size: 14px;"></p>
-                    <div id="assistedQueryDisplay" style="display: none; margin-top: 10px; padding: 10px; background: var(--ai-assist-bg); border-left: 3px solid var(--ai-assist-color); border-radius: 4px;">
-                        <div style="font-weight: 600; color: var(--ai-assist-color); margin-bottom: 5px;">AI-Assisted Query:</div>
-                        <div id="assistedQueryText" style="color: var(--text-primary); font-size: 13px; line-height: 1.5;"></div>
+                <div class="search-header-info">
+                    <p id="searchQueryDisplay" class="search-query"></p>
+                    <div id="assistedQueryDisplay" class="assisted-query" style="display: none;">
+                        <div class="assisted-query-label">AI-Assisted Query:</div>
+                        <div id="assistedQueryText" class="assisted-query-text"></div>
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 20px;">
-                    <button onclick="copySearchLink(event)" class="btn btn-primary-soft">📋 Copy Link</button>
-                    <button onclick="backToFeedList()" class="btn btn-secondary-soft">← Back to Paper List</button>
+                <div class="search-header-actions">
+                    <button onclick="copySearchLink(event)" class="btn btn-primary-soft btn-action">📋 Copy Link</button>
+                    <button onclick="backToFeedList()" class="btn btn-secondary-soft btn-action">← Back to Paper List</button>
+                </div>
+            </div>
+
+            <div class="search-results-heading" id="searchResultsHeading">
+                <h2 class="search-results-title">Search Results</h2>
+                <div class="search-results-actions">
+                    {% if current_user.is_admin %}
+                    <button class="btn btn-primary-soft btn-generate btn-sm" id="generateSearchSummaryBtn">Generate Summary</button>
+                    <button class="btn btn-primary-soft btn-generate btn-sm" id="generateSearchPosterBtn">Generate Infographic</button>
+                    {% endif %}
                 </div>
             </div>
 
@@ -97,8 +106,7 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                 </div>
                 <div class="summary-content" id="searchSummaryContent">
                     <div class="summary-initial" id="searchSummaryInitial">
-                        <button class="btn btn-primary-soft btn-generate" id="generateSearchSummaryBtn">Generate Summary</button>
-                        <button class="btn btn-primary-soft btn-generate" id="generateSearchPosterBtn">Generate Infographic</button>
+                        <p class="summary-placeholder">Use the actions above to generate an AI summary or infographic.</p>
                     </div>
                     <div class="summary-loading" id="searchSummaryLoading" style="display: none;">
                         <div class="spinner"></div>
@@ -111,7 +119,7 @@ Tip: Longer text (e.g., full abstracts) provides better results for finding rele
                             This may take 3-5 minutes. Please wait...
                         </p>
                     </div>
-                    <div class="summary-text" id="searchSummaryText"></div>
+                    <div class="summary-text" id="searchSummaryText" style="display: none;"></div>
                     <div class="poster-content" id="searchPosterContent" style="display: none;"></div>
                 </div>
             </div>

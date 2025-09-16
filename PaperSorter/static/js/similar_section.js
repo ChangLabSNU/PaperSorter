@@ -55,8 +55,8 @@ window.SimilarSection = (function() {
         <div class="feed-details">
           <div class="feed-abstract">Click to load abstract...</div>
           <div class="feed-actions">
-            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">📄<span class="btn-text">Open Article</span></a>` : ''}
             <button class="btn btn-details" onclick="window.location.href='/paper/${feed.rowid}'">📄<span class="btn-text"> Details</span></button>
+            ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">📄<span class="btn-text">Open Article</span></a>` : ''}
             <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
                     onclick="SimilarSection.shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
                     data-shared="${feed.shared ? 'true' : 'false'}" ${feed.broadcasted ? 'disabled title=\"Already broadcasted\"' : ''}>
