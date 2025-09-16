@@ -2,7 +2,13 @@
 <hr/>
 
 <a id="similar"></a>
-<h2 class="paper-title" style="font-size: 22px; margin-bottom: 12px;">Similar Articles</h2>
+<div class="similar-section-header">
+  <h2 class="paper-title" style="font-size: 22px; margin-bottom: 12px;">Similar Articles</h2>
+  <div class="similar-section-actions">
+    <button class="btn btn-primary-soft btn-generate btn-sm" id="similarGenerateSummaryBtn">Generate Summary</button>
+    <button class="btn btn-primary-soft btn-generate btn-sm" id="similarGeneratePosterBtn">Generate Infographic</button>
+  </div>
+</div>
 
 <!-- AI Summary Section -->
 <div class="summary-section" id="similarSummarySection" style="display: none; margin-bottom: 20px;">
@@ -11,8 +17,7 @@
   </div>
   <div class="summary-content" id="similarSummaryContent">
     <div class="summary-initial" id="similarSummaryInitial">
-      <button class="btn btn-primary-soft btn-generate" id="similarGenerateSummaryBtn">Generate Summary</button>
-      <button class="btn btn-primary-soft btn-generate" id="similarGeneratePosterBtn">Generate Infographic</button>
+      <p class="summary-placeholder">Use the actions above to generate an AI summary or infographic.</p>
     </div>
     <div class="summary-loading" id="similarSummaryLoading" style="display: none;">
       <div class="spinner"></div>
