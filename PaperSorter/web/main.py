@@ -23,8 +23,6 @@
 
 """Main routes for the web interface."""
 
-import psycopg2
-import psycopg2.extras
 from flask import (
     Blueprint,
     render_template,
@@ -45,46 +43,51 @@ main_bp = Blueprint("main", __name__)
 def index():
     """Show list of all feeds with their labels."""
 
-    # Get list of active channels for primary channel selector
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
-    cursor.execute("""
-        SELECT id, name
-        FROM channels
-        WHERE is_active = TRUE
-        ORDER BY id
-    """)
-    channels = cursor.fetchall()
-
-    # If user's primary_channel_id is NULL and channels exist, auto-set to the first one
-    primary_channel_id = current_user.primary_channel_id
-    if primary_channel_id is None and channels:
-        primary_channel_id = channels[0]["id"]
-        # Update the user's primary_channel_id
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
         cursor.execute(
             """
-            UPDATE users
-            SET primary_channel_id = %s
-            WHERE id = %s
-        """,
-            (primary_channel_id, current_user.id),
+            SELECT id, name
+            FROM channels
+            WHERE is_active = TRUE
+            ORDER BY id
+            """
         )
-        conn.commit()
+        channels = cursor.fetchall()
+        cursor.close()
 
-        # Update the current user object
-        current_user.primary_channel_id = primary_channel_id
+        primary_channel_id = current_user.primary_channel_id
+        if primary_channel_id is None and channels:
+            primary_channel_id = channels[0]["id"]
+            update_cursor = session.cursor()
+            update_cursor.execute(
+                """
+                UPDATE users
+                SET primary_channel_id = %s
+                WHERE id = %s
+                """,
+                (primary_channel_id, current_user.id),
+            )
+            update_cursor.close()
+            current_user.primary_channel_id = primary_channel_id
 
-    # Get last update time
-    cursor.execute("""
-        SELECT MAX(COALESCE(published, added)) as last_updated
-        FROM feeds
-    """)
-    result = cursor.fetchone()
-    last_updated = result['last_updated'].strftime('%Y-%m-%d %H:%M') if result and result['last_updated'] else 'Never'
+        cursor = session.cursor(dict_cursor=True)
+        cursor.execute(
+            """
+            SELECT MAX(COALESCE(published, added)) as last_updated
+            FROM feeds
+            """
+        )
+        result = cursor.fetchone()
+        cursor.close()
 
-    cursor.close()
-    conn.close()
+    last_updated = (
+        result["last_updated"].strftime("%Y-%m-%d %H:%M")
+        if result and result["last_updated"]
+        else "Never"
+    )
 
     # Get user's minimum score preference
     current_min_score = getattr(current_user, 'feedlist_minscore', 0.0)
@@ -102,49 +105,47 @@ def index():
 @login_required
 def shortened_link(short_name):
     """Redirect from shortened link to search query."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
 
-    try:
-        # Look up the query and assisted_query for this short_name
+    with db_manager.session() as session:
+        cursor = session.cursor()
         cursor.execute(
             """
             SELECT query, assisted_query FROM saved_searches
             WHERE short_name = %s
             LIMIT 1
-        """,
+            """,
             (short_name,),
         )
 
         result = cursor.fetchone()
-        if result:
-            query = result[0]
-            assisted_query = result[1]
-
-            # Update last_access time
-            cursor.execute(
-                """
-                UPDATE saved_searches
-                SET last_access = NOW()
-                WHERE short_name = %s
-            """,
-                (short_name,),
-            )
-            conn.commit()
-
-            # Redirect to the main page with the search query
-            # Include ai_assist parameter if there was an assisted query
-            if assisted_query:
-                return redirect(url_for("main.index", q=query, ai_assist="true", saved_search=short_name))
-            else:
-                return redirect(url_for("main.index", q=query))
-        else:
-            # Short name not found
+        if not result:
+            cursor.close()
             return "Link not found", 404
 
-    finally:
+        query = result[0]
+        assisted_query = result[1]
+
+        cursor.execute(
+            """
+            UPDATE saved_searches
+            SET last_access = NOW()
+            WHERE short_name = %s
+            """,
+            (short_name,),
+        )
         cursor.close()
-        conn.close()
+
+    if assisted_query:
+        return redirect(
+            url_for(
+                "main.index",
+                q=query,
+                ai_assist="true",
+                saved_search=short_name,
+            )
+        )
+    return redirect(url_for("main.index", q=query))
 
 
 @main_bp.route("/label", methods=["POST"])
@@ -156,71 +157,63 @@ def label_item():
     label_value = data.get("label")
 
     if session_id and label_value is not None:
-        conn = current_app.config["get_db_connection"]()
+        db_manager = current_app.config["db_manager"]
 
-        # Also update preferences table
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # Get feed_id and user_id from labeling_sessions
-        # IMPORTANT: Verify the session belongs to the current user
-        cursor.execute(
-            "SELECT feed_id, user_id FROM labeling_sessions WHERE id = %s AND user_id = %s",
-            (session_id, current_user.id),
-        )
-        result = cursor.fetchone()
-
-        if result:
-            feed_id = result["feed_id"]
-            user_id = result["user_id"]  # This will be current_user.id
-
-            # First check if a preference already exists
-            cursor.execute(
-                """
-                SELECT id FROM preferences
-                WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-            """,
-                (feed_id, user_id),
-            )
-
-            existing = cursor.fetchone()
-
-            if existing:
-                # Update existing preference
+        try:
+            with db_manager.session() as session:
+                cursor = session.cursor(dict_cursor=True)
                 cursor.execute(
-                    """
-                    UPDATE preferences
-                    SET score = %s, time = CURRENT_TIMESTAMP
-                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-                """,
-                    (float(label_value), feed_id, user_id),
+                    "SELECT feed_id, user_id FROM labeling_sessions WHERE id = %s AND user_id = %s",
+                    (session_id, current_user.id),
                 )
-            else:
-                # Insert new preference
-                cursor.execute(
-                    """
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                """,
-                    (feed_id, user_id, float(label_value)),
-                )
+                result = cursor.fetchone()
+                cursor.close()
 
-            # Update the labeling_sessions table with score and update_time
-            # Also verify ownership for the UPDATE to prevent any race conditions
-            cursor.execute(
-                """
-                UPDATE labeling_sessions
-                SET score = %s, update_time = CURRENT_TIMESTAMP
-                WHERE id = %s AND user_id = %s
-            """,
-                (float(label_value), session_id, current_user.id),
-            )
+                if result:
+                    feed_id = result["feed_id"]
+                    user_id = result["user_id"]
 
-            conn.commit()
+                    cursor = session.cursor()
+                    cursor.execute(
+                        """
+                        SELECT id FROM preferences
+                        WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                        """,
+                        (feed_id, user_id),
+                    )
+                    existing = cursor.fetchone()
 
-        cursor.close()
-        conn.close()
+                    if existing:
+                        cursor.execute(
+                            """
+                            UPDATE preferences
+                            SET score = %s, time = CURRENT_TIMESTAMP
+                            WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                            """,
+                            (float(label_value), feed_id, user_id),
+                        )
+                    else:
+                        cursor.execute(
+                            """
+                            INSERT INTO preferences (feed_id, user_id, time, score, source)
+                            VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
+                            """,
+                            (feed_id, user_id, float(label_value)),
+                        )
 
-        return jsonify({"status": "success"})
+                    cursor.execute(
+                        """
+                        UPDATE labeling_sessions
+                        SET score = %s, update_time = CURRENT_TIMESTAMP
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (float(label_value), session_id, current_user.id),
+                    )
+                    cursor.close()
+
+            return jsonify({"status": "success"})
+        except Exception as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 500
 
     return jsonify({"status": "error", "message": "Invalid request"}), 400
 
@@ -229,10 +222,12 @@ def label_item():
 @login_required
 def labeling():
     """Labeling interface - hidden page."""
-    conn = current_app.config["get_db_connection"]()
-    item = get_unlabeled_item(conn, current_user)
-    stats = get_labeling_stats(conn, current_user)
-    conn.close()
+    db_manager = current_app.config["db_manager"]
+
+    with db_manager.session() as session:
+        conn = session.connection
+        item = get_unlabeled_item(conn, current_user)
+        stats = get_labeling_stats(conn, current_user)
 
     if not item:
         return render_template("complete.html", stats=stats, show_back_to_feeds=True)
@@ -271,28 +266,30 @@ def pdf_search():
 @login_required
 def user_settings():
     """Personal settings page for users to manage their preferences."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
-    # Get user's current settings
-    cursor.execute("""
-        SELECT id, username, theme, primary_channel_id, timezone, date_format
-        FROM users
-        WHERE id = %s
-    """, (current_user.id,))
-    user_data = cursor.fetchone()
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
+        cursor.execute(
+            """
+            SELECT id, username, theme, primary_channel_id, timezone, date_format
+            FROM users
+            WHERE id = %s
+            """,
+            (current_user.id,),
+        )
+        user_data = cursor.fetchone()
 
-    # Get available channels for primary channel selection
-    cursor.execute("""
-        SELECT id, name
-        FROM channels
-        WHERE is_active = TRUE
-        ORDER BY id
-    """)
-    channels = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+        cursor.execute(
+            """
+            SELECT id, name
+            FROM channels
+            WHERE is_active = TRUE
+            ORDER BY id
+            """
+        )
+        channels = cursor.fetchall()
+        cursor.close()
 
     return render_template("user_settings.html", user_data=user_data, channels=channels)
 
@@ -301,13 +298,13 @@ def user_settings():
 @login_required
 def paper_detail(paper_id):
     """Paper detail page with rich operations."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    
-    try:
-        # Get paper details without predicted scores (we'll get all scores separately)
-        cursor.execute("""
-            SELECT 
+    db_manager = current_app.config["db_manager"]
+
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
+        cursor.execute(
+            """
+            SELECT
                 f.id,
                 f.external_id,
                 f.title,
@@ -322,19 +319,20 @@ def paper_detail(paper_id):
                 p.score as user_score,
                 p.source as label_source
             FROM feeds f
-            LEFT JOIN preferences p ON f.id = p.feed_id 
-                AND p.user_id = %s
+            LEFT JOIN preferences p ON f.id = p.feed_id AND p.user_id = %s
             WHERE f.id = %s
-        """, (current_user.id, paper_id))
-        
+            """,
+            (current_user.id, paper_id),
+        )
         paper = cursor.fetchone()
-        
+
         if not paper:
+            cursor.close()
             return render_template("error.html", error="Paper not found"), 404
-        
-        # Get all predicted scores from active models
-        cursor.execute("""
-            SELECT 
+
+        cursor.execute(
+            """
+            SELECT
                 pp.score,
                 COALESCE(m.score_name, m.name) as model_name,
                 m.id as model_id
@@ -342,55 +340,51 @@ def paper_detail(paper_id):
             JOIN models m ON pp.model_id = m.id
             WHERE pp.feed_id = %s AND m.is_active = TRUE
             ORDER BY pp.score DESC
-        """, (paper_id,))
-        
+            """,
+            (paper_id,),
+        )
         predicted_scores = cursor.fetchall()
-        
-        # Get available channels for broadcast operations
-        cursor.execute("""
+
+        cursor.execute(
+            """
             SELECT id, name
             FROM channels
             WHERE is_active = TRUE
             ORDER BY id
-        """)
+            """
+        )
         channels = cursor.fetchall()
 
-        # Check if paper is in any broadcast queues
         cursor.execute(
             """
             SELECT channel_id
             FROM broadcasts
             WHERE feed_id = %s AND broadcasted_time IS NULL
-        """,
+            """,
             (paper_id,),
         )
-
         queued_channels = {row["channel_id"] for row in cursor.fetchall()}
-
-        return render_template(
-            "paper_detail.html",
-            paper=paper,
-            predicted_scores=predicted_scores,
-            similar_papers=None,  # Will be loaded asynchronously
-            channels=channels,
-            queued_channels=queued_channels
-        )
-        
-    finally:
         cursor.close()
-        conn.close()
+
+    return render_template(
+        "paper_detail.html",
+        paper=paper,
+        predicted_scores=predicted_scores,
+        similar_papers=None,
+        channels=channels,
+        queued_channels=queued_channels,
+    )
 
 
 @main_bp.route("/health")
 def health_check():
     """Health check endpoint for Docker/monitoring."""
     try:
-        # Check database connection
-        conn = current_app.config["get_db_connection"]()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-        conn.close()
+        db_manager = current_app.config["db_manager"]
+        with db_manager.session() as session:
+            cursor = session.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
         return jsonify({"status": "healthy", "service": "papersorter"}), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 503

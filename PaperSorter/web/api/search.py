@@ -25,8 +25,6 @@
 
 import json
 import markdown2
-import psycopg2
-import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 from openai import OpenAI
@@ -146,73 +144,77 @@ def api_search():
         config_path = current_app.config["CONFIG_PATH"]
         from ...config import get_config
         config = get_config(config_path).raw
+        db_manager = current_app.config["db_manager"]
 
-        # Get database connection for saved search lookup
-        conn = current_app.config["get_db_connection"]()
-
-        # Apply AI assist if requested
         assisted_query = None
-        search_query = query  # Default to original query
+        search_query = query
 
-        # Check if this is a saved search restoration
-        if saved_search_name and use_ai_assist:
-            # Try to retrieve the pre-computed assisted query
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT assisted_query FROM saved_searches
-                WHERE short_name = %s
-                LIMIT 1
-                """,
-                (saved_search_name,),
-            )
-            result = cursor.fetchone()
-            cursor.close()
+        with db_manager.session() as session:
+            connection = session.connection
 
-            if result and result[0]:
-                # Use the saved assisted query
-                assisted_query = result[0]
-                search_query = assisted_query
-                log.info(f"Using saved assisted query for search: {saved_search_name}")
+            if saved_search_name and use_ai_assist:
+                cursor = session.cursor()
+                cursor.execute(
+                    """
+                    SELECT assisted_query FROM saved_searches
+                    WHERE short_name = %s
+                    LIMIT 1
+                    """,
+                    (saved_search_name,),
+                )
+                result = cursor.fetchone()
+                cursor.close()
+
+                if result and result[0]:
+                    assisted_query = result[0]
+                    search_query = assisted_query
+                    log.info(
+                        f"Using saved assisted query for search: {saved_search_name}"
+                    )
+                elif use_ai_assist:
+                    assisted_query = assist_query(query, config)
+                    if assisted_query:
+                        search_query = assisted_query
+                        log.info(
+                            f"Generated new assisted query for saved search: {saved_search_name}"
+                        )
             elif use_ai_assist:
-                # Fallback to generating a new one if not found
                 assisted_query = assist_query(query, config)
                 if assisted_query:
                     search_query = assisted_query
-                    log.info(f"Generated new assisted query for saved search: {saved_search_name}")
-        elif use_ai_assist:
-            # Regular AI assist (not from saved search)
-            assisted_query = assist_query(query, config)
-            if assisted_query:
-                search_query = assisted_query  # Use assisted query for search
-                log.info(f"AI assist transformed query from '{query}' to assisted version")
+                    log.info(
+                        f"AI assist transformed query from '{query}' to assisted version"
+                    )
+                else:
+                    log.warning("AI assist failed, falling back to original query")
+
+            edb = EmbeddingDatabase()
+
+            user_id = current_user.id
+            cursor = session.cursor(dict_cursor=True)
+
+            if current_user.primary_channel_id:
+                cursor.execute(
+                    "SELECT model_id FROM channels WHERE id = %s",
+                    (current_user.primary_channel_id,),
+                )
+                channel_result = cursor.fetchone()
+                if channel_result and channel_result["model_id"]:
+                    model_id = channel_result["model_id"]
+                else:
+                    model_id = get_user_model_id(connection, current_user)
             else:
-                log.warning("AI assist failed, falling back to original query")
+                model_id = get_user_model_id(connection, current_user)
 
-        edb = EmbeddingDatabase()
+            search_results = edb.search_by_text(
+                search_query,
+                limit=50,
+                user_id=user_id,
+                model_id=model_id,
+                channel_id=current_user.primary_channel_id,
+            )
 
-        # Get user ID and default model ID for filtering
-        user_id = current_user.id
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # Get model_id from primary channel if it exists
-        if current_user.primary_channel_id:
-            cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
-            channel_result = cursor.fetchone()
-            model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
-        else:
-            model_id = get_user_model_id(conn, current_user)
-
-        # Search using embeddings (use search_query which may be the assisted version)
-        search_results = edb.search_by_text(
-            search_query, limit=50, user_id=user_id, model_id=model_id,
-            channel_id=current_user.primary_channel_id
-        )
-
-        # Convert to format compatible with papers list
-        feeds = []
-        for feed in search_results:
-            feeds.append(
+            feeds = [
                 {
                     "rowid": feed["feed_id"],
                     "external_id": feed["external_id"],
@@ -230,38 +232,39 @@ def api_search():
                     "positive_votes": feed["positive_votes"],
                     "negative_votes": feed["negative_votes"],
                 }
-            )
+                for feed in search_results
+            ]
 
-        # Save the search query to saved_searches table
-        try:
-            short_name = save_search_query(conn, query, current_user.id, assisted_query)
-        except Exception as e:
-            log.error(f"Failed to save search query: {e}")
-            short_name = None
+            try:
+                short_name = save_search_query(connection, query, current_user.id, assisted_query)
+            except Exception as exc:
+                log.error(f"Failed to save search query: {exc}")
+                short_name = None
 
-        # Log the search event
-        cursor = conn.cursor()
-        try:
-            # Log text search event with the most relevant result (if any)
-            # Store search query in content field, and the most relevant feed_id if results exist
-            feed_id_to_log = search_results[0]["feed_id"] if search_results else None
-            event_type = "web:ai-assisted-search" if use_ai_assist and assisted_query else "web:text-search"
-            # For AI-assisted search, log both original and assisted query
-            log_content = json.dumps({"original": query, "assisted": assisted_query}) if assisted_query else query
-            cursor.execute(
-                """
-                INSERT INTO events (event_type, user_id, feed_id, content)
-                VALUES (%s, %s, %s, %s)
-            """,
-                (event_type, current_user.id, feed_id_to_log, log_content),
-            )
-            conn.commit()
-        except Exception as e:
-            log.error(f"Failed to log text search event: {e}")
-            conn.rollback()
-        finally:
-            cursor.close()
-            conn.close()
+            log_cursor = session.cursor()
+            try:
+                feed_id_to_log = search_results[0]["feed_id"] if search_results else None
+                event_type = (
+                    "web:ai-assisted-search"
+                    if use_ai_assist and assisted_query
+                    else "web:text-search"
+                )
+                log_content = (
+                    json.dumps({"original": query, "assisted": assisted_query})
+                    if assisted_query
+                    else query
+                )
+                log_cursor.execute(
+                    """
+                    INSERT INTO events (event_type, user_id, feed_id, content)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (event_type, current_user.id, feed_id_to_log, log_content),
+                )
+            except Exception as exc:
+                log.error(f"Failed to log text search event: {exc}")
+            finally:
+                log_cursor.close()
 
         response_data = {"feeds": feeds, "short_name": short_name}
         if assisted_query:
@@ -291,12 +294,11 @@ def api_shorten_search():
 
     try:
         # Get database connection
-        conn = current_app.config["get_db_connection"]()
+        db_manager = current_app.config["db_manager"]
 
-        # Save or retrieve the search query
-        short_name = save_search_query(conn, query, current_user.id, assisted_query)
-
-        conn.close()
+        with db_manager.session() as session:
+            connection = session.connection
+            short_name = save_search_query(connection, query, current_user.id, assisted_query)
 
         # Generate the full shortened URL
         base_url = request.host_url.rstrip('/')
@@ -330,27 +332,24 @@ def api_summarize():
         if not api_config:
             return jsonify({"error": "Summarization API not configured"}), 500
 
-        # Fetch article data from database
-        conn = current_app.config["get_db_connection"]()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        db_manager = current_app.config["db_manager"]
 
-        # Get articles with content/tldr
-        placeholders = ",".join(["%s"] * len(feed_ids))
-        query = f"""
-            SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr
-            FROM feeds
-            WHERE id IN ({placeholders})
-        """
-        cursor.execute(query, feed_ids)
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        articles = cursor.fetchall()
-        cursor.close()
+            placeholders = ",".join(["%s"] * len(feed_ids))
+            query = f"""
+                SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr
+                FROM feeds
+                WHERE id IN ({placeholders})
+            """
+            cursor.execute(query, feed_ids)
+            articles = cursor.fetchall()
+            cursor.close()
 
-        if not articles:
-            conn.close()
-            return jsonify({"error": "No articles found"}), 404
+            if not articles:
+                return jsonify({"error": "No articles found"}), 404
 
-        # Format articles for summarization
         formatted_articles = []
         article_refs = []  # Store author-year references
         for i, article in enumerate(articles, 1):
@@ -445,9 +444,7 @@ Keep your response focused and actionable, using clear Markdown formatting. When
 
         summary_markdown = response.choices[0].message.content
 
-        # Ensure we have valid content
         if not summary_markdown:
-            conn.close()
             return jsonify({"error": "Empty response from LLM"}), 500
 
         # Ensure it's a string
@@ -462,30 +459,26 @@ Keep your response focused and actionable, using clear Markdown formatting. When
         )
 
         # Log the event to database
-        cursor = conn.cursor()
-        try:
-            # Log AI summary generation event - store all feed IDs in content field
-            if feed_ids:
-                # Store the list of feed IDs as JSON in the content field
-                cursor.execute(
-                    """
-                    INSERT INTO events (event_type, user_id, feed_id, content)
-                    VALUES (%s, %s, %s, %s)
-                """,
-                    (
-                        "web:ai-summary-text",
-                        current_user.id,
-                        feed_ids[0],
-                        json.dumps(feed_ids),
-                    ),
-                )
-                conn.commit()
-        except Exception as e:
-            log.error(f"Failed to log AI summary event: {e}")
-            conn.rollback()
-        finally:
-            cursor.close()
-            conn.close()
+        with db_manager.session() as session:
+            cursor = session.cursor()
+            try:
+                if feed_ids:
+                    cursor.execute(
+                        """
+                        INSERT INTO events (event_type, user_id, feed_id, content)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            "web:ai-summary-text",
+                            current_user.id,
+                            feed_ids[0],
+                            json.dumps(feed_ids),
+                        ),
+                    )
+            except Exception as exc:
+                log.error(f"Failed to log AI summary event: {exc}")
+            finally:
+                cursor.close()
 
         return jsonify(
             {
@@ -545,29 +538,24 @@ def api_scholarly_database_search():
         # Don't filter by year for the "Add" interface - users want to add any paper
         articles = provider.search(query, limit=20)
 
-        # Check which papers already exist in our database
-        conn = current_app.config["get_db_connection"]()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
+        db_manager = current_app.config["db_manager"]
         papers = []
-        for article in articles:
-            paper_dict = article.to_dict()
 
-            # Check if this paper already exists
-            cursor.execute(
-                """
-                SELECT id FROM feeds WHERE external_id = %s
-            """,
-                (article.unique_id,),
-            )
-
-            existing = cursor.fetchone()
-            paper_dict["already_added"] = existing is not None
-            paper_dict["article_id"] = article.unique_id
-            papers.append(paper_dict)
-
-        cursor.close()
-        conn.close()
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
+            for article in articles:
+                paper_dict = article.to_dict()
+                cursor.execute(
+                    """
+                    SELECT id FROM feeds WHERE external_id = %s
+                    """,
+                    (article.unique_id,),
+                )
+                existing = cursor.fetchone()
+                paper_dict["already_added"] = existing is not None
+                paper_dict["article_id"] = article.unique_id
+                papers.append(paper_dict)
+            cursor.close()
 
         return jsonify({
             "success": True,

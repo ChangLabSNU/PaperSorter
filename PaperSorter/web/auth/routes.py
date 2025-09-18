@@ -23,8 +23,6 @@
 
 """Authentication routes."""
 
-import psycopg2
-import psycopg2.extras
 from flask import (
     Blueprint,
     render_template,
@@ -41,7 +39,7 @@ from .models import User
 auth_bp = Blueprint("auth", __name__)
 
 
-def check_and_update_admin_status(username, user_id, conn):
+def check_and_update_admin_status(username, user_id, session):
     """Check if user should be promoted to admin based on config.
 
     Note: This function only promotes users to admin, never demotes.
@@ -57,7 +55,7 @@ def check_and_update_admin_status(username, user_id, conn):
     """
     try:
         # Get current admin status from database
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor = session.cursor(dict_cursor=True)
         cursor.execute(
             "SELECT is_admin FROM users WHERE id = %s",
             (user_id,),
@@ -93,12 +91,11 @@ def check_and_update_admin_status(username, user_id, conn):
 
         # Only promote (never demote)
         if should_be_promoted and not current_is_admin:
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor = session.cursor()
             cursor.execute(
                 "UPDATE users SET is_admin = %s WHERE id = %s",
                 (True, user_id),
             )
-            conn.commit()
             cursor.close()
             log.info(f"Promoted {username} to admin based on config.yml")
             return True
@@ -108,7 +105,7 @@ def check_and_update_admin_status(username, user_id, conn):
     except Exception as e:
         log.error(f"Error checking admin status for {username}: {e}")
         # Return current status from database on error
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor = session.cursor(dict_cursor=True)
         cursor.execute(
             "SELECT is_admin FROM users WHERE id = %s",
             (user_id,),
@@ -213,46 +210,48 @@ def google_callback():
         if user_info:
             email = user_info.get("email")
 
-            conn = current_app.config["get_db_connection"]()
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            db_manager = current_app.config["db_manager"]
 
-            # Check if user exists
-            cursor.execute(
-                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
-                (email,),
-            )
-            user_data = cursor.fetchone()
+            with db_manager.session() as session_ctx:
+                cursor = session_ctx.cursor(dict_cursor=True)
 
-            if not user_data:
-                # Create new user (non-admin by default)
                 cursor.execute(
-                    """
-                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
-                    RETURNING id, username, is_admin, timezone, date_format
-                """,
-                    (email, "oauth",
-                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
-                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
+                    "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
+                    (email,),
                 )
                 user_data = cursor.fetchone()
-                conn.commit()
 
-            # Update last login
-            cursor.execute(
-                """
-                UPDATE users SET lastlogin = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """,
-                (user_data["id"],),
-            )
-            conn.commit()
+                if not user_data:
+                    cursor.execute(
+                        """
+                        INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                        RETURNING id, username, is_admin, timezone, date_format
+                        """,
+                        (
+                            email,
+                            "oauth",
+                            current_app.config.get("DEFAULT_TIMEZONE", "UTC"),
+                            current_app.config.get("DEFAULT_DATE_FORMAT", "MMM D, YYYY"),
+                        ),
+                    )
+                    user_data = cursor.fetchone()
 
-            # Check and update admin status based on config
-            is_admin = check_and_update_admin_status(email, user_data["id"], conn)
+                cursor.execute(
+                    """
+                    UPDATE users SET lastlogin = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (user_data["id"],),
+                )
 
-            cursor.close()
-            conn.close()
+                is_admin = check_and_update_admin_status(
+                    email,
+                    user_data["id"],
+                    session_ctx,
+                )
+
+                cursor.close()
 
             # Log the user in
             user = User(
@@ -308,46 +307,47 @@ def github_callback():
         if user_info and user_info.get("email"):
             email = user_info["email"]
 
-            conn = current_app.config["get_db_connection"]()
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            db_manager = current_app.config["db_manager"]
 
-            # Check if user exists
-            cursor.execute(
-                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
-                (email,),
-            )
-            user_data = cursor.fetchone()
-
-            if not user_data:
-                # Create new user (non-admin by default)
+            with db_manager.session() as session_ctx:
+                cursor = session_ctx.cursor(dict_cursor=True)
                 cursor.execute(
-                    """
-                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
-                    RETURNING id, username, is_admin, timezone, date_format
-                """,
-                    (email, "oauth",
-                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
-                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
+                    "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
+                    (email,),
                 )
                 user_data = cursor.fetchone()
-                conn.commit()
 
-            # Update last login
-            cursor.execute(
-                """
-                UPDATE users SET lastlogin = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """,
-                (user_data["id"],),
-            )
-            conn.commit()
+                if not user_data:
+                    cursor.execute(
+                        """
+                        INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                        RETURNING id, username, is_admin, timezone, date_format
+                        """,
+                        (
+                            email,
+                            "oauth",
+                            current_app.config.get("DEFAULT_TIMEZONE", "UTC"),
+                            current_app.config.get("DEFAULT_DATE_FORMAT", "MMM D, YYYY"),
+                        ),
+                    )
+                    user_data = cursor.fetchone()
 
-            # Check and update admin status based on config
-            is_admin = check_and_update_admin_status(email, user_data["id"], conn)
+                cursor.execute(
+                    """
+                    UPDATE users SET lastlogin = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (user_data["id"],),
+                )
 
-            cursor.close()
-            conn.close()
+                is_admin = check_and_update_admin_status(
+                    email,
+                    user_data["id"],
+                    session_ctx,
+                )
+
+                cursor.close()
 
             # Log the user in
             user = User(
@@ -411,46 +411,47 @@ def orcid_callback():
             # This ensures uniqueness and persistence
             username = f"{orcid_id}@orcid.org"
 
-            conn = current_app.config["get_db_connection"]()
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            db_manager = current_app.config["db_manager"]
 
-            # Check if user exists
-            cursor.execute(
-                "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
-                (username,),
-            )
-            user_data = cursor.fetchone()
-
-            if not user_data:
-                # Create new user (non-admin by default)
+            with db_manager.session() as session_ctx:
+                cursor = session_ctx.cursor(dict_cursor=True)
                 cursor.execute(
-                    """
-                    INSERT INTO users (username, password, created, is_admin, timezone, date_format)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
-                    RETURNING id, username, is_admin, timezone, date_format
-                """,
-                    (username, "oauth",
-                     current_app.config.get('DEFAULT_TIMEZONE', 'UTC'),
-                     current_app.config.get('DEFAULT_DATE_FORMAT', 'MMM D, YYYY')),
+                    "SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id, theme FROM users WHERE username = %s",
+                    (username,),
                 )
                 user_data = cursor.fetchone()
-                conn.commit()
 
-            # Update last login
-            cursor.execute(
-                """
-                UPDATE users SET lastlogin = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """,
-                (user_data["id"],),
-            )
-            conn.commit()
+                if not user_data:
+                    cursor.execute(
+                        """
+                        INSERT INTO users (username, password, created, is_admin, timezone, date_format)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, false, %s, %s)
+                        RETURNING id, username, is_admin, timezone, date_format
+                        """,
+                        (
+                            username,
+                            "oauth",
+                            current_app.config.get("DEFAULT_TIMEZONE", "UTC"),
+                            current_app.config.get("DEFAULT_DATE_FORMAT", "MMM D, YYYY"),
+                        ),
+                    )
+                    user_data = cursor.fetchone()
 
-            # Check and update admin status based on config
-            is_admin = check_and_update_admin_status(username, user_data["id"], conn)
+                cursor.execute(
+                    """
+                    UPDATE users SET lastlogin = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (user_data["id"],),
+                )
 
-            cursor.close()
-            conn.close()
+                is_admin = check_and_update_admin_status(
+                    username,
+                    user_data["id"],
+                    session_ctx,
+                )
+
+                cursor.close()
 
             # Log the user in
             user = User(
