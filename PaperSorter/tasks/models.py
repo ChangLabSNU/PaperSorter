@@ -26,9 +26,8 @@
 import os
 import pickle
 import argparse
-import psycopg2
-import psycopg2.extras
 from ..config import get_config
+from ..db import DatabaseManager
 import json
 from datetime import datetime
 from pathlib import Path
@@ -126,12 +125,9 @@ class ModelsCommand(BaseCommand):
         # Ensure model directory exists
         Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
-        # Get database connection
-        self.conn = psycopg2.connect(
-            host=self.db_config['host'],
-            database=self.db_config['database'],
-            user=self.db_config['user'],
-            password=self.db_config['password']
+        self.db_manager = DatabaseManager.from_config(
+            self.db_config,
+            application_name="papersorter-cli-models",
         )
 
         try:
@@ -140,60 +136,64 @@ class ModelsCommand(BaseCommand):
             handler = getattr(self, f'handle_{subcommand}')
             return handler(args)
         finally:
-            self.conn.close()
+            self.db_manager.close()
 
     def handle_list(self, args: argparse.Namespace) -> int:
         """List all models."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Build query
-        query = """
-            SELECT
-                m.id,
-                m.name,
-                m.score_name,
-                m.notes,
-                m.created,
-                m.is_active,
-                COUNT(DISTINCT c.id) as channel_count,
-                COUNT(DISTINCT pp.feed_id) as prediction_count
-            FROM models m
-            LEFT JOIN channels c ON c.model_id = m.id
-            LEFT JOIN predicted_preferences pp ON pp.model_id = m.id
-        """
+            # Build query
+            query = """
+                SELECT
+                    m.id,
+                    m.name,
+                    m.score_name,
+                    m.notes,
+                    m.created,
+                    m.is_active,
+                    COUNT(DISTINCT c.id) as channel_count,
+                    COUNT(DISTINCT pp.feed_id) as prediction_count
+                FROM models m
+                LEFT JOIN channels c ON c.model_id = m.id
+                LEFT JOIN predicted_preferences pp ON pp.model_id = m.id
+            """
 
-        conditions = []
-        if args.active_only:
-            conditions.append("m.is_active = TRUE")
-        elif args.inactive_only:
-            conditions.append("m.is_active = FALSE")
+            conditions = []
+            if args.active_only:
+                conditions.append("m.is_active = TRUE")
+            elif args.inactive_only:
+                conditions.append("m.is_active = FALSE")
 
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
 
-        query += " GROUP BY m.id, m.name, m.notes, m.created, m.is_active"
-        query += " ORDER BY m.id"
+            query += " GROUP BY m.id, m.name, m.notes, m.created, m.is_active"
+            query += " ORDER BY m.id"
 
-        cursor.execute(query)
-        models = cursor.fetchall()
+            cursor.execute(query)
+            models = cursor.fetchall()
 
-        # Check file existence
-        for model in models:
-            model_file = os.path.join(self.model_dir, f"model-{model['id']}.pkl")
-            model['file_exists'] = os.path.exists(model_file)
-
-        # Get associated channels if requested
-        if args.with_channels:
+            # Check file existence
             for model in models:
-                cursor.execute("""
-                    SELECT id, name, is_active
-                    FROM channels
-                    WHERE model_id = %s
-                    ORDER BY id
-                """, (model['id'],))
-                model['channels'] = cursor.fetchall()
+                model_file = os.path.join(self.model_dir, f"model-{model['id']}.pkl")
+                model['file_exists'] = os.path.exists(model_file)
 
-        cursor.close()
+            # Get associated channels if requested
+            if args.with_channels:
+                for model in models:
+                    cursor.execute(
+                        """
+                        SELECT id, name, is_active
+                        FROM channels
+                        WHERE model_id = %s
+                        ORDER BY id
+                        """,
+                        (model['id'],),
+                    )
+                    model['channels'] = cursor.fetchall()
+
+            cursor.close()
 
         # Format output
         if args.format == 'json':
@@ -208,47 +208,53 @@ class ModelsCommand(BaseCommand):
 
     def handle_show(self, args: argparse.Namespace) -> int:
         """Show detailed model information."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Get model details
-        cursor.execute("""
-            SELECT id, name, score_name, notes, created, is_active
-            FROM models
-            WHERE id = %s
-        """, (args.model_id,))
-        model = cursor.fetchone()
+            cursor.execute(
+                """
+                SELECT id, name, score_name, notes, created, is_active
+                FROM models
+                WHERE id = %s
+                """,
+                (args.model_id,),
+            )
+            model = cursor.fetchone()
 
-        if not model:
-            log.error(f"Model {args.model_id} not found")
-            return 1
+            if not model:
+                log.error(f"Model {args.model_id} not found")
+                cursor.close()
+                return 1
 
-        # Get file information
-        model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
-        file_exists = os.path.exists(model_file)
+            model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
+            file_exists = os.path.exists(model_file)
 
-        # Get associated channels
-        cursor.execute("""
-            SELECT id, name, is_active, score_threshold
-            FROM channels
-            WHERE model_id = %s
-            ORDER BY id
-        """, (args.model_id,))
-        channels = cursor.fetchall()
+            cursor.execute(
+                """
+                SELECT id, name, is_active, score_threshold
+                FROM channels
+                WHERE model_id = %s
+                ORDER BY id
+                """,
+                (args.model_id,),
+            )
+            channels = cursor.fetchall()
 
-        # Get prediction statistics
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total_predictions,
-                AVG(score) as avg_score,
-                MIN(score) as min_score,
-                MAX(score) as max_score,
-                STDDEV(score) as stddev_score
-            FROM predicted_preferences
-            WHERE model_id = %s
-        """, (args.model_id,))
-        stats = cursor.fetchone()
-
-        cursor.close()
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) as total_predictions,
+                    AVG(score) as avg_score,
+                    MIN(score) as min_score,
+                    MAX(score) as max_score,
+                    STDDEV(score) as stddev_score
+                FROM predicted_preferences
+                WHERE model_id = %s
+                """,
+                (args.model_id,),
+            )
+            stats = cursor.fetchone()
+            cursor.close()
 
         # Print basic information
         basic_info = [
@@ -314,119 +320,113 @@ class ModelsCommand(BaseCommand):
             log.error("Nothing to modify. Specify --name, --score-name, or --notes")
             return 1
 
-        cursor = self.conn.cursor()
+        with self.db_manager.session() as session:
+            cursor = session.cursor()
 
-        # Check if model exists
-        cursor.execute("SELECT id FROM models WHERE id = %s", (args.model_id,))
-        if not cursor.fetchone():
-            log.error(f"Model {args.model_id} not found")
+            cursor.execute("SELECT id FROM models WHERE id = %s", (args.model_id,))
+            if not cursor.fetchone():
+                log.error(f"Model {args.model_id} not found")
+                cursor.close()
+                return 1
+
+            updates = []
+            values = []
+            if args.name is not None:
+                updates.append("name = %s")
+                values.append(args.name)
+            if getattr(args, 'score_name', None) is not None:
+                updates.append("score_name = %s")
+                values.append(args.score_name)
+            if args.notes is not None:
+                updates.append("notes = %s")
+                values.append(args.notes)
+
+            values.append(args.model_id)
+
+            cursor.execute(
+                f"UPDATE models SET {', '.join(updates)} WHERE id = %s",
+                values,
+            )
             cursor.close()
-            return 1
-
-        # Build update query
-        updates = []
-        values = []
-        if args.name is not None:
-            updates.append("name = %s")
-            values.append(args.name)
-        if getattr(args, 'score_name', None) is not None:
-            updates.append("score_name = %s")
-            values.append(args.score_name)
-        if args.notes is not None:
-            updates.append("notes = %s")
-            values.append(args.notes)
-
-        values.append(args.model_id)
-
-        cursor.execute(
-            f"UPDATE models SET {', '.join(updates)} WHERE id = %s",
-            values
-        )
-        self.conn.commit()
-        cursor.close()
 
         log.info(f"Model {args.model_id} updated successfully")
         return 0
 
     def handle_activate(self, args: argparse.Namespace) -> int:
         """Activate a model."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Check if model exists
-        cursor.execute("SELECT id, is_active FROM models WHERE id = %s", (args.model_id,))
-        model = cursor.fetchone()
+            cursor.execute("SELECT id, is_active FROM models WHERE id = %s", (args.model_id,))
+            model = cursor.fetchone()
 
-        if not model:
-            log.error(f"Model {args.model_id} not found")
+            if not model:
+                log.error(f"Model {args.model_id} not found")
+                cursor.close()
+                return 1
+
+            if model['is_active']:
+                log.warning(f"Model {args.model_id} is already active")
+                cursor.close()
+                return 0
+
+            model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
+            if not os.path.exists(model_file):
+                log.error(f"Model file not found: {model_file}")
+                cursor.close()
+                return 1
+
+            try:
+                with open(model_file, 'rb') as f:
+                    pickle.load(f)
+            except Exception as e:
+                log.error(f"Failed to load model file: {e}")
+                cursor.close()
+                return 1
+
+            cursor.execute("UPDATE models SET is_active = TRUE WHERE id = %s", (args.model_id,))
             cursor.close()
-            return 1
-
-        if model['is_active']:
-            log.warning(f"Model {args.model_id} is already active")
-            cursor.close()
-            return 0
-
-        # Check if model file exists
-        model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
-        if not os.path.exists(model_file):
-            log.error(f"Model file not found: {model_file}")
-            cursor.close()
-            return 1
-
-        # Try to load the model to validate it
-        try:
-            with open(model_file, 'rb') as f:
-                pickle.load(f)
-        except Exception as e:
-            log.error(f"Failed to load model file: {e}")
-            cursor.close()
-            return 1
-
-        # Activate the model
-        cursor.execute("UPDATE models SET is_active = TRUE WHERE id = %s", (args.model_id,))
-        self.conn.commit()
-        cursor.close()
 
         log.info(f"Model {args.model_id} activated successfully")
         return 0
 
     def handle_deactivate(self, args: argparse.Namespace) -> int:
         """Deactivate a model."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Check if model exists
-        cursor.execute("SELECT id, is_active FROM models WHERE id = %s", (args.model_id,))
-        model = cursor.fetchone()
+            cursor.execute("SELECT id, is_active FROM models WHERE id = %s", (args.model_id,))
+            model = cursor.fetchone()
 
-        if not model:
-            log.error(f"Model {args.model_id} not found")
+            if not model:
+                log.error(f"Model {args.model_id} not found")
+                cursor.close()
+                return 1
+
+            if not model['is_active']:
+                log.warning(f"Model {args.model_id} is already inactive")
+                cursor.close()
+                return 0
+
+            cursor.execute(
+                """
+                SELECT id, name FROM channels
+                WHERE model_id = %s AND is_active = TRUE
+                """,
+                (args.model_id,),
+            )
+            active_channels = cursor.fetchall()
+
+            if active_channels and not args.force:
+                log.error(f"Model {args.model_id} is used by {len(active_channels)} active channel(s):")
+                for channel in active_channels:
+                    log.error(f"  - {channel['name']} (ID: {channel['id']})")
+                log.error("Use --force to deactivate anyway")
+                cursor.close()
+                return 1
+
+            cursor.execute("UPDATE models SET is_active = FALSE WHERE id = %s", (args.model_id,))
             cursor.close()
-            return 1
-
-        if not model['is_active']:
-            log.warning(f"Model {args.model_id} is already inactive")
-            cursor.close()
-            return 0
-
-        # Check if model is used by active channels
-        cursor.execute("""
-            SELECT id, name FROM channels
-            WHERE model_id = %s AND is_active = TRUE
-        """, (args.model_id,))
-        active_channels = cursor.fetchall()
-
-        if active_channels and not args.force:
-            log.error(f"Model {args.model_id} is used by {len(active_channels)} active channel(s):")
-            for channel in active_channels:
-                log.error(f"  - {channel['name']} (ID: {channel['id']})")
-            log.error("Use --force to deactivate anyway")
-            cursor.close()
-            return 1
-
-        # Deactivate the model
-        cursor.execute("UPDATE models SET is_active = FALSE WHERE id = %s", (args.model_id,))
-        self.conn.commit()
-        cursor.close()
 
         log.info(f"Model {args.model_id} deactivated successfully")
         if active_channels:
@@ -435,41 +435,37 @@ class ModelsCommand(BaseCommand):
 
     def handle_delete(self, args: argparse.Namespace) -> int:
         """Delete a model."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Check if model exists
-        cursor.execute("SELECT id, name FROM models WHERE id = %s", (args.model_id,))
-        model = cursor.fetchone()
+            cursor.execute("SELECT id, name FROM models WHERE id = %s", (args.model_id,))
+            model = cursor.fetchone()
 
-        if not model:
-            log.error(f"Model {args.model_id} not found")
-            cursor.close()
-            return 1
-
-        # Check if model is used by any channels
-        cursor.execute("SELECT COUNT(*) as count FROM channels WHERE model_id = %s", (args.model_id,))
-        channel_count = cursor.fetchone()['count']
-
-        if channel_count > 0:
-            log.error(f"Model {args.model_id} is used by {channel_count} channel(s)")
-            log.error("Cannot delete model while it is referenced by channels")
-            cursor.close()
-            return 1
-
-        # Confirm deletion
-        if not args.force:
-            model_name = model['name'] or f"Model {args.model_id}"
-            response = input(f"Are you sure you want to delete '{model_name}'? [y/N] ")
-            if response.lower() != 'y':
-                log.info("Deletion cancelled")
+            if not model:
+                log.error(f"Model {args.model_id} not found")
                 cursor.close()
-                return 0
+                return 1
 
-        # Delete from database (cascade will handle predicted_preferences)
-        cursor.execute("DELETE FROM models WHERE id = %s", (args.model_id,))
-        self.conn.commit()
+            cursor.execute("SELECT COUNT(*) as count FROM channels WHERE model_id = %s", (args.model_id,))
+            channel_count = cursor.fetchone()['count']
 
-        # Delete model file unless --keep-file is specified
+            if channel_count > 0:
+                log.error(f"Model {args.model_id} is used by {channel_count} channel(s)")
+                log.error("Cannot delete model while it is referenced by channels")
+                cursor.close()
+                return 1
+
+            if not args.force:
+                model_name = model['name'] or f"Model {args.model_id}"
+                response = input(f"Are you sure you want to delete '{model_name}'? [y/N] ")
+                if response.lower() != 'y':
+                    log.info("Deletion cancelled")
+                    cursor.close()
+                    return 0
+
+            cursor.execute("DELETE FROM models WHERE id = %s", (args.model_id,))
+            cursor.close()
+
         if not args.keep_file:
             model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
             if os.path.exists(model_file):
@@ -478,8 +474,6 @@ class ModelsCommand(BaseCommand):
                     log.info(f"Deleted model file: {model_file}")
                 except Exception as e:
                     log.warning(f"Could not delete model file: {e}")
-
-        cursor.close()
         log.info(f"Model {args.model_id} deleted successfully")
         return 0
 
@@ -490,68 +484,69 @@ class ModelsCommand(BaseCommand):
         import zipfile
         import tempfile
 
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Get model details
-        cursor.execute("""
-            SELECT id, name, notes, created, is_active
-            FROM models
-            WHERE id = %s
-        """, (args.model_id,))
-        model_info = cursor.fetchone()
+            cursor.execute(
+                """
+                SELECT id, name, notes, created, is_active
+                FROM models
+                WHERE id = %s
+                """,
+                (args.model_id,),
+            )
+            model_info = cursor.fetchone()
 
-        if not model_info:
-            log.error(f"Model {args.model_id} not found")
+            if not model_info:
+                log.error(f"Model {args.model_id} not found")
+                cursor.close()
+                return 1
+
+            model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
+            if not os.path.exists(model_file):
+                log.error(f"Model file not found: {model_file}")
+                cursor.close()
+                return 1
+
+            try:
+                with open(model_file, 'rb') as f:
+                    model_data = pickle.load(f)
+            except Exception as e:
+                log.error(f"Failed to load model file: {e}")
+                cursor.close()
+                return 1
+
+            metadata = {
+                'original_id': model_info['id'],
+                'name': model_info['name'],
+                'notes': model_info['notes'],
+                'created': model_info['created'].isoformat() if model_info['created'] else None,
+                'export_date': datetime.now().isoformat(),
+                'export_version': '2.0',
+                'papersorter_version': __version__,
+            }
+
+            if 'metadata' in model_data:
+                metadata.update(model_data['metadata'])
+
+            if args.include_predictions:
+                cursor.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total_predictions,
+                        AVG(score) as avg_score,
+                        MIN(score) as min_score,
+                        MAX(score) as max_score,
+                        STDDEV(score) as stddev_score
+                    FROM predicted_preferences
+                    WHERE model_id = %s
+                    """,
+                    (args.model_id,),
+                )
+                stats = cursor.fetchone()
+                metadata['prediction_stats'] = dict(stats)
+
             cursor.close()
-            return 1
-
-        # Check if model file exists
-        model_file = os.path.join(self.model_dir, f"model-{args.model_id}.pkl")
-        if not os.path.exists(model_file):
-            log.error(f"Model file not found: {model_file}")
-            cursor.close()
-            return 1
-
-        # Load original model
-        try:
-            with open(model_file, 'rb') as f:
-                model_data = pickle.load(f)
-        except Exception as e:
-            log.error(f"Failed to load model file: {e}")
-            cursor.close()
-            return 1
-
-        # Prepare metadata
-        metadata = {
-            'original_id': model_info['id'],
-            'name': model_info['name'],
-            'notes': model_info['notes'],
-            'created': model_info['created'].isoformat() if model_info['created'] else None,
-            'export_date': datetime.now().isoformat(),
-            'export_version': '2.0',  # Version 2.0 for portable format
-            'papersorter_version': __version__,
-        }
-
-        # Copy any existing metadata
-        if 'metadata' in model_data:
-            metadata.update(model_data['metadata'])
-
-        # Add prediction statistics if requested
-        if args.include_predictions:
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total_predictions,
-                    AVG(score) as avg_score,
-                    MIN(score) as min_score,
-                    MAX(score) as max_score,
-                    STDDEV(score) as stddev_score
-                FROM predicted_preferences
-                WHERE model_id = %s
-            """, (args.model_id,))
-            stats = cursor.fetchone()
-            metadata['prediction_stats'] = dict(stats)
-
-        cursor.close()
 
         # Create portable ZIP export
         try:
@@ -610,12 +605,10 @@ class ModelsCommand(BaseCommand):
         from sklearn.preprocessing import StandardScaler
         import numpy as np
 
-        # Check if input file exists
         if not os.path.exists(args.input_file):
             log.error(f"Input file not found: {args.input_file}")
             return 1
 
-        # Verify it's a ZIP file
         if not zipfile.is_zipfile(args.input_file):
             log.error(f"Input file is not a valid ZIP file: {args.input_file}")
             return 1
@@ -627,7 +620,6 @@ class ModelsCommand(BaseCommand):
                 with zipfile.ZipFile(args.input_file, 'r') as zf:
                     zf.extractall(tmpdir)
 
-                # Load metadata
                 metadata_path = os.path.join(tmpdir, 'metadata.json')
                 if os.path.exists(metadata_path):
                     with open(metadata_path, 'r') as f:
@@ -635,7 +627,6 @@ class ModelsCommand(BaseCommand):
                 else:
                     metadata = {}
 
-                # Load XGBoost model
                 model = None
                 model_path = os.path.join(tmpdir, 'model.json')
                 if os.path.exists(model_path):
@@ -646,7 +637,6 @@ class ModelsCommand(BaseCommand):
                     log.error("Model file not found in ZIP archive")
                     return 1
 
-                # Load and reconstruct scaler
                 scaler = None
                 scaler_path = os.path.join(tmpdir, 'scaler.json')
                 if os.path.exists(scaler_path):
@@ -656,9 +646,8 @@ class ModelsCommand(BaseCommand):
                     if scaler_params.get('type') == 'StandardScaler':
                         scaler = StandardScaler(
                             with_mean=scaler_params.get('with_mean', True),
-                            with_std=scaler_params.get('with_std', True)
+                            with_std=scaler_params.get('with_std', True),
                         )
-                        # Reconstruct the scaler with saved parameters
                         if scaler_params.get('mean') is not None:
                             scaler.mean_ = np.array(scaler_params['mean'])
                         if scaler_params.get('scale') is not None:
@@ -674,17 +663,15 @@ class ModelsCommand(BaseCommand):
                 import_data = {
                     'model': model,
                     'scaler': scaler,
-                    'metadata': metadata
+                    'metadata': metadata,
                 }
         except Exception as e:
             log.error(f"Failed to load model file: {e}")
             return 1
 
-        # Extract metadata
         model_name = args.name or metadata.get('name', 'Imported Model')
         model_notes = args.notes or metadata.get('notes') or ''
 
-        # Add import information to notes
         import_info = f"\nImported from {args.input_file} on {datetime.now().isoformat()}"
         if metadata.get('original_id'):
             import_info += f" (Original ID: {metadata['original_id']})"
@@ -692,22 +679,21 @@ class ModelsCommand(BaseCommand):
             import_info += f" (Export version: {metadata['export_version']})"
         model_notes = (model_notes + import_info).strip()
 
-        cursor = self.conn.cursor()
+        with self.db_manager.session() as session:
+            cursor = session.cursor()
+            cursor.execute(
+                """
+                INSERT INTO models (name, score_name, notes, created, is_active)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
+                RETURNING id
+                """,
+                (model_name, 'Score', model_notes, args.activate),
+            )
+            new_model_id = cursor.fetchone()[0]
+            cursor.close()
 
-        # Insert model into database
-        cursor.execute("""
-            INSERT INTO models (name, score_name, notes, created, is_active)
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
-            RETURNING id
-        """, (model_name, 'Score', model_notes, args.activate))
-
-        new_model_id = cursor.fetchone()[0]
-        self.conn.commit()
-
-        # Save model file in internal pickle format
         model_file = os.path.join(self.model_dir, f"model-{new_model_id}.pkl")
         try:
-            # Update metadata with new ID
             import_data['metadata'] = metadata
             import_data['metadata']['imported_as_id'] = new_model_id
             import_data['metadata']['import_date'] = datetime.now().isoformat()
@@ -716,13 +702,12 @@ class ModelsCommand(BaseCommand):
                 pickle.dump(import_data, f)
         except Exception as e:
             log.error(f"Failed to save model file: {e}")
-            # Rollback database changes
-            cursor.execute("DELETE FROM models WHERE id = %s", (new_model_id,))
-            self.conn.commit()
-            cursor.close()
+            with self.db_manager.session() as session:
+                cleanup_cursor = session.cursor()
+                cleanup_cursor.execute("DELETE FROM models WHERE id = %s", (new_model_id,))
+                cleanup_cursor.close()
             return 1
 
-        cursor.close()
         log.info(f"Model imported successfully with ID: {new_model_id}")
         if args.activate:
             log.info("Model activated")
@@ -730,21 +715,21 @@ class ModelsCommand(BaseCommand):
 
     def handle_validate(self, args: argparse.Namespace) -> int:
         """Validate model files."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with self.db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Get models to validate
-        if args.model_id:
-            cursor.execute("SELECT id, name, is_active FROM models WHERE id = %s", (args.model_id,))
-            models = cursor.fetchall()
-            if not models:
-                log.error(f"Model {args.model_id} not found")
-                cursor.close()
-                return 1
-        else:
-            cursor.execute("SELECT id, name, is_active FROM models ORDER BY id")
-            models = cursor.fetchall()
+            if args.model_id:
+                cursor.execute("SELECT id, name, is_active FROM models WHERE id = %s", (args.model_id,))
+                models = cursor.fetchall()
+                if not models:
+                    log.error(f"Model {args.model_id} not found")
+                    cursor.close()
+                    return 1
+            else:
+                cursor.execute("SELECT id, name, is_active FROM models ORDER BY id")
+                models = cursor.fetchall()
 
-        cursor.close()
+            cursor.close()
 
         # Check each model
         issues = []

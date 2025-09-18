@@ -24,7 +24,6 @@
 """Flask application factory for PaperSorter web interface."""
 
 import secrets
-import psycopg2
 import psycopg2.extras
 import threading
 import time
@@ -35,6 +34,7 @@ from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 from ..log import log
 from ..config import get_config
+from ..db import DatabaseManager
 from .auth import User, auth_bp
 from .main import main_bp
 from .api import feeds_bp, settings_bp, search_bp, user_bp
@@ -93,14 +93,15 @@ def create_app(config_path, skip_authentication=None):
     app.poster_jobs = {}
     app.poster_jobs_lock = threading.Lock()
 
-    # Database connection function
+    # Configure database manager and legacy connection shim
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-web",
+    )
+    app.config["db_manager"] = db_manager
+
     def get_db_connection():
-        return psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
+        return db_manager.connect()
 
     app.config["get_db_connection"] = get_db_connection
 

@@ -31,6 +31,7 @@ Development Workflow
 
    contributing
    architecture
+   database
    testing
    plugins
    release-process

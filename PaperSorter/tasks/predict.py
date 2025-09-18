@@ -31,11 +31,9 @@ import numpy as np
 from ..config import get_config
 import pickle
 import argparse
-import psycopg2
-import psycopg2.extras
 from psycopg2.extras import execute_batch
-from pgvector.psycopg2 import register_vector
 from typing import Dict, List, Sequence, Tuple
+from ..db import DatabaseManager
 
 
 class PredictCommand(BaseCommand):
@@ -120,19 +118,6 @@ def generate_embeddings_for_feeds(feed_ids, feeddb, embeddingdb, batch_size):
 def _load_config() -> Dict:
     """Load config using centralized singleton."""
     return get_config().raw
-
-
-def _connect_postgres(db_cfg: Dict) -> Tuple[psycopg2.extensions.connection, psycopg2.extensions.cursor]:
-    """Connect to PostgreSQL and return connection and RealDictCursor with pgvector registered."""
-    db = psycopg2.connect(
-        host=db_cfg["host"],
-        database=db_cfg["database"],
-        user=db_cfg["user"],
-        password=db_cfg["password"],
-    )
-    register_vector(db)
-    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    return db, cursor
 
 
 def _count_feeds(cursor, max_papers: int) -> Tuple[int, int]:
@@ -386,8 +371,8 @@ def _count_pending_predictions(cursor, model_id: int, max_papers: int) -> int:
 
 
 def _predict_for_model_stream(
+    session,
     cursor,
-    db,
     model_id: int,
     model_dir: str,
     max_papers: int,
@@ -420,7 +405,7 @@ def _predict_for_model_stream(
 
         predictions = _predict_scores(model, scaler, emb_matrix)
 
-        _store_predictions(cursor, db, model_id, feed_ids, predictions, prediction_batch)
+        _store_predictions(session, cursor, model_id, feed_ids, predictions, prediction_batch)
 
         # Batch stats
         batch_min = float(np.min(predictions)) if len(predictions) else 0.0
@@ -460,8 +445,8 @@ def _predict_scores(model, scaler, embeddings: np.ndarray) -> np.ndarray:
 
 
 def _store_predictions(
+    session,
     cursor,
-    db,
     model_id: int,
     feed_ids: Sequence[int],
     scores: Sequence[float],
@@ -481,7 +466,7 @@ def _store_predictions(
         prediction_data,
         page_size=min(1000, batch_size),
     )
-    db.commit()
+    session.commit()
 
 
 def main(
@@ -511,91 +496,95 @@ def main(
     feeddb = FeedDatabase()
     embeddingdb = EmbeddingDatabase()
 
-    # Connect to PostgreSQL
-    log.info("Connecting to PostgreSQL database...")
-    db, cursor = _connect_postgres(db_config)
-
-    # First, get counts of feeds with and without embeddings
-    feeds_with_embeddings_count, feeds_without_embeddings_count = _count_feeds(
-        cursor, max_papers
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-predict",
     )
 
-    log.info(f"Found {feeds_with_embeddings_count} feeds with embeddings, {feeds_without_embeddings_count} without embeddings")
+    try:
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-    if feeds_without_embeddings_count == 0 and feeds_with_embeddings_count == 0:
-        log.info("No papers found")
-        return
+            log.info("Connecting to PostgreSQL database...")
 
-    if max_papers == 0:
-        log.info(
-            f"Processing all papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
-        )
-    else:
-        log.info(
-            f"Processing {max_papers} most recent papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
-        )
-
-    log.info(
-        f"Total papers: {feeds_with_embeddings_count} with embeddings, {feeds_without_embeddings_count} without"
-    )
-
-    # Generate embeddings for feeds that don't have them (streamed, no caching)
-    if feeds_without_embeddings_count > 0:
-        log.info(
-            f"Generating embeddings in batches of {embedding_batch} for {feeds_without_embeddings_count} papers without embeddings..."
-        )
-        _generate_missing_embeddings_stream(
-            cursor,
-            max_papers,
-            feeds_without_embeddings_count,
-            embedding_batch,
-            feeddb,
-            embeddingdb,
-        )
-
-    # Get all active models
-    log.info("Loading active models...")
-    active_models = _load_active_models(cursor)
-
-    if not active_models:
-        log.warning("No active models found")
-        cursor.close()
-        db.close()
-        return
-
-    log.info(f"Found {len(active_models)} active models")
-
-    # Get model directory from config
-    model_dir = config_data.get("models", {}).get("path", ".")
-
-    # Process predictions for each model (streaming batches)
-    for model_info in active_models:
-        model_id = model_info["id"]
-        model_name = model_info.get("name") or f"Model {model_id}"
-
-        log.info(f"Processing model {model_id} ({model_name})...")
-
-        try:
-            pending = _count_pending_predictions(cursor, model_id, max_papers)
-            if pending == 0:
-                log.info(f"All papers already have predictions for model {model_id}")
-                continue
-            log.info(f"Pending predictions for model {model_id}: {pending}")
-            _predict_for_model_stream(
-                cursor,
-                db,
-                model_id,
-                model_dir,
-                max_papers,
-                prediction_batch,
-                pending,
+            feeds_with_embeddings_count, feeds_without_embeddings_count = _count_feeds(
+                cursor, max_papers
             )
-        except Exception as e:
-            log.error(f"Failed to process model {model_id}: {e}")
-            continue
 
-    # Close database connection
-    cursor.close()
-    db.close()
+            log.info(
+                f"Found {feeds_with_embeddings_count} feeds with embeddings, {feeds_without_embeddings_count} without embeddings"
+            )
+
+            if feeds_without_embeddings_count == 0 and feeds_with_embeddings_count == 0:
+                log.info("No papers found")
+                cursor.close()
+                return
+
+            if max_papers == 0:
+                log.info(
+                    f"Processing all papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
+                )
+            else:
+                log.info(
+                    f"Processing {max_papers} most recent papers (embedding batch={embedding_batch}, prediction batch={prediction_batch})..."
+                )
+
+            log.info(
+                f"Total papers: {feeds_with_embeddings_count} with embeddings, {feeds_without_embeddings_count} without"
+            )
+
+            if feeds_without_embeddings_count > 0:
+                log.info(
+                    f"Generating embeddings in batches of {embedding_batch} for {feeds_without_embeddings_count} papers without embeddings..."
+                )
+                _generate_missing_embeddings_stream(
+                    cursor,
+                    max_papers,
+                    feeds_without_embeddings_count,
+                    embedding_batch,
+                    feeddb,
+                    embeddingdb,
+                )
+
+            log.info("Loading active models...")
+            active_models = _load_active_models(cursor)
+
+            if not active_models:
+                log.warning("No active models found")
+                cursor.close()
+                return
+
+            log.info(f"Found {len(active_models)} active models")
+
+            model_dir = config_data.get("models", {}).get("path", ".")
+
+            for model_info in active_models:
+                model_id = model_info["id"]
+                model_name = model_info.get("name") or f"Model {model_id}"
+
+                log.info(f"Processing model {model_id} ({model_name})...")
+
+                try:
+                    pending = _count_pending_predictions(cursor, model_id, max_papers)
+                    if pending == 0:
+                        log.info(f"All papers already have predictions for model {model_id}")
+                        continue
+                    log.info(f"Pending predictions for model {model_id}: {pending}")
+                    _predict_for_model_stream(
+                        session,
+                        cursor,
+                        model_id,
+                        model_dir,
+                        max_papers,
+                        prediction_batch,
+                        pending,
+                    )
+                except Exception as e:
+                    log.error(f"Failed to process model {model_id}: {e}")
+                    continue
+
+            cursor.close()
+    finally:
+        db_manager.close()
 
     log.info("Prediction task completed")

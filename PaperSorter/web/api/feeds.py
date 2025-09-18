@@ -25,8 +25,6 @@
 
 import json
 import requests
-import psycopg2
-import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
 from ..auth.decorators import admin_required
@@ -91,84 +89,87 @@ def api_feeds():
     channel_id = request.args.get("channel_id")  # Get channel_id from request
     offset = (page - 1) * limit
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
-    # Get feeds with all the necessary information
-    # Filter preferences by current user
-    user_id = current_user.id
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
 
-    # Get user's bookmark and use channel_id from request or fall back to primary channel
-    cursor.execute("SELECT bookmark, primary_channel_id FROM users WHERE id = %s", (user_id,))
-    user_result = cursor.fetchone()
-    bookmark_id = user_result["bookmark"] if user_result else None
-    # Use channel_id from request parameter, or fall back to user's primary channel
-    channel_id = channel_id if channel_id else (user_result["primary_channel_id"] if user_result else None)
+        # Get feeds with all the necessary information
+        # Filter preferences by current user
+        user_id = current_user.id
 
-    # Get the model_id from the selected channel, or fall back to user's default
-    if channel_id:
-        cursor.execute("SELECT model_id FROM channels WHERE id = %s", (channel_id,))
-        channel_result = cursor.fetchone()
-        model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
-    else:
-        model_id = get_user_model_id(conn, current_user)
-
-    # Build WHERE clause based on min_score
-    if min_score <= 0:
-        where_clause = "1=1"  # Show all feeds
-        query_params = (user_id, model_id, channel_id, limit + 1, offset)
-    else:
-        where_clause = "pp.score >= %s"  # Only show feeds with scores above threshold
-        query_params = (user_id, model_id, channel_id, min_score, limit + 1, offset)
-
-    cursor.execute(
-        f"""
-        WITH latest_prefs AS (
-            SELECT DISTINCT ON (feed_id, user_id, source)
-                feed_id, user_id, source, score, time
-            FROM preferences
-            WHERE user_id = %s
-            ORDER BY feed_id, user_id, source, time DESC NULLS LAST
-        ),
-        vote_counts AS (
-            SELECT
-                feed_id,
-                SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
-                SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
-            FROM preferences
-            WHERE source IN ('interactive', 'alert-feedback')
-            GROUP BY feed_id
+        cursor.execute(
+            "SELECT bookmark, primary_channel_id FROM users WHERE id = %s",
+            (user_id,),
         )
-        SELECT
-            f.id as rowid,
-            f.external_id,
-            f.title,
-            f.author,
-            COALESCE(f.journal, f.origin) AS origin,
-            f.link,
-            EXTRACT(EPOCH FROM f.published)::integer as published,
-            EXTRACT(EPOCH FROM f.added)::integer as added,
-            pp.score as score,
-            COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NULL, FALSE) as shared,
-            COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NOT NULL, FALSE) as broadcasted,
-            inter_p.score as label,
-            COALESCE(vc.positive_votes, 0) as positive_votes,
-            COALESCE(vc.negative_votes, 0) as negative_votes
-        FROM feeds f
-        LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
-        LEFT JOIN broadcasts user_b ON f.id = user_b.feed_id AND user_b.channel_id = %s
-        LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source IN ('interactive', 'alert-feedback')
-        LEFT JOIN vote_counts vc ON f.id = vc.feed_id
-        WHERE {where_clause}
-        ORDER BY f.added DESC
-        LIMIT %s OFFSET %s
-    """,
-        query_params,
-    )
+        user_result = cursor.fetchone()
+        bookmark_id = user_result["bookmark"] if user_result else None
+        # Use channel_id from request parameter, or fall back to user's primary channel
+        channel_id = channel_id if channel_id else (user_result["primary_channel_id"] if user_result else None)
 
-    results = cursor.fetchall()
-    cursor.close()
-    conn.close()
+        if channel_id:
+            cursor.execute("SELECT model_id FROM channels WHERE id = %s", (channel_id,))
+            channel_result = cursor.fetchone()
+            if channel_result and channel_result["model_id"]:
+                model_id = channel_result["model_id"]
+            else:
+                model_id = get_user_model_id(session.connection, current_user)
+        else:
+            model_id = get_user_model_id(session.connection, current_user)
+
+        if min_score <= 0:
+            where_clause = "1=1"
+            query_params = (user_id, model_id, channel_id, limit + 1, offset)
+        else:
+            where_clause = "pp.score >= %s"
+            query_params = (user_id, model_id, channel_id, min_score, limit + 1, offset)
+
+        cursor.execute(
+            f"""
+            WITH latest_prefs AS (
+                SELECT DISTINCT ON (feed_id, user_id, source)
+                    feed_id, user_id, source, score, time
+                FROM preferences
+                WHERE user_id = %s
+                ORDER BY feed_id, user_id, source, time DESC NULLS LAST
+            ),
+            vote_counts AS (
+                SELECT
+                    feed_id,
+                    SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) as positive_votes,
+                    SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) as negative_votes
+                FROM preferences
+                WHERE source IN ('interactive', 'alert-feedback')
+                GROUP BY feed_id
+            )
+            SELECT
+                f.id as rowid,
+                f.external_id,
+                f.title,
+                f.author,
+                COALESCE(f.journal, f.origin) AS origin,
+                f.link,
+                EXTRACT(EPOCH FROM f.published)::integer as published,
+                EXTRACT(EPOCH FROM f.added)::integer as added,
+                pp.score as score,
+                COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NULL, FALSE) as shared,
+                COALESCE(user_b.feed_id IS NOT NULL AND user_b.broadcasted_time IS NOT NULL, FALSE) as broadcasted,
+                inter_p.score as label,
+                COALESCE(vc.positive_votes, 0) as positive_votes,
+                COALESCE(vc.negative_votes, 0) as negative_votes
+            FROM feeds f
+            LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id AND pp.model_id = %s
+            LEFT JOIN broadcasts user_b ON f.id = user_b.feed_id AND user_b.channel_id = %s
+            LEFT JOIN latest_prefs inter_p ON f.id = inter_p.feed_id AND inter_p.source IN ('interactive', 'alert-feedback')
+            LEFT JOIN vote_counts vc ON f.id = vc.feed_id
+            WHERE {where_clause}
+            ORDER BY f.added DESC
+            LIMIT %s OFFSET %s
+        """,
+            query_params,
+        )
+
+        results = cursor.fetchall()
 
     # Check if there are more results
     has_more = len(results) > limit
@@ -188,21 +189,19 @@ def api_feeds():
 @login_required
 def api_feed_content(feed_id):
     """API endpoint to get feed content."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
-    cursor.execute(
-        """
-        SELECT content, tldr
-        FROM feeds
-        WHERE id = %s
-    """,
-        (feed_id,),
-    )
-
-    result = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
+        cursor.execute(
+            """
+            SELECT content, tldr
+            FROM feeds
+            WHERE id = %s
+        """,
+            (feed_id,),
+        )
+        result = cursor.fetchone()
 
     if result:
         return jsonify(result)
@@ -222,76 +221,63 @@ def api_share_feed(feed_id):
     if not channel_id:
         channel_id = current_user.primary_channel_id
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if not channel_id:
+        return jsonify({"success": False, "error": "No channel specified or configured"}), 400
+
+    db_manager = current_app.config["db_manager"]
 
     try:
-        # Validate channel
-        if not channel_id:
-            return jsonify({"success": False, "error": "No channel specified or configured"}), 400
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Check if the channel exists
-        cursor.execute(
-            "SELECT id FROM channels WHERE id = %s",
-            (channel_id,)
-        )
-        if not cursor.fetchone():
-            return jsonify({"success": False, "error": "Channel not found"}), 404
+            cursor.execute("SELECT id FROM channels WHERE id = %s", (channel_id,))
+            if not cursor.fetchone():
+                cursor.close()
+                return jsonify({"success": False, "error": "Channel not found"}), 404
 
-        # Check if already shared (exists in broadcasts table for this channel)
-        cursor.execute(
-            """
-            SELECT feed_id FROM broadcasts
-            WHERE feed_id = %s AND channel_id = %s
-        """,
-            (feed_id, channel_id),
-        )
-
-        is_shared = cursor.fetchone() is not None
-
-        if action == "toggle":
-            action = "unshare" if is_shared else "share"
-
-        if action == "unshare":
-            # Remove from broadcasts table
             cursor.execute(
                 """
-                DELETE FROM broadcasts
+                SELECT feed_id FROM broadcasts
                 WHERE feed_id = %s AND channel_id = %s
             """,
                 (feed_id, channel_id),
             )
-        else:  # action == 'share'
-            # Add to broadcasts table (will be processed by broadcast task)
+            is_shared = cursor.fetchone() is not None
+
+            if action == "toggle":
+                action = "unshare" if is_shared else "share"
+
+            if action == "unshare":
+                cursor.execute(
+                    """
+                    DELETE FROM broadcasts
+                    WHERE feed_id = %s AND channel_id = %s
+                """,
+                    (feed_id, channel_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                    VALUES (%s, %s, NULL)
+                    ON CONFLICT (feed_id, channel_id) DO NOTHING
+                """,
+                    (feed_id, channel_id),
+                )
+
+            event_type = "web:shared" if action == "share" else "web:unshared"
             cursor.execute(
                 """
-                INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                VALUES (%s, %s, NULL)
-                ON CONFLICT (feed_id, channel_id) DO NOTHING
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
             """,
-                (feed_id, channel_id),
+                (event_type, current_user.id, feed_id, json.dumps({"channel_id": channel_id})),
             )
 
-        # Log the event (in the same transaction)
-        event_type = "web:shared" if action == "share" else "web:unshared"
-        cursor.execute(
-            """
-            INSERT INTO events (event_type, user_id, feed_id, content)
-            VALUES (%s, %s, %s, %s)
-        """,
-            (event_type, current_user.id, feed_id, json.dumps({"channel_id": channel_id})),
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"success": True, "action": action})
-    except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": True, "action": action})
+    except Exception as exc:
+        log.error("Failed to update feed sharing state", exc_info=exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @feeds_bp.route("/api/feeds/feedback", methods=["POST"])
@@ -308,39 +294,43 @@ def api_feedback():
     user_id = current_user.id
     score = 1 if feedback == "interesting" else 0
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
 
     try:
-        # Check if preference exists
-        cursor.execute("""
-            SELECT id FROM preferences
-            WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-        """, (feed_id, user_id))
+        with db_manager.session() as session:
+            cursor = session.cursor()
 
-        existing = cursor.fetchone()
+            cursor.execute(
+                """
+                SELECT id FROM preferences
+                WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                """,
+                (feed_id, user_id),
+            )
+            existing = cursor.fetchone()
 
-        if existing:
-            cursor.execute("""
-                UPDATE preferences
-                SET score = %s, time = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (float(score), existing[0]))
-        else:
-            cursor.execute("""
-                INSERT INTO preferences (feed_id, user_id, time, score, source)
-                VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-            """, (feed_id, user_id, float(score)))
+            if existing:
+                cursor.execute(
+                    """
+                    UPDATE preferences
+                    SET score = %s, time = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (float(score), existing[0]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO preferences (feed_id, user_id, time, score, source)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
+                    """,
+                    (feed_id, user_id, float(score)),
+                )
 
-        conn.commit()
-        return jsonify({"status": "success"})
-
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
+            return jsonify({"status": "success"})
+    except Exception as exc:
+        log.error("Failed to record feedback", exc_info=exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @feeds_bp.route("/api/feeds/remove-label", methods=["POST"])
@@ -355,24 +345,22 @@ def api_remove_label():
 
     user_id = current_user.id
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
 
     try:
-        cursor.execute("""
-            DELETE FROM preferences
-            WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
-        """, (feed_id, user_id))
-
-        conn.commit()
-        return jsonify({"status": "success"})
-
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
+        with db_manager.session() as session:
+            cursor = session.cursor()
+            cursor.execute(
+                """
+                DELETE FROM preferences
+                WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
+                """,
+                (feed_id, user_id),
+            )
+            return jsonify({"status": "success"})
+    except Exception as exc:
+        log.error("Failed to remove label", exc_info=exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/feedback", methods=["POST"])
@@ -383,82 +371,72 @@ def api_feedback_feed(feed_id):
     data = request.get_json()
     score = data.get("score")
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
     try:
-        if score is None:
-            # Remove feedback from both sources
-            cursor.execute(
-                """
-                DELETE FROM preferences
-                WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
-            """,
-                (feed_id, user_id),
-            )
-        else:
-            # Check if preference already exists from either source
-            cursor.execute(
-                """
-                SELECT id, source FROM preferences
-                WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
-                ORDER BY time DESC
-                LIMIT 1
-            """,
-                (feed_id, user_id),
-            )
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-            existing = cursor.fetchone()
-
-            if existing:
-                # Update existing preference (keep the original source)
+            if score is None:
                 cursor.execute(
                     """
-                    UPDATE preferences
-                    SET score = %s, time = CURRENT_TIMESTAMP
-                    WHERE id = %s
-                """,
-                    (float(score), existing["id"]),
+                    DELETE FROM preferences
+                    WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
+                    """,
+                    (feed_id, user_id),
                 )
             else:
-                # Insert new preference with 'interactive' source
                 cursor.execute(
                     """
-                    INSERT INTO preferences (feed_id, user_id, time, score, source)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                """,
-                    (feed_id, user_id, float(score)),
+                    SELECT id, source FROM preferences
+                    WHERE feed_id = %s AND user_id = %s AND source IN ('interactive', 'alert-feedback')
+                    ORDER BY time DESC
+                    LIMIT 1
+                    """,
+                    (feed_id, user_id),
                 )
+                existing = cursor.fetchone()
 
-        # Log the event (in the same transaction)
-        if score is None:
-            event_type = "web:feedback-removed"
-            event_content = "Feedback removed"
-        elif float(score) == 1:
-            event_type = "web:interested"
-            event_content = "From web interface"
-        else:
-            event_type = "web:not-interested"
-            event_content = "From web interface"
+                if existing:
+                    cursor.execute(
+                        """
+                        UPDATE preferences
+                        SET score = %s, time = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        """,
+                        (float(score), existing["id"]),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO preferences (feed_id, user_id, time, score, source)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
+                        """,
+                        (feed_id, user_id, float(score)),
+                    )
 
-        cursor.execute(
-            """
-            INSERT INTO events (event_type, user_id, feed_id, content)
-            VALUES (%s, %s, %s, %s)
-        """,
-            (event_type, user_id, feed_id, event_content),
-        )
+            if score is None:
+                event_type = "web:feedback-removed"
+                event_content = "Feedback removed"
+            elif float(score) == 1:
+                event_type = "web:interested"
+                event_content = "From web interface"
+            else:
+                event_type = "web:not-interested"
+                event_content = "From web interface"
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            cursor.execute(
+                """
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (event_type, user_id, feed_id, event_content),
+            )
 
-        return jsonify({"success": True})
-    except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": True})
+    except Exception as exc:
+        log.error("Failed to update feedback", exc_info=exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/pubmed-match", methods=["GET", "POST"])
@@ -467,133 +445,134 @@ def api_feedback_feed(feed_id):
 def api_pubmed_match(feed_id):
     """Find and apply perfect PubMed matches for a paper's metadata."""
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
     try:
-        cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
-        paper = cursor.fetchone()
-        if not paper:
-            return jsonify({"error": "Paper not found"}), 404
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        cfg = _pubmed_config()
-        max_results = cfg["max_results"]
-        api_key = cfg["api_key"]
-        tool = cfg["tool"]
-        email = cfg["email"]
+            cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
+            paper = cursor.fetchone()
+            if not paper:
+                cursor.close()
+                return jsonify({"error": "Paper not found"}), 404
 
-        if request.method == "GET":
-            session = requests.Session()
+            cfg = _pubmed_config()
+            max_results = cfg["max_results"]
+            api_key = cfg["api_key"]
+            tool = cfg["tool"]
+            email = cfg["email"]
+
+            if request.method == "GET":
+                http_session = requests.Session()
+                try:
+                    matches = pubmed_lookup.find_perfect_title_matches(
+                        paper["title"],
+                        max_results=max_results,
+                        api_key=api_key,
+                        session=http_session,
+                        tool=tool,
+                        email=email,
+                    )
+                    matches = pubmed_lookup.attach_article_details(
+                        matches,
+                        api_key=api_key,
+                        session=http_session,
+                        tool=tool,
+                        email=email,
+                    )
+                finally:
+                    http_session.close()
+
+                cursor.close()
+                return jsonify(
+                    {"matches": [_serialize_pubmed_article(article) for article in matches]}
+                )
+
+            payload = request.get_json() or {}
+            pmid = str(payload.get("pmid", "")).strip()
+            if not pmid:
+                cursor.close()
+                return jsonify({"error": "pmid is required"}), 400
+
+            http_session = requests.Session()
             try:
                 matches = pubmed_lookup.find_perfect_title_matches(
                     paper["title"],
                     max_results=max_results,
                     api_key=api_key,
-                    session=session,
-                    tool=tool,
-                    email=email,
-                )
-                matches = pubmed_lookup.attach_article_details(
-                    matches,
-                    api_key=api_key,
-                    session=session,
+                    session=http_session,
                     tool=tool,
                     email=email,
                 )
             finally:
-                session.close()
+                http_session.close()
 
-            return jsonify({"matches": [_serialize_pubmed_article(article) for article in matches]})
+            if not any(article.pmid == pmid for article in matches):
+                cursor.close()
+                return jsonify({"error": "No perfect PubMed match for the given title"}), 404
 
-        payload = request.get_json() or {}
-        pmid = str(payload.get("pmid", "")).strip()
-        if not pmid:
-            return jsonify({"error": "pmid is required"}), 400
-
-        session = requests.Session()
-        try:
-            matches = pubmed_lookup.find_perfect_title_matches(
-                paper["title"],
-                max_results=max_results,
-                api_key=api_key,
-                session=session,
-                tool=tool,
-                email=email,
-            )
-        finally:
-            session.close()
-
-        if not any(article.pmid == pmid for article in matches):
-            return jsonify({"error": "No perfect PubMed match for the given title"}), 404
-
-        try:
             details = pubmed_lookup.fetch_pubmed_articles(
                 [pmid],
                 api_key=api_key,
                 tool=tool,
                 email=email,
             )
-        except pubmed_lookup.PubMedLookupError as exc:
-            log.warning("Failed to fetch PubMed article details", exc_info=exc)
-            return jsonify({"error": str(exc)}), 502
 
-        article = details.get(pmid)
-        if not article:
-            return jsonify({"error": "PubMed article details unavailable"}), 502
+            article = details.get(pmid)
+            if not article:
+                cursor.close()
+                return jsonify({"error": "PubMed article details unavailable"}), 502
 
-        updates = []
-        params = []
-        updated_fields = []
+            updates = []
+            params = []
+            updated_fields = []
 
-        if article.title:
-            updates.append("title = %s")
-            params.append(article.title)
-            updated_fields.append("title")
+            if article.title:
+                updates.append("title = %s")
+                params.append(article.title)
+                updated_fields.append("title")
 
-        author_string = ", ".join(_author_display_list(article.authors))
-        if author_string:
-            updates.append("author = %s")
-            params.append(author_string)
-            updated_fields.append("author")
+            author_string = ", ".join(_author_display_list(article.authors))
+            if author_string:
+                updates.append("author = %s")
+                params.append(author_string)
+                updated_fields.append("author")
 
-        if article.journal:
-            updates.append("journal = %s")
-            params.append(article.journal)
-            updated_fields.append("journal")
+            if article.journal:
+                updates.append("journal = %s")
+                params.append(article.journal)
+                updated_fields.append("journal")
 
-        if article.abstract:
-            updates.append("content = %s")
-            params.append(article.abstract)
-            updated_fields.append("content")
+            if article.abstract:
+                updates.append("content = %s")
+                params.append(article.abstract)
+                updated_fields.append("content")
 
-        if article.published:
-            updates.append("published = %s")
-            params.append(article.published)
-            updated_fields.append("published")
+            if article.published:
+                updates.append("published = %s")
+                params.append(article.published)
+                updated_fields.append("published")
 
-        if not updates:
-            return jsonify({"success": True, "updated_fields": []})
+            if not updates:
+                cursor.close()
+                return jsonify({"success": True, "updated_fields": []})
 
-        params.append(feed_id)
-        cursor.execute(
-            f"UPDATE feeds SET {', '.join(updates)} WHERE id = %s",
-            params,
-        )
-        conn.commit()
+            params.append(feed_id)
+            cursor.execute(
+                f"UPDATE feeds SET {', '.join(updates)} WHERE id = %s",
+                params,
+            )
 
-        return jsonify({"success": True, "pmid": pmid, "updated_fields": updated_fields})
+            cursor.close()
+            return jsonify({"success": True, "pmid": pmid, "updated_fields": updated_fields})
 
     except pubmed_lookup.PubMedLookupError as exc:
-        conn.rollback()
         log.warning("PubMed lookup failed", exc_info=exc)
         return jsonify({"error": str(exc)}), 502
     except Exception as exc:  # pragma: no cover - defensive guard
-        conn.rollback()
         log.exception("Unexpected error during PubMed metadata sync")
         return jsonify({"error": "Unexpected error while updating metadata"}), 500
-    finally:
-        cursor.close()
-        conn.close()
 
 
 @feeds_bp.route("/similar/<int:feed_id>")
@@ -612,29 +591,33 @@ def api_similar_feeds(feed_id):
         from ...embedding_database import EmbeddingDatabase
 
         edb = EmbeddingDatabase()
+        db_manager = current_app.config["db_manager"]
 
-        # Get similar articles filtered by current user with default model
-        conn = current_app.config["get_db_connection"]()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        # Get model_id from primary channel if it exists
-        if current_user.primary_channel_id:
-            cursor.execute("SELECT model_id FROM channels WHERE id = %s", (current_user.primary_channel_id,))
-            channel_result = cursor.fetchone()
-            model_id = channel_result["model_id"] if channel_result and channel_result["model_id"] else get_user_model_id(conn, current_user)
-        else:
-            model_id = get_user_model_id(conn, current_user)
+            if current_user.primary_channel_id:
+                cursor.execute(
+                    "SELECT model_id FROM channels WHERE id = %s",
+                    (current_user.primary_channel_id,),
+                )
+                channel_result = cursor.fetchone()
+                if channel_result and channel_result["model_id"]:
+                    model_id = channel_result["model_id"]
+                else:
+                    model_id = get_user_model_id(session.connection, current_user)
+            else:
+                model_id = get_user_model_id(session.connection, current_user)
 
-        # Use primary_channel_id for similar articles view
-        similar_feeds = edb.find_similar(
-            feed_id, limit=30, user_id=current_user.id, model_id=model_id,
-            channel_id=current_user.primary_channel_id
-        )
+            similar_feeds = edb.find_similar(
+                feed_id,
+                limit=30,
+                user_id=current_user.id,
+                model_id=model_id,
+                channel_id=current_user.primary_channel_id,
+            )
 
-        # Convert to format compatible with feeds list
-        feeds = []
-        for feed in similar_feeds:
-            feeds.append(
+            feeds = [
                 {
                     "rowid": feed["feed_id"],
                     "external_id": feed["external_id"],
@@ -651,21 +634,19 @@ def api_similar_feeds(feed_id):
                     "positive_votes": feed["positive_votes"],
                     "negative_votes": feed["negative_votes"],
                 }
-            )
+                for feed in similar_feeds
+            ]
 
-        # Also get the source article info
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(
-            """
-            SELECT title, author, COALESCE(journal, origin) AS origin
-            FROM feeds
-            WHERE id = %s
-        """,
-            (feed_id,),
-        )
-        source_article = cursor.fetchone()
-        cursor.close()
-        conn.close()
+            cursor.execute(
+                """
+                SELECT title, author, COALESCE(journal, origin) AS origin
+                FROM feeds
+                WHERE id = %s
+                """,
+                (feed_id,),
+            )
+            source_article = cursor.fetchone()
+            cursor.close()
 
         response_data = {"source_article": source_article, "similar_feeds": feeds}
 
@@ -680,26 +661,20 @@ def api_similar_feeds(feed_id):
 @admin_required
 def api_delete_feed(feed_id):
     """Delete a paper (admin only)."""
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
+
     try:
-        # Log the deletion event
-        cursor.execute(
-            "INSERT INTO events (event_type, user_id, feed_id, content) VALUES (%s, %s, %s, %s)",
-            ("web:delete", current_user.id, feed_id, "Deleted from paper details page"),
-        )
-
-        # Delete the feed; cascades will clean dependent rows
-        cursor.execute("DELETE FROM feeds WHERE id = %s", (feed_id,))
-
-        conn.commit()
-        return jsonify({"success": True})
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
+        with db_manager.session() as session:
+            cursor = session.cursor()
+            cursor.execute(
+                "INSERT INTO events (event_type, user_id, feed_id, content) VALUES (%s, %s, %s, %s)",
+                ("web:delete", current_user.id, feed_id, "Deleted from paper details page"),
+            )
+            cursor.execute("DELETE FROM feeds WHERE id = %s", (feed_id,))
+            return jsonify({"success": True})
+    except Exception as exc:
+        log.error("Failed to delete feed", exc_info=exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @feeds_bp.route("/feedback/<int:feed_id>/interested")
@@ -724,83 +699,74 @@ def handle_webhook_feedback(feed_id, score):
 
     user_id = current_user.id
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db_manager = current_app.config["db_manager"]
 
     try:
-        # First, check if the feed exists
-        cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
-        feed = cursor.fetchone()
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
 
-        if not feed:
+            cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
+            feed = cursor.fetchone()
+
+            if not feed:
+                cursor.close()
+                return render_template(
+                    "feedback_error.html", message="Paper not found"
+                ), 404
+
+            cursor.execute(
+                """
+                SELECT id, source FROM preferences
+                WHERE feed_id = %s AND user_id = %s
+                AND time > CURRENT_TIMESTAMP - INTERVAL '1 month'
+                ORDER BY time DESC
+                LIMIT 1
+                """,
+                (feed_id, user_id),
+            )
+
+            existing = cursor.fetchone()
+
+            if existing:
+                cursor.execute(
+                    """
+                    UPDATE preferences
+                    SET score = %s, time = CURRENT_TIMESTAMP, source = 'alert-feedback'
+                    WHERE id = %s
+                    """,
+                    (float(score), existing["id"]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO preferences (feed_id, user_id, time, score, source)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'alert-feedback')
+                    """,
+                    (feed_id, user_id, float(score)),
+                )
+
+            event_type = "web:interested" if score == 1 else "web:not-interested"
+            cursor.execute(
+                """
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (event_type, user_id, feed_id, "From Slack feedback link"),
+            )
+
+            feed_title = feed["title"]
             cursor.close()
-            conn.close()
-            return render_template(
-                "feedback_error.html", message="Paper not found"
-            ), 404
 
-        # Check if any recent preference exists (within 1 month)
-        cursor.execute(
-            """
-            SELECT id, source FROM preferences
-            WHERE feed_id = %s AND user_id = %s
-            AND time > CURRENT_TIMESTAMP - INTERVAL '1 month'
-            ORDER BY time DESC
-            LIMIT 1
-        """,
-            (feed_id, user_id),
-        )
-
-        existing = cursor.fetchone()
-
-        if existing:
-            # Update the existing recent preference (override regardless of source)
-            cursor.execute(
-                """
-                UPDATE preferences
-                SET score = %s, time = CURRENT_TIMESTAMP, source = 'alert-feedback'
-                WHERE id = %s
-            """,
-                (float(score), existing["id"]),
-            )
-        else:
-            # No recent preference exists, insert new one
-            cursor.execute(
-                """
-                INSERT INTO preferences (feed_id, user_id, time, score, source)
-                VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'alert-feedback')
-            """,
-                (feed_id, user_id, float(score)),
-            )
-
-        # Log the event (in the same transaction)
-        event_type = "web:interested" if score == 1 else "web:not-interested"
-        cursor.execute(
-            """
-            INSERT INTO events (event_type, user_id, feed_id, content)
-            VALUES (%s, %s, %s, %s)
-        """,
-            (event_type, user_id, feed_id, "From Slack feedback link"),
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        # Render feedback confirmation page with similar articles link
         feedback_type = "interested" if score == 1 else "not interested"
         return render_template(
             "feedback_success.html",
-            feed_title=feed["title"],
+            feed_title=feed_title,
             feedback_type=feedback_type,
             feed_id=feed_id,
         )
 
-    except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        log.error(f"Error recording webhook feedback: {e}")
+    except Exception as exc:
+        log.error("Error recording webhook feedback", exc_info=exc)
         return render_template(
             "feedback_error.html", message="Error recording feedback. Please try again."
         ), 500
@@ -834,30 +800,24 @@ def slack_interactivity():
                 {"response_type": "ephemeral", "text": "Invalid action format"}
             ), 400
 
-        # Insert event into database
-        conn = current_app.config["get_db_connection"]()
-        cursor = conn.cursor()
+        db_manager = current_app.config["db_manager"]
         try:
-            # Check if feed exists
-            cursor.execute("SELECT id FROM feeds WHERE id = %s", (related_feed_id,))
-            if cursor.fetchone():
-                cursor.execute(
-                    """
-                    INSERT INTO events (event_type, external_id, content, feed_id)
-                    VALUES (%s, %s, %s, %s)
-                """,
-                    ("slack:" + action, external_id, content, related_feed_id),
-                )
-                conn.commit()
-            else:
-                log.warning(
-                    f"Feed ID {related_feed_id} not found, skipping event logging"
-                )
-        except Exception as e:
-            log.error(f"Failed to log event to database: {e}")
-            conn.rollback()
-        finally:
-            cursor.close()
-            conn.close()
+            with db_manager.session() as session:
+                cursor = session.cursor()
+                cursor.execute("SELECT id FROM feeds WHERE id = %s", (related_feed_id,))
+                if cursor.fetchone():
+                    cursor.execute(
+                        """
+                        INSERT INTO events (event_type, external_id, content, feed_id)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        ("slack:" + action, external_id, content, related_feed_id),
+                    )
+                else:
+                    log.warning(
+                        f"Feed ID {related_feed_id} not found, skipping event logging"
+                    )
+        except Exception as exc:
+            log.error(f"Failed to log event to database: {exc}")
 
     return "", 200

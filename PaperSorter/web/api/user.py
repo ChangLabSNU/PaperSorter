@@ -40,109 +40,86 @@ def api_update_user_preferences():
     """Update current user's preferences."""
     data = request.get_json()
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
 
     try:
-        # Handle feedlist_minscore update
-        if "feedlist_minscore" in data:
-            # Convert decimal to integer for storage (e.g., 0.25 -> 25)
-            min_score_decimal = float(data["feedlist_minscore"])
-            min_score_int = int(min_score_decimal * 100)
+        with db_manager.session() as session:
+            cursor = session.cursor()
 
-            cursor.execute(
-                """
-                UPDATE users
-                SET feedlist_minscore = %s
-                WHERE id = %s
-            """,
-                (min_score_int, current_user.id),
-            )
-
-            # Update the current user object
-            current_user.feedlist_minscore_int = min_score_int
-            current_user.feedlist_minscore = min_score_decimal
-
-        # Handle primary_channel_id update
-        if "primary_channel_id" in data:
-            channel_id = data["primary_channel_id"]
-            # Allow None to unset primary channel
-            if channel_id == "":
-                channel_id = None
-            elif channel_id is not None:
-                channel_id = int(channel_id)
-
-            cursor.execute(
-                """
-                UPDATE users
-                SET primary_channel_id = %s
-                WHERE id = %s
-            """,
-                (channel_id, current_user.id),
-            )
-
-            # Update the current user object
-            current_user.primary_channel_id = channel_id
-
-        # Handle theme update
-        if "theme" in data:
-            theme = data["theme"]
-            if theme not in ["light", "dark", "auto"]:
-                theme = "light"
-
-            cursor.execute(
-                """
-                UPDATE users
-                SET theme = %s
-                WHERE id = %s
+            if "feedlist_minscore" in data:
+                min_score_decimal = float(data["feedlist_minscore"])
+                min_score_int = int(min_score_decimal * 100)
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET feedlist_minscore = %s
+                    WHERE id = %s
                 """,
-                (theme, current_user.id),
-            )
+                    (min_score_int, current_user.id),
+                )
+                current_user.feedlist_minscore_int = min_score_int
+                current_user.feedlist_minscore = min_score_decimal
 
-            # Update the current user object
-            current_user.theme = theme
+            if "primary_channel_id" in data:
+                channel_id = data["primary_channel_id"]
+                if channel_id == "":
+                    channel_id = None
+                elif channel_id is not None:
+                    channel_id = int(channel_id)
 
-        # Handle timezone update
-        if "timezone" in data:
-            timezone = data["timezone"]
-
-            cursor.execute(
-                """
-                UPDATE users
-                SET timezone = %s
-                WHERE id = %s
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET primary_channel_id = %s
+                    WHERE id = %s
                 """,
-                (timezone, current_user.id),
-            )
+                    (channel_id, current_user.id),
+                )
+                current_user.primary_channel_id = channel_id
 
-            # Update the current user object
-            current_user.timezone = timezone
+            if "theme" in data:
+                theme = data["theme"]
+                if theme not in ["light", "dark", "auto"]:
+                    theme = "light"
 
-        # Handle date_format update
-        if "date_format" in data:
-            date_format = data["date_format"]
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET theme = %s
+                    WHERE id = %s
+                    """,
+                    (theme, current_user.id),
+                )
+                current_user.theme = theme
 
-            cursor.execute(
-                """
-                UPDATE users
-                SET date_format = %s
-                WHERE id = %s
-                """,
-                (date_format, current_user.id),
-            )
+            if "timezone" in data:
+                timezone = data["timezone"]
 
-            # Update the current user object
-            current_user.date_format = date_format
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET timezone = %s
+                    WHERE id = %s
+                    """,
+                    (timezone, current_user.id),
+                )
+                current_user.timezone = timezone
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            if "date_format" in data:
+                date_format = data["date_format"]
+
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET date_format = %s
+                    WHERE id = %s
+                    """,
+                    (date_format, current_user.id),
+                )
+                current_user.date_format = date_format
 
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -156,28 +133,22 @@ def api_update_bookmark():
     if not feed_id:
         return jsonify({"success": False, "error": "feed_id is required"}), 400
 
-    conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    db_manager = current_app.config["db_manager"]
 
     try:
-        cursor.execute(
-            """
-            UPDATE users
-            SET bookmark = %s
-            WHERE id = %s
-        """,
-            (feed_id, current_user.id),
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with db_manager.session() as session:
+            cursor = session.cursor()
+            cursor.execute(
+                """
+                UPDATE users
+                SET bookmark = %s
+                WHERE id = %s
+            """,
+                (feed_id, current_user.id),
+            )
 
         return jsonify({"success": True})
     except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
         return jsonify({"success": False, "error": str(e)}), 500
 
 
