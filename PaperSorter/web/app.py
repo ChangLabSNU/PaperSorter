@@ -93,56 +93,47 @@ def create_app(config_path, skip_authentication=None):
     app.poster_jobs = {}
     app.poster_jobs_lock = threading.Lock()
 
-    # Configure database manager and legacy connection shim
+    # Configure database manager
     db_manager = DatabaseManager.from_config(
         db_config,
         application_name="papersorter-web",
     )
     app.config["db_manager"] = db_manager
 
-    def get_db_connection():
-        return db_manager.connect()
-
-    app.config["get_db_connection"] = get_db_connection
-
     # Handle skip-authentication mode
     if skip_authentication:
         # Create or update the admin user in the database
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # Check if user exists
-        cursor.execute(
-            "SELECT id, username, is_admin FROM users WHERE username = %s",
-            (skip_authentication,)
-        )
-        user_data = cursor.fetchone()
-
-        if user_data:
-            # User exists - upgrade to admin if needed
-            if not user_data["is_admin"]:
-                cursor.execute(
-                    "UPDATE users SET is_admin = TRUE WHERE username = %s",
-                    (skip_authentication,)
-                )
-                conn.commit()
-                log.info(f"Upgraded user '{skip_authentication}' to admin status")
-            else:
-                log.info(f"Using existing admin user '{skip_authentication}'")
-            skip_auth_user_id = user_data["id"]
-        else:
-            # Create new admin user with 'oauth' as password placeholder
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
             cursor.execute(
-                """INSERT INTO users (username, password, is_admin, timezone, date_format, feedlist_minscore)
-                   VALUES (%s, 'oauth', TRUE, %s, %s, 25) RETURNING id""",
-                (skip_authentication, default_timezone, default_date_format)
+                "SELECT id, username, is_admin FROM users WHERE username = %s",
+                (skip_authentication,),
             )
-            skip_auth_user_id = cursor.fetchone()["id"]
-            conn.commit()
-            log.info(f"Created new admin user '{skip_authentication}'")
+            user_data = cursor.fetchone()
 
-        cursor.close()
-        conn.close()
+            if user_data:
+                if not user_data["is_admin"]:
+                    cursor.execute(
+                        "UPDATE users SET is_admin = TRUE WHERE username = %s",
+                        (skip_authentication,),
+                    )
+                    log.info(
+                        f"Upgraded user '{skip_authentication}' to admin status"
+                    )
+                else:
+                    log.info(f"Using existing admin user '{skip_authentication}'")
+                skip_auth_user_id = user_data["id"]
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO users (username, password, is_admin, timezone, date_format, feedlist_minscore)
+                    VALUES (%s, 'oauth', TRUE, %s, %s, 25) RETURNING id
+                    """,
+                    (skip_authentication, default_timezone, default_date_format),
+                )
+                skip_auth_user_id = cursor.fetchone()["id"]
+                log.info(f"Created new admin user '{skip_authentication}'")
+            cursor.close()
 
         # Store the user ID for auto-login
         app.config["SKIP_AUTH_USER_ID"] = skip_auth_user_id
@@ -173,29 +164,27 @@ def create_app(config_path, skip_authentication=None):
 
     @login_manager.user_loader
     def load_user(user_id):
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(
-            """SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id,
-                      theme, lastlogin,
-                      EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(lastlogin, TIMESTAMP '1970-01-01'))) as seconds_since_login
-               FROM users WHERE id = %s""",
-            (int(user_id),),
-        )
-        user_data = cursor.fetchone()
+        with db_manager.session() as session:
+            cursor = session.cursor(dict_cursor=True)
+            cursor.execute(
+                """
+                SELECT id, username, is_admin, timezone, date_format, feedlist_minscore, primary_channel_id,
+                       theme, lastlogin,
+                       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(lastlogin, TIMESTAMP '1970-01-01'))) as seconds_since_login
+                FROM users WHERE id = %s
+                """,
+                (int(user_id),),
+            )
+            user_data = cursor.fetchone()
 
-        if user_data:
-            # Update last login timestamp only if it's stale (>10 minutes old)
-            seconds_since_login = user_data.get("seconds_since_login", float("inf"))
-            if seconds_since_login > 600:  # 600 seconds = 10 minutes
-                cursor.execute(
-                    "UPDATE users SET lastlogin = CURRENT_TIMESTAMP WHERE id = %s",
-                    (int(user_id),),
-                )
-                conn.commit()
-
-        cursor.close()
-        conn.close()
+            if user_data:
+                seconds_since_login = user_data.get("seconds_since_login", float("inf"))
+                if seconds_since_login > 600:
+                    cursor.execute(
+                        "UPDATE users SET lastlogin = CURRENT_TIMESTAMP WHERE id = %s",
+                        (int(user_id),),
+                    )
+            cursor.close()
 
         if user_data:
             return User(
