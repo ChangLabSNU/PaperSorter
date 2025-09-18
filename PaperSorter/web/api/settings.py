@@ -23,6 +23,7 @@
 
 """Settings API endpoints."""
 
+import json
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, render_template, current_app
@@ -198,7 +199,7 @@ def api_create_channel():
         broadcast_hours = checkbox_array_to_hours(data["broadcast_hours_array"])
 
     conn = current_app.config["get_db_connection"]()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     try:
         cursor.execute(
@@ -874,6 +875,10 @@ def api_broadcast_queue_remove(feed_id, channel_id):
     cursor = conn.cursor()
 
     try:
+        cursor.execute("SELECT name FROM channels WHERE id = %s", (channel_id,))
+        channel_row = cursor.fetchone()
+        channel_name = channel_row[0] if channel_row else None
+
         cursor.execute(
             """
             DELETE FROM broadcasts
@@ -881,6 +886,26 @@ def api_broadcast_queue_remove(feed_id, channel_id):
         """,
             (feed_id, channel_id),
         )
+
+        if cursor.rowcount > 0:
+            cursor.execute(
+                """
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
+            """,
+                (
+                    "web:broadcast-queue-removed",
+                    current_user.id,
+                    feed_id,
+                    json.dumps(
+                        {
+                            "channel_id": channel_id,
+                            "channel_name": channel_name,
+                            "status": "removed",
+                        }
+                    ),
+                ),
+            )
 
         conn.commit()
         cursor.close()
@@ -995,13 +1020,37 @@ def api_add_to_broadcast_queue():
     cursor = conn.cursor()
     
     try:
+        # Resolve channel name for logging
+        cursor.execute("SELECT name FROM channels WHERE id = %s", (channel_id,))
+        channel_row = cursor.fetchone()
+        channel_name = channel_row[0] if channel_row else None
+
         # Add to broadcasts table
         cursor.execute("""
             INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
             VALUES (%s, %s, NULL)
             ON CONFLICT (feed_id, channel_id) DO NOTHING
         """, (feed_id, channel_id))
-        
+        if cursor.rowcount > 0:
+            cursor.execute(
+                """
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
+            """,
+                (
+                    "web:broadcast-queue",
+                    current_user.id,
+                    feed_id,
+                    json.dumps(
+                        {
+                            "channel_id": channel_id,
+                            "channel_name": channel_name,
+                            "status": "queued",
+                        }
+                    ),
+                ),
+            )
+
         conn.commit()
         return jsonify({"status": "success"})
         
@@ -1031,12 +1080,42 @@ def api_broadcast_now():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     try:
-        # Get channel details
-        cursor.execute("SELECT * FROM channels WHERE id = %s", (channel_id,))
+        # Get channel details with model metadata for notifications
+        cursor.execute(
+            """
+            SELECT c.*, m.name AS model_name, m.score_name
+            FROM channels c
+            LEFT JOIN models m ON c.model_id = m.id
+            WHERE c.id = %s
+        """,
+            (channel_id,),
+        )
         channel = cursor.fetchone()
-        
-        if not channel or not channel['webhook_url']:
+
+        if not channel or not channel.get("endpoint_url"):
             return jsonify({"status": "error", "message": "Invalid channel"}), 400
+
+        def log_broadcast_event(event_suffix, extra=None):
+            payload = {
+                "channel_id": channel.get("id"),
+                "channel_name": channel.get("name"),
+                "status": event_suffix,
+            }
+            if extra:
+                payload.update(extra)
+
+            cursor.execute(
+                """
+                INSERT INTO events (event_type, user_id, feed_id, content)
+                VALUES (%s, %s, %s, %s)
+            """,
+                (
+                    f"web:{event_suffix}",
+                    current_user.id,
+                    feed_id,
+                    json.dumps(payload),
+                ),
+            )
         
         # Get paper details
         cursor.execute("""
@@ -1058,7 +1137,7 @@ def api_broadcast_now():
         
         # Format and send the paper
         success = bc.send_to_channel(channel, [paper])
-        
+
         if success:
             # Update broadcasts table
             cursor.execute("""
@@ -1068,13 +1147,26 @@ def api_broadcast_now():
                 DO UPDATE SET broadcasted_time = CURRENT_TIMESTAMP
             """, (feed_id, channel_id))
             
+            log_broadcast_event("broadcast-now", {"predicted_score": paper.get("predicted_score")})
+
             conn.commit()
             return jsonify({"status": "success"})
         else:
+            log_broadcast_event(
+                "broadcast-now-failed",
+                {"error": "Notification provider failure", "predicted_score": paper.get("predicted_score")},
+            )
+            conn.commit()
             return jsonify({"status": "error", "message": "Failed to send to channel"}), 500
             
     except Exception as e:
         conn.rollback()
+        if "log_broadcast_event" in locals():
+            try:
+                log_broadcast_event("broadcast-now-failed", {"error": str(e)})
+                conn.commit()
+            except Exception:
+                conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         cursor.close()

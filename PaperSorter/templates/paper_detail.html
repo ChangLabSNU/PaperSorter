@@ -558,12 +558,12 @@
                         <select class="channel-selector" id="channelSelect">
                             <option value="">Select Channel...</option>
                             {% for channel in channels %}
-                            <option value="{{ channel.id }}" {% if channel.id in queued_channels %}disabled{% endif %}>
-                                {{ channel.name }}{% if channel.id in queued_channels %} (Already Queued){% endif %}
+                            <option value="{{ channel.id }}" {% if channel.id in queued_channels %}data-queued="true"{% endif %}>
+                                {{ channel.name }}{% if channel.id in queued_channels %} (Queued){% endif %}
                             </option>
                             {% endfor %}
                         </select>
-                        <button class="btn btn-broadcast" onclick="addToBroadcast()">
+                        <button class="btn btn-broadcast" id="broadcastQueueButton" onclick="toggleBroadcastQueue()">
                             📢 Add to Queue
                         </button>
                         <button class="btn btn-broadcast-now" onclick="broadcastNow()">
@@ -614,52 +614,6 @@
         });
 
         // Load similar papers asynchronously
-        function loadSimilarPapers() {
-            const section = document.getElementById('similarPapersSection');
-            const list = document.getElementById('similarPapersList');
-
-            // Show the section
-            section.style.display = 'block';
-
-            // Fetch similar papers
-            fetch(`/api/feeds/similar/${paperId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.similar_feeds && data.similar_feeds.length > 0) {
-                        let html = '';
-                        data.similar_feeds.forEach(paper => {
-                            const similarity = paper.similarity * 100;
-                            const score = paper.score ? paper.score * 100 : null;
-
-                            html += `
-                                <a href="/paper/${paper.rowid}" class="similar-paper-item">
-                                    <div class="similar-paper-title">${paper.title}</div>
-                                    <div class="similar-paper-meta">
-                                        <span class="similarity-score">${similarity.toFixed(0)}% similar</span>
-                                        ${paper.origin ? `<span>${paper.origin}</span>` : ''}
-                                        ${score !== null ? `
-                                            <span class="score-badge" style="font-size: 11px; padding: 2px 6px; min-width: auto;">
-                                                Score: ${score.toFixed(0)}
-                                            </span>
-                                        ` : ''}
-                                    </div>
-                                </a>
-                            `;
-                        });
-                        list.innerHTML = html;
-                    } else {
-                        list.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-meta);">No similar papers found</p>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading similar papers:', error);
-                    section.style.display = 'none';
-                });
-        }
-
-        // Load similar papers after a short delay to let the main content render first
-        setTimeout(loadSimilarPapers, 100);
-
         function labelPaper(score) {
             fetch('/api/feeds/feedback', {
                 method: 'POST',
@@ -699,32 +653,91 @@
             });
         }
 
-        function addToBroadcast() {
-            const channelId = document.getElementById('channelSelect').value;
-            if (!channelId) {
+        function updateBroadcastButtonState() {
+            const select = document.getElementById('channelSelect');
+            const button = document.getElementById('broadcastQueueButton');
+            if (!select || !button) return;
+
+            const option = select.options[select.selectedIndex];
+            if (!option || !option.value) {
+                button.textContent = '📢 Add to Queue';
+                button.dataset.mode = 'add';
+                button.disabled = true;
+                return;
+            }
+
+            button.disabled = false;
+            if (option.dataset.queued === 'true') {
+                button.textContent = '🗑️ Remove from Queue';
+                button.dataset.mode = 'remove';
+            } else {
+                button.textContent = '📢 Add to Queue';
+                button.dataset.mode = 'add';
+            }
+        }
+
+        function toggleBroadcastQueue() {
+            const select = document.getElementById('channelSelect');
+            const button = document.getElementById('broadcastQueueButton');
+            if (!select || !button) return;
+
+            const option = select.options[select.selectedIndex];
+            if (!option || !option.value) {
                 showToast('Please select a channel', 'warning');
                 return;
             }
 
-            fetch('/api/settings/broadcast-queue', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    feed_id: paperId,
-                    channel_id: parseInt(channelId)
+            const channelId = parseInt(option.value);
+            const isQueued = option.dataset.queued === 'true';
+
+            if (isQueued) {
+                fetch(`/api/broadcast-queue/${paperId}/${channelId}`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
                 })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showToast('Added to broadcast queue', 'success');
-                    setTimeout(() => location.reload(), 1000);
-                }
-            })
-            .catch(error => {
-                showToast('Error adding to queue', 'error');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success || data.status === 'success') {
+                        showToast('Removed from broadcast queue', 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        throw new Error(data.error || data.message || 'Unknown error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error removing from queue:', error);
+                    showToast('Error removing from queue', 'error');
+                });
+            } else {
+                fetch('/api/settings/broadcast-queue', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        feed_id: paperId,
+                        channel_id: channelId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('Added to broadcast queue', 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        throw new Error(data.error || data.message || 'Unknown error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error adding to queue:', error);
+                    showToast('Error adding to queue', 'error');
+                });
+            }
         }
+
+        const channelSelect = document.getElementById('channelSelect');
+        if (channelSelect) {
+            channelSelect.addEventListener('change', updateBroadcastButtonState);
+        }
+        updateBroadcastButtonState();
 
         function broadcastNow() {
             const channelId = document.getElementById('channelSelect').value;

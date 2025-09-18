@@ -159,6 +159,27 @@
             background: var(--event-action-feedback-removed);
         }
 
+        .action-broadcast-now {
+            background: var(--event-action-broadcast-now);
+        }
+
+        .action-broadcast-now-failed {
+            background: var(--event-action-broadcast-now-failed);
+        }
+
+        .action-broadcast-queue {
+            background: var(--event-action-broadcast-queue);
+        }
+
+        .action-broadcast-queue-removed {
+            background: var(--event-action-broadcast-queue-removed);
+        }
+
+        .event-error {
+            color: var(--error-text);
+            font-weight: 500;
+        }
+
         .event-details {
             display: flex;
             flex-direction: column;
@@ -247,6 +268,26 @@
         let currentPage = 1;
         let isLoading = false;
         let hasMore = true;
+
+        function escapeHtml(value) {
+            if (value === undefined || value === null) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function parseEventContent(event) {
+            if (!event.content) return {};
+            if (typeof event.content === 'object') return event.content;
+            try {
+                return JSON.parse(event.content);
+            } catch (error) {
+                return {};
+            }
+        }
 
         function formatEventDate(dateString) {
             const date = new Date(dateString);
@@ -378,6 +419,47 @@
                 const action = event.event_type === 'web:shared' ? 'shared' : 'unshared';
                 primaryInfo = `${username} ${action}`;
                 secondaryInfo = feedLink;
+            } else if (event.event_type === 'web:broadcast-now' || event.event_type === 'web:broadcast-now-failed') {
+                const username = event.username || 'Unknown user';
+                const payload = parseEventContent(event);
+                const channelId = payload.channel_id;
+                const channelName = payload.channel_name;
+                const score = typeof payload.predicted_score === 'number'
+                    ? Math.round(payload.predicted_score * 100)
+                    : null;
+                const channelLabel = channelName
+                    ? channelName
+                    : (channelId ? `Channel ${channelId}` : 'selected channel');
+                const safeUsername = escapeHtml(username);
+                const safeChannel = escapeHtml(channelLabel);
+
+                if (event.event_type === 'web:broadcast-now') {
+                    primaryInfo = `${safeUsername} broadcasted immediately to ${safeChannel}`;
+                    const scoreInfo = score !== null ? ` • Score ${score}` : '';
+                    secondaryInfo = `${feedLink}${scoreInfo}`;
+                } else {
+                    const errorReason = payload.error || 'Unknown error';
+                    primaryInfo = `${safeUsername} failed to broadcast to ${safeChannel}`;
+                    secondaryInfo = `${feedLink} • <span class="event-error">${escapeHtml(errorReason)}</span>`;
+                }
+            } else if (event.event_type === 'web:broadcast-queue' || event.event_type === 'web:broadcast-queue-removed') {
+                const username = event.username || 'Unknown user';
+                const payload = parseEventContent(event);
+                const channelId = payload.channel_id;
+                const channelName = payload.channel_name;
+                const channelLabel = channelName
+                    ? channelName
+                    : (channelId ? `Channel ${channelId}` : 'selected channel');
+                const safeUsername = escapeHtml(username);
+                const safeChannel = escapeHtml(channelLabel);
+
+                if (event.event_type === 'web:broadcast-queue-removed') {
+                    primaryInfo = `${safeUsername} removed ${safeChannel} from the broadcast queue`;
+                    secondaryInfo = feedLink;
+                } else {
+                    primaryInfo = `${safeUsername} queued a broadcast for ${safeChannel}`;
+                    secondaryInfo = feedLink;
+                }
             } else {
                 // Default display
                 primaryInfo = event.content || event.external_id || 'User action';

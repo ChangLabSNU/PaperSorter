@@ -312,6 +312,10 @@
   --event-action-shared: #9b59b6;              /* Purple for share action */
   --event-action-unshared: #7f8c8d;            /* Gray for unshare action */
   --event-action-feedback-removed: #95a5a6;    /* Light gray for feedback removal */
+  --event-action-broadcast-now: #16a085; /* Teal for immediate broadcast */
+  --event-action-broadcast-now-failed: #c0392b;  /* Strong red for broadcast failure */
+  --event-action-broadcast-queue: #1abc9c;       /* Teal for queued broadcast */
+  --event-action-broadcast-queue-removed: #d35400; /* Orange for removal */
 
   /* Settings Page */
   --settings-card-bg: white;
@@ -739,6 +743,10 @@
   --event-action-shared: #6c3b7f;          /* 30% darker purple */
   --event-action-unshared: #4b5563;        /* 30% darker gray */
   --event-action-feedback-removed: #64748b;  /* 30% darker light gray */
+  --event-action-broadcast-now: #0f6d5a; /* Darker teal for dark mode */
+  --event-action-broadcast-now-failed: #8b1e1e;  /* Deeper red for dark mode */
+  --event-action-broadcast-queue: #0e6655;       /* Darker teal for queued broadcast */
+  --event-action-broadcast-queue-removed: #a84300; /* Darker orange for removal */
 
   /* Settings Page - Dark Mode */
   --settings-card-bg: #2d2d2d;

@@ -354,16 +354,19 @@ def paper_detail(paper_id):
             ORDER BY id
         """)
         channels = cursor.fetchall()
-        
+
         # Check if paper is in any broadcast queues
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT channel_id
             FROM broadcasts
             WHERE feed_id = %s AND broadcasted_time IS NULL
-        """, (paper_id,))
-        
-        queued_channels = [row['channel_id'] for row in cursor.fetchall()]
-        
+        """,
+            (paper_id,),
+        )
+
+        queued_channels = {row["channel_id"] for row in cursor.fetchall()}
+
         return render_template(
             "paper_detail.html",
             paper=paper,
