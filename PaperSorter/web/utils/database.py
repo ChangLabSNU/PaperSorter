@@ -21,16 +21,23 @@
 # THE SOFTWARE.
 #
 
-"""Database utility functions."""
+"""Database utility helpers that work with pooled sessions or raw connections."""
 
+from typing import Any
 import random
 import string
 import psycopg2
 import psycopg2.extras
 
 
+def _connection(conn_or_session: Any):
+    """Return a psycopg2 connection from either a session or a raw connection."""
+    return getattr(conn_or_session, "connection", conn_or_session)
+
+
 def get_default_model_id(conn):
     """Get the most recent active model ID."""
+    conn = _connection(conn)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id FROM models
@@ -54,6 +61,7 @@ def get_user_model_id(conn, user):
         int: Model ID to use for scoring
     """
     # 1. User's primary channel's model (if set)
+    conn = _connection(conn)
     if hasattr(user, 'primary_channel_id') and user.primary_channel_id:
         cursor = conn.cursor()
         cursor.execute(
@@ -76,6 +84,7 @@ def get_unlabeled_item(conn, user=None):
         conn: Database connection
         user: Current user object (optional, for model selection)
     """
+    conn = _connection(conn)
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
@@ -129,6 +138,7 @@ def get_labeling_stats(conn, user=None):
         conn: Database connection
         user: Current user object (optional, to filter stats by user)
     """
+    conn = _connection(conn)
     cursor = conn.cursor()
 
     if user and hasattr(user, 'id'):

@@ -26,9 +26,9 @@ Web Application Usage
 =====================
 
 ``create_app`` instantiates a single ``DatabaseManager`` and stores it on the
-Flask application config as ``app.config["db_manager"]``.  Existing view code
-continues to call ``app.config["get_db_connection"]()``, which now returns a
-pooled connection proxy.  New code should prefer the session helpers instead:
+Flask application config as ``app.config["db_manager"]``.  Application code
+should always work inside ``db_manager.session()`` blocks rather than calling a
+legacy ``get_db_connection`` helper:
 
 .. code-block:: python
 
