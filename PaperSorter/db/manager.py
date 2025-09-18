@@ -18,9 +18,6 @@ except ImportError:  # pragma: no cover - pgvector should be installed, but keep
 
 from ..log import log
 
-_PGVECTOR_MARKER = "_papersorter_pgvector_registered"
-
-
 @dataclass
 class PoolConfig:
     minconn: int = 1
@@ -194,10 +191,9 @@ class DatabaseManager:
     def _prepare_connection(self, conn: psycopg2.extensions.connection) -> None:
         if conn.closed:
             return
-        if self._register_pgvector and not getattr(conn, _PGVECTOR_MARKER, False):
+        if self._register_pgvector:
             try:
                 register_vector(conn)
-                setattr(conn, _PGVECTOR_MARKER, True)
             except Exception as exc:
                 log.warning(f"Failed to register pgvector: {exc}")
         if conn.autocommit:
