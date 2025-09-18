@@ -27,26 +27,37 @@ from pgvector.psycopg2 import register_vector
 import numpy as np
 from .config import get_config
 import openai
+from typing import Optional
 from .log import log
 
 
 class EmbeddingDatabase:
     dtype = np.float64
 
-    def __init__(self):
+    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
         config = get_config().raw
 
         db_config = config["db"]
         self.config = config
 
-        # Connect to PostgreSQL
-        self.db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        self.db.autocommit = False
+        self._manager = db_manager
+
+        if connection is not None:
+            self.db = connection
+            self._owns_connection = False
+        elif db_manager is not None:
+            self.db = db_manager.connect()
+            self._owns_connection = True
+        else:
+            self.db = psycopg2.connect(
+                host=db_config["host"],
+                database=db_config["database"],
+                user=db_config["user"],
+                password=db_config["password"],
+            )
+            self.db.autocommit = False
+            self._owns_connection = True
+
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Register pgvector extension
@@ -65,8 +76,16 @@ class EmbeddingDatabase:
         )
 
     def __del__(self):
+        if hasattr(self, "cursor"):
+            try:
+                self.cursor.close()
+            except Exception:
+                pass
         if hasattr(self, "db"):
-            self.db.close()
+            try:
+                self.db.close()
+            except Exception:
+                pass
 
     def __len__(self):
         self.cursor.execute("SELECT COUNT(*) FROM embeddings")

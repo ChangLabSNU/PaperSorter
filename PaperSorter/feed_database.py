@@ -28,7 +28,7 @@ import re
 from .config import get_config
 import unicodedata
 from difflib import SequenceMatcher
-from typing import List, Callable
+from typing import List, Callable, Optional
 from .log import log
 
 
@@ -108,18 +108,28 @@ class FeedDatabase:
         "tldr",
     ]
 
-    def __init__(self):
+    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
         config = get_config().raw
         db_config = config["db"]
 
-        # Connect to PostgreSQL
-        self.db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        self.db.autocommit = False
+        self._manager = db_manager
+
+        if connection is not None:
+            self.db = connection
+            self._owns_connection = False
+        elif db_manager is not None:
+            self.db = db_manager.connect()
+            self._owns_connection = True
+        else:
+            self.db = psycopg2.connect(
+                host=db_config["host"],
+                database=db_config["database"],
+                user=db_config["user"],
+                password=db_config["password"],
+            )
+            self.db.autocommit = False
+            self._owns_connection = True
+
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.update_idcache()
 

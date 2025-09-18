@@ -674,7 +674,9 @@ def api_scholarly_database_add():
         if article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id"):
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
-        db = FeedDatabase()
+        db_manager = current_app.config["db_manager"]
+        db = FeedDatabase(db_manager=db_manager)
+        embeddingdb = None
 
         # Check if item already exists
         if article.unique_id not in db:
@@ -693,7 +695,7 @@ def api_scholarly_database_add():
             db.commit()
 
             # Generate embeddings and predict preferences
-            embeddingdb = EmbeddingDatabase()
+            embeddingdb = EmbeddingDatabase(db_manager=db_manager)
             predictor = FeedPredictor(db, embeddingdb)
             model_dir = config_yaml.get("models", {}).get("path", ".")
 
@@ -719,6 +721,19 @@ def api_scholarly_database_add():
     except Exception as e:
         log.error(f"Error adding paper from scholarly database: {e}")
         return jsonify({"error": "Failed to add paper"}), 500
+    finally:
+        try:
+            if embeddingdb is not None:
+                embeddingdb.cursor.close()
+                embeddingdb.db.close()
+        except Exception:
+            pass
+        try:
+            if db is not None:
+                db.cursor.close()
+                db.db.close()
+        except Exception:
+            pass
 
 # Keep old endpoint for backward compatibility
 @search_bp.route("/api/semantic-scholar/add", methods=["POST"])

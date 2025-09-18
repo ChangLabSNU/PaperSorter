@@ -35,10 +35,20 @@ def _connection(conn_or_session: Any):
     return getattr(conn_or_session, "connection", conn_or_session)
 
 
+def _maybe_commit(conn_or_session: Any) -> None:
+    if not hasattr(conn_or_session, "connection"):
+        conn_or_session.commit()
+
+
+def _maybe_rollback(conn_or_session: Any) -> None:
+    if not hasattr(conn_or_session, "connection"):
+        conn_or_session.rollback()
+
+
 def get_default_model_id(conn):
     """Get the most recent active model ID."""
-    conn = _connection(conn)
-    cursor = conn.cursor()
+    connection = _connection(conn)
+    cursor = connection.cursor()
     cursor.execute("""
         SELECT id FROM models
         WHERE is_active = TRUE
@@ -61,9 +71,9 @@ def get_user_model_id(conn, user):
         int: Model ID to use for scoring
     """
     # 1. User's primary channel's model (if set)
-    conn = _connection(conn)
+    connection = _connection(conn)
     if hasattr(user, 'primary_channel_id') and user.primary_channel_id:
-        cursor = conn.cursor()
+        cursor = connection.cursor()
         cursor.execute(
             "SELECT model_id FROM channels WHERE id = %s",
             (user.primary_channel_id,)
@@ -74,7 +84,7 @@ def get_user_model_id(conn, user):
             return result[0]
 
     # 2. System default (most recent active)
-    return get_default_model_id(conn)
+    return get_default_model_id(connection)
 
 
 def get_unlabeled_item(conn, user=None):
@@ -84,15 +94,15 @@ def get_unlabeled_item(conn, user=None):
         conn: Database connection
         user: Current user object (optional, for model selection)
     """
-    conn = _connection(conn)
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    connection = _connection(conn)
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
     if user:
-        default_model_id = get_user_model_id(conn, user)
+        default_model_id = get_user_model_id(connection, user)
         user_id = user.id
     else:
-        default_model_id = get_default_model_id(conn)
+        default_model_id = get_default_model_id(connection)
         user_id = None
 
     # Filter by user_id if available
@@ -138,8 +148,8 @@ def get_labeling_stats(conn, user=None):
         conn: Database connection
         user: Current user object (optional, to filter stats by user)
     """
-    conn = _connection(conn)
-    cursor = conn.cursor()
+    connection = _connection(conn)
+    cursor = connection.cursor()
 
     if user and hasattr(user, 'id'):
         # Filter by user_id
@@ -193,7 +203,8 @@ def save_search_query(conn, query, user_id=None, assisted_query=None):
     Returns:
         The short_name for this search query
     """
-    cursor = conn.cursor()
+    connection = _connection(conn)
+    cursor = connection.cursor()
 
     try:
         # Check if this exact combination already exists
@@ -229,7 +240,7 @@ def save_search_query(conn, query, user_id=None, assisted_query=None):
             """,
                 (short_name,),
             )
-            conn.commit()
+            _maybe_commit(conn)
             return short_name
 
         # Generate a unique short_name
@@ -258,14 +269,14 @@ def save_search_query(conn, query, user_id=None, assisted_query=None):
                     (short_name, query, user_id, assisted_query),
                 )
 
-                conn.commit()
+                _maybe_commit(conn)
                 return cursor.fetchone()[0]
 
         # If we couldn't generate a unique short_name after max_attempts
         raise Exception("Failed to generate unique short_name")
 
     except Exception as e:
-        conn.rollback()
+        _maybe_rollback(conn)
         raise e
     finally:
         cursor.close()
