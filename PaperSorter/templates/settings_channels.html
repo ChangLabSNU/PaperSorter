@@ -362,27 +362,11 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="channelScoreThreshold">Score Threshold</label>
-                        <input type="number" id="channelScoreThreshold" required
-                               min="0" max="1" step="0.01" value="0.7"
-                               placeholder="0.7">
-                        <small>Min score to broadcast (0.0-1.0)</small>
-                    </div>
-                    <div class="form-group">
                         <label for="channelModelId">Model</label>
                         <select id="channelModelId" required>
                             <option value="">Loading models...</option>
                         </select>
                         <small>Scoring model to use</small>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="channelBroadcastLimit">Broadcast Limit</label>
-                        <input type="number" id="channelBroadcastLimit" required
-                               min="1" max="100" value="20"
-                               placeholder="20">
-                        <small>Max items per run</small>
                     </div>
                     <div class="form-group">
                         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Status</label>
@@ -395,6 +379,22 @@
                             <input type="checkbox" id="channelShowOtherScores" style="margin-right: 8px;">
                             <span>Show Other Model Scores</span>
                         </label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="channelScoreThreshold">Score Threshold</label>
+                        <input type="number" id="channelScoreThreshold" required
+                               min="0" max="1" step="0.01" value="0.7"
+                               placeholder="0.7">
+                        <small>Min score to broadcast (0.0-1.0)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="channelBroadcastLimit">Broadcast Limit</label>
+                        <input type="number" id="channelBroadcastLimit" required
+                               min="1" max="100" value="20"
+                               placeholder="20">
+                        <small>Max items per run</small>
                     </div>
                 </div>
                 <div class="form-group">
