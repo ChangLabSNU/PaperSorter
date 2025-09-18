@@ -181,6 +181,18 @@
             --btn-external-border: #90caf9;
             --btn-external-bg-hover: #bbdefb;
             --btn-external-border-hover: #64b5f6;
+
+            --btn-admin-sync-bg: #e8f4fd;
+            --btn-admin-sync-color: #1b4f72;
+            --btn-admin-sync-border: #aed6f1;
+            --btn-admin-sync-bg-hover: #d4e8fb;
+            --btn-admin-sync-border-hover: #8ac4e9;
+
+            --btn-admin-delete-bg: #fdecea;
+            --btn-admin-delete-color: #c0392b;
+            --btn-admin-delete-border: #f5b7b1;
+            --btn-admin-delete-bg-hover: #f8d7d2;
+            --btn-admin-delete-border-hover: #ec948b;
         }
 
         [data-theme="dark"] {
@@ -189,6 +201,18 @@
             --btn-external-border: #42a5f5;
             --btn-external-bg-hover: #2e4a6f;
             --btn-external-border-hover: #52b5f6;
+
+            --btn-admin-sync-bg: #1c3b55;
+            --btn-admin-sync-color: #8ac4e9;
+            --btn-admin-sync-border: #2d5a7d;
+            --btn-admin-sync-bg-hover: #264a6c;
+            --btn-admin-sync-border-hover: #3b6f92;
+
+            --btn-admin-delete-bg: #4a2320;
+            --btn-admin-delete-color: #f2a29a;
+            --btn-admin-delete-border: #6b3531;
+            --btn-admin-delete-bg-hover: #5a2f2b;
+            --btn-admin-delete-border-hover: #854640;
         }
 
         .btn-external {
@@ -200,6 +224,28 @@
         .btn-external:hover {
             background: var(--btn-external-bg-hover);
             border-color: var(--btn-external-border-hover);
+        }
+
+        .btn-admin-sync {
+            background: var(--btn-admin-sync-bg);
+            color: var(--btn-admin-sync-color);
+            border: 1px solid var(--btn-admin-sync-border);
+        }
+
+        .btn-admin-sync:hover {
+            background: var(--btn-admin-sync-bg-hover);
+            border-color: var(--btn-admin-sync-border-hover);
+        }
+
+        .btn-admin-delete {
+            background: var(--btn-admin-delete-bg);
+            color: var(--btn-admin-delete-color);
+            border: 1px solid var(--btn-admin-delete-border);
+        }
+
+        .btn-admin-delete:hover {
+            background: var(--btn-admin-delete-bg-hover);
+            border-color: var(--btn-admin-delete-border-hover);
         }
 
         /* Define broadcast button variables */
@@ -531,8 +577,11 @@
                 <div class="action-row">
                     <div class="action-label">Admin</div>
                     <div class="action-buttons">
-                        <button class="btn" style="background:#fdecea;color:#c0392b;border:1px solid #f5b7b1;" onclick="deletePaper()">
+                        <button class="btn btn-admin-delete" onclick="deletePaper()">
                             🗑️ Delete Paper
+                        </button>
+                        <button class="btn btn-admin-sync" id="pubmedSyncButton" onclick="syncPubmedMetadata()">
+                            🔄 Sync From PubMed
                         </button>
                     </div>
                 </div>
@@ -703,6 +752,98 @@
             .catch(error => {
                 showToast('Error broadcasting paper', 'error');
             });
+        }
+
+        async function syncPubmedMetadata() {
+            const button = document.getElementById('pubmedSyncButton');
+            const originalLabel = button ? button.textContent : '🔄 Sync From PubMed';
+
+            if (button) {
+                button.disabled = true;
+                button.textContent = '🔍 Checking PubMed...';
+            }
+
+            try {
+                const response = await fetch(`/api/feeds/${paperId}/pubmed-match`);
+                const payload = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Unable to fetch PubMed matches.');
+                }
+
+                const matches = payload.matches || [];
+                if (!matches.length) {
+                    showToast('No perfect PubMed matches found.', 'warning');
+                    return;
+                }
+
+                let selected = matches[0];
+
+                if (matches.length > 1) {
+                    const options = matches.map((match, index) => `${index + 1}. ${match.title}${match.journal ? ` (${match.journal})` : ''}`);
+                    const choiceInput = prompt(`Multiple perfect matches found:\n${options.join('\n')}\nEnter a number to select (or cancel).`, '1');
+
+                    if (!choiceInput) {
+                        showToast('PubMed metadata update cancelled.', 'warning');
+                        return;
+                    }
+
+                    const choice = parseInt(choiceInput, 10);
+                    if (Number.isNaN(choice) || choice < 1 || choice > matches.length) {
+                        showToast('Invalid selection. No changes applied.', 'warning');
+                        return;
+                    }
+
+                    selected = matches[choice - 1];
+                }
+
+                const authors = selected.authors_display && selected.authors_display.length
+                    ? selected.authors_display.join(', ')
+                    : 'Unknown';
+
+                const abstractText = selected.abstract ? selected.abstract : 'No abstract available.';
+                const abstractPreview = abstractText.length > 800 ? `${abstractText.slice(0, 800)}…` : abstractText;
+
+                const confirmationMessage = [
+                    'Update this paper with the following PubMed metadata?',
+                    '',
+                    `Title: ${selected.title || 'Unknown'}`,
+                    `Journal: ${selected.journal || 'Unknown'}`,
+                    `Publication date: ${selected.publication_date || 'Unknown'}`,
+                    `Authors: ${authors}`,
+                    `DOI: ${selected.doi || 'N/A'}`,
+                    '',
+                    'Abstract:',
+                    abstractPreview,
+                ].join('\n');
+
+                if (!window.confirm(confirmationMessage)) {
+                    showToast('PubMed metadata update cancelled.', 'warning');
+                    return;
+                }
+
+                const updateResponse = await fetch(`/api/feeds/${paperId}/pubmed-match`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pmid: selected.pmid })
+                });
+
+                const updatePayload = await updateResponse.json();
+                if (!updateResponse.ok || !updatePayload.success) {
+                    throw new Error(updatePayload.error || 'Failed to apply PubMed metadata update.');
+                }
+
+                showToast('Paper metadata updated from PubMed.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } catch (error) {
+                console.error('Error syncing PubMed metadata:', error);
+                showToast(error.message || 'Failed to sync PubMed metadata.', 'error');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                }
+            }
         }
 
         function deletePaper() {

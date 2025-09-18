@@ -24,6 +24,7 @@
 """Feeds API endpoints."""
 
 import json
+import requests
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, current_app, render_template
@@ -31,8 +32,53 @@ from flask_login import login_required, current_user
 from ..auth.decorators import admin_required
 from ...log import log
 from ..utils.database import get_user_model_id
+from ...utils import pubmed_lookup
 
 feeds_bp = Blueprint("feeds", __name__)
+
+
+def _pubmed_config():
+    config = current_app.config
+    return {
+        "api_key": config.get("PUBMED_API_KEY"),
+        "tool": config.get("PUBMED_TOOL"),
+        "email": config.get("PUBMED_EMAIL"),
+        "max_results": config.get("PUBMED_MAX_RESULTS", pubmed_lookup.DEFAULT_MAX_RESULTS),
+    }
+
+
+def _author_display_list(authors):
+    display_names = []
+    for author in authors or ():
+        name = author.display_name() if hasattr(author, "display_name") else None
+        if name:
+            display_names.append(name)
+    return display_names
+
+
+def _serialize_pubmed_article(article):
+    return {
+        "pmid": article.pmid,
+        "title": article.title,
+        "journal": article.journal,
+        "publication_date": article.publication_date,
+        "published": article.published.isoformat() if article.published else None,
+        "doi": article.doi,
+        "url": article.url,
+        "abstract": article.abstract,
+        "authors": [
+            {
+                "name": author.name,
+                "last_name": author.last_name,
+                "fore_name": author.fore_name,
+                "initials": author.initials,
+                "affiliation": author.affiliation,
+                "display": author.display_name(),
+            }
+            for author in article.authors
+        ],
+        "authors_display": _author_display_list(article.authors),
+    }
 
 
 @feeds_bp.route("/api/feeds")
@@ -413,6 +459,141 @@ def api_feedback_feed(feed_id):
         cursor.close()
         conn.close()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@feeds_bp.route("/api/feeds/<int:feed_id>/pubmed-match", methods=["GET", "POST"])
+@login_required
+@admin_required
+def api_pubmed_match(feed_id):
+    """Find and apply perfect PubMed matches for a paper's metadata."""
+
+    conn = current_app.config["get_db_connection"]()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    try:
+        cursor.execute("SELECT id, title FROM feeds WHERE id = %s", (feed_id,))
+        paper = cursor.fetchone()
+        if not paper:
+            return jsonify({"error": "Paper not found"}), 404
+
+        cfg = _pubmed_config()
+        max_results = cfg["max_results"]
+        api_key = cfg["api_key"]
+        tool = cfg["tool"]
+        email = cfg["email"]
+
+        if request.method == "GET":
+            session = requests.Session()
+            try:
+                matches = pubmed_lookup.find_perfect_title_matches(
+                    paper["title"],
+                    max_results=max_results,
+                    api_key=api_key,
+                    session=session,
+                    tool=tool,
+                    email=email,
+                )
+                matches = pubmed_lookup.attach_article_details(
+                    matches,
+                    api_key=api_key,
+                    session=session,
+                    tool=tool,
+                    email=email,
+                )
+            finally:
+                session.close()
+
+            return jsonify({"matches": [_serialize_pubmed_article(article) for article in matches]})
+
+        payload = request.get_json() or {}
+        pmid = str(payload.get("pmid", "")).strip()
+        if not pmid:
+            return jsonify({"error": "pmid is required"}), 400
+
+        session = requests.Session()
+        try:
+            matches = pubmed_lookup.find_perfect_title_matches(
+                paper["title"],
+                max_results=max_results,
+                api_key=api_key,
+                session=session,
+                tool=tool,
+                email=email,
+            )
+        finally:
+            session.close()
+
+        if not any(article.pmid == pmid for article in matches):
+            return jsonify({"error": "No perfect PubMed match for the given title"}), 404
+
+        try:
+            details = pubmed_lookup.fetch_pubmed_articles(
+                [pmid],
+                api_key=api_key,
+                tool=tool,
+                email=email,
+            )
+        except pubmed_lookup.PubMedLookupError as exc:
+            log.warning("Failed to fetch PubMed article details", exc_info=exc)
+            return jsonify({"error": str(exc)}), 502
+
+        article = details.get(pmid)
+        if not article:
+            return jsonify({"error": "PubMed article details unavailable"}), 502
+
+        updates = []
+        params = []
+        updated_fields = []
+
+        if article.title:
+            updates.append("title = %s")
+            params.append(article.title)
+            updated_fields.append("title")
+
+        author_string = ", ".join(_author_display_list(article.authors))
+        if author_string:
+            updates.append("author = %s")
+            params.append(author_string)
+            updated_fields.append("author")
+
+        if article.journal:
+            updates.append("journal = %s")
+            params.append(article.journal)
+            updated_fields.append("journal")
+
+        if article.abstract:
+            updates.append("content = %s")
+            params.append(article.abstract)
+            updated_fields.append("content")
+
+        if article.published:
+            updates.append("published = %s")
+            params.append(article.published)
+            updated_fields.append("published")
+
+        if not updates:
+            return jsonify({"success": True, "updated_fields": []})
+
+        params.append(feed_id)
+        cursor.execute(
+            f"UPDATE feeds SET {', '.join(updates)} WHERE id = %s",
+            params,
+        )
+        conn.commit()
+
+        return jsonify({"success": True, "pmid": pmid, "updated_fields": updated_fields})
+
+    except pubmed_lookup.PubMedLookupError as exc:
+        conn.rollback()
+        log.warning("PubMed lookup failed", exc_info=exc)
+        return jsonify({"error": str(exc)}), 502
+    except Exception as exc:  # pragma: no cover - defensive guard
+        conn.rollback()
+        log.exception("Unexpected error during PubMed metadata sync")
+        return jsonify({"error": "Unexpected error while updating metadata"}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @feeds_bp.route("/similar/<int:feed_id>")
