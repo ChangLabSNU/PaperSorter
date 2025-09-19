@@ -83,6 +83,16 @@
             transform: translateY(-1px);
         }
 
+        .btn-primary-queue {
+            background: var(--color-primary);
+            color: var(--text-white);
+        }
+
+        .btn-primary-queue:hover {
+            background: var(--btn-primary-hover);
+            color: var(--text-white);
+        }
+
         .data-table th,
         .data-table td { border-bottom: 1px solid var(--queue-table-border); }
         .data-table th { background: var(--queue-table-header-bg); }
@@ -444,6 +454,11 @@
                                     </span>
                                     <div class="channel-header-controls">
                                         <span class="channel-item-count">${channel.items.length} item${channel.items.length !== 1 ? 's' : ''}</span>
+                                        <button class="btn btn-warning btn-primary-queue"
+                                                onclick="broadcastChannelNow(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
+                                                title="Broadcast all pending items for this channel immediately">
+                                            Broadcast now
+                                        </button>
                                         <button class="btn btn-warning" onclick="emptyChannelQueue(${channelId}, '${channel.name.replace(/'/g, "\\'")}')"
                                                 title="Remove all items from this channel's queue">
                                             Empty
@@ -456,7 +471,7 @@
                             ${channel.items.map(item => `
                                 <tr>
                                     <td style="width: 50%">
-                                        <a href="${item.link}" target="_blank" class="article-title">${item.title}</a>
+                                        <a href="/paper/${item.feed_id}" class="article-title">${item.title}</a>
                                         <div class="article-meta">
                                             ${formatAuthors(item.author)} • ${item.origin}
                                         </div>
@@ -530,6 +545,43 @@
             .catch(error => {
                 console.error('Error emptying queue:', error);
                 alert('Failed to empty channel queue');
+            });
+        }
+
+        function broadcastChannelNow(channelId, channelName) {
+            const items = queueItems.filter(item => item.channel_id == channelId);
+            if (!items.length) {
+                alert('No items available to broadcast for this channel.');
+                return;
+            }
+
+            if (!confirm(`Broadcast ${items.length} item${items.length !== 1 ? 's' : ''} from ${channelName} now?`)) return;
+
+            const feedIds = items.map(item => item.feed_id);
+
+            fetch('/api/settings/broadcast-now', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channel_id: channelId,
+                    feed_ids: feedIds
+                })
+            })
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (ok && data.status === 'success') {
+                    // Remove broadcasted items locally to reflect state immediately
+                    queueItems = queueItems.filter(item => item.channel_id != channelId);
+                    renderQueue();
+                    updateStats();
+                } else {
+                    const error = (data && (data.error || data.message)) || 'Failed to broadcast items';
+                    alert(`Error: ${error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error broadcasting items:', error);
+                alert('Failed to broadcast items for this channel');
             });
         }
 

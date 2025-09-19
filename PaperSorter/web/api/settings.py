@@ -965,17 +965,43 @@ def api_add_to_broadcast_queue():
 @settings_bp.route("/api/settings/broadcast-now", methods=["POST"])
 @login_required
 def api_broadcast_now():
-    """Broadcast a paper immediately."""
+    """Broadcast one or more papers immediately."""
     if not current_user.is_admin:
         return jsonify({"status": "error", "message": "Admin access required"}), 403
-    
-    data = request.get_json()
-    feed_id = data.get("feed_id")
+
+    data = request.get_json(silent=True) or {}
     channel_id = data.get("channel_id")
-    
-    if not feed_id or not channel_id:
-        return jsonify({"status": "error", "message": "Missing parameters"}), 400
-    
+
+    if not channel_id:
+        return jsonify({"status": "error", "message": "Missing channel_id"}), 400
+
+    feed_ids = []
+
+    if "feed_id" in data and data.get("feed_id") is not None:
+        try:
+            feed_ids.append(int(data.get("feed_id")))
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "Invalid feed_id"}), 400
+
+    raw_feed_ids = data.get("feed_ids")
+    if raw_feed_ids is not None:
+        if not isinstance(raw_feed_ids, list):
+            return jsonify({"status": "error", "message": "feed_ids must be a list"}), 400
+        try:
+            feed_ids.extend(int(feed_id) for feed_id in raw_feed_ids if feed_id is not None)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "Invalid entry in feed_ids"}), 400
+
+    seen_feeds = set()
+    ordered_feed_ids = []
+    for feed_id in feed_ids:
+        if feed_id not in seen_feeds:
+            ordered_feed_ids.append(feed_id)
+            seen_feeds.add(feed_id)
+
+    if not ordered_feed_ids:
+        return jsonify({"status": "error", "message": "No feed IDs provided"}), 400
+
     db_manager = current_app.config["db_manager"]
 
     try:
@@ -997,7 +1023,7 @@ def api_broadcast_now():
             if not channel or not channel.get("endpoint_url"):
                 return jsonify({"status": "error", "message": "Invalid channel"}), 400
 
-            def log_broadcast_event(event_suffix, extra=None):
+            def log_broadcast_event(event_suffix, *, feed_id=None, extra=None):
                 payload = {
                     "channel_id": channel.get("id"),
                     "channel_name": channel.get("name"),
@@ -1028,53 +1054,85 @@ def api_broadcast_now():
                 FROM feeds f
                 LEFT JOIN predicted_preferences pp ON f.id = pp.feed_id
                     AND pp.model_id = %s
-                WHERE f.id = %s
+                WHERE f.id = ANY(%s)
                 """,
-                (channel["model_id"], feed_id),
+                (channel.get("model_id"), ordered_feed_ids),
             )
-            paper = cursor.fetchone()
+            papers = cursor.fetchall()
             cursor.close()
 
-            if not paper:
-                return jsonify({"status": "error", "message": "Paper not found"}), 404
+            papers_by_id = {paper["id"]: paper for paper in papers}
+            missing_ids = [feed_id for feed_id in ordered_feed_ids if feed_id not in papers_by_id]
+            if missing_ids:
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": f"Paper(s) not found: {', '.join(str(mid) for mid in missing_ids)}",
+                        }
+                    ),
+                    404,
+                )
+
+            ordered_papers = [papers_by_id[feed_id] for feed_id in ordered_feed_ids]
 
             from ...broadcast_channels import BroadcastChannels
+
             bc = BroadcastChannels()
 
             try:
-                success = bc.send_to_channel(channel, [paper])
+                success = bc.send_to_channel(channel, ordered_papers)
             except Exception as exc:
-                log_broadcast_event("broadcast-now-failed", {"error": str(exc)})
+                for paper in ordered_papers:
+                    log_broadcast_event(
+                        "broadcast-now-failed",
+                        feed_id=paper["id"],
+                        extra={
+                            "error": str(exc),
+                            "predicted_score": paper.get("predicted_score"),
+                        },
+                    )
                 raise
 
             if success:
                 update_cursor = session.cursor()
-                update_cursor.execute(
-                    """
-                    INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (feed_id, channel_id)
-                    DO UPDATE SET broadcasted_time = CURRENT_TIMESTAMP
-                    """,
-                    (feed_id, channel_id),
-                )
+                for feed_id in ordered_feed_ids:
+                    update_cursor.execute(
+                        """
+                        INSERT INTO broadcasts (feed_id, channel_id, broadcasted_time)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (feed_id, channel_id)
+                        DO UPDATE SET broadcasted_time = CURRENT_TIMESTAMP
+                        """,
+                        (feed_id, channel_id),
+                    )
                 update_cursor.close()
 
-                log_broadcast_event(
-                    "broadcast-now",
-                    {"predicted_score": paper.get("predicted_score")},
+                for paper in ordered_papers:
+                    log_broadcast_event(
+                        "broadcast-now",
+                        feed_id=paper["id"],
+                        extra={"predicted_score": paper.get("predicted_score")},
+                    )
+
+                return jsonify(
+                    {"status": "success", "broadcasted_count": len(ordered_papers)}
                 )
 
-                return jsonify({"status": "success"})
+            for paper in ordered_papers:
+                log_broadcast_event(
+                    "broadcast-now-failed",
+                    feed_id=paper["id"],
+                    extra={
+                        "error": "Notification provider failure",
+                        "predicted_score": paper.get("predicted_score"),
+                    },
+                )
 
-            log_broadcast_event(
-                "broadcast-now-failed",
-                {
-                    "error": "Notification provider failure",
-                    "predicted_score": paper.get("predicted_score"),
-                },
+            return (
+                jsonify({"status": "error", "message": "Failed to send to channel"}),
+                500,
             )
-            return jsonify({"status": "error", "message": "Failed to send to channel"}), 500
 
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
