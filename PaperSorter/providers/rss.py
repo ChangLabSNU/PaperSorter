@@ -34,6 +34,7 @@ import gzip
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Iterator, Any
+from ..db import DatabaseManager
 from ..log import log
 from .base import FeedProvider, FeedItem
 
@@ -41,11 +42,13 @@ from .base import FeedProvider, FeedItem
 class RSSProvider(FeedProvider):
     """Provider for RSS and Atom feeds."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], db_manager: Optional[DatabaseManager] = None):
         """Initialize RSS provider with database configuration."""
         super().__init__(config)
         self.db_config = config["db"]
         self._conn = None
+        self._manager = db_manager
+        self._owns_manager = db_manager is None
 
         # Create an SSL context that doesn't verify certificates
         self._ssl_context = ssl.create_default_context()
@@ -55,20 +58,46 @@ class RSSProvider(FeedProvider):
     @property
     def conn(self):
         """Lazy database connection."""
-        if self._conn is None or self._conn.closed:
-            self._conn = psycopg2.connect(
-                host=self.db_config["host"],
-                database=self.db_config["database"],
-                user=self.db_config["user"],
-                password=self.db_config.get("password", ""),
-                port=self.db_config.get("port", 5432),
-            )
+        inner = getattr(self._conn, "_conn", self._conn)
+        if self._conn is None or getattr(inner, "closed", True):
+            if self._conn is not None:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+            if self._manager is None:
+                self._manager = DatabaseManager.from_config(
+                    self.db_config,
+                    application_name="papersorter-provider-rss",
+                )
+                self._owns_manager = True
+            self._conn = self._manager.connect()
         return self._conn
+
+    def close(self) -> None:
+        """Release any pooled connection and close owned manager."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            finally:
+                self._conn = None
+
+        if self._owns_manager and self._manager is not None:
+            try:
+                self._manager.close()
+            except Exception:
+                pass
+            finally:
+                self._manager = None
 
     def __del__(self):
         """Close database connection on cleanup."""
-        if self._conn and not self._conn.closed:
-            self._conn.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def get_sources(
         self, source_type: str = "rss", check_interval_hours: int = 24

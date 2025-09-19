@@ -24,7 +24,9 @@
 """Command context management for PaperSorter CLI."""
 
 from typing import Optional
+
 from ..config import get_config
+from ..db import DatabaseManager
 
 
 class CommandContext:
@@ -41,6 +43,7 @@ class CommandContext:
         self.log_file = log_file
         self.quiet = quiet
         self._config = None
+        self._db_manager = None
         self._db = None
         self._embedding_db = None
 
@@ -52,11 +55,22 @@ class CommandContext:
         return self._config
 
     @property
+    def db_manager(self) -> DatabaseManager:
+        """Return a pooled database manager."""
+        if self._db_manager is None:
+            db_config = self.config["db"]
+            self._db_manager = DatabaseManager.from_config(
+                db_config,
+                application_name="papersorter-cli",
+            )
+        return self._db_manager
+
+    @property
     def db(self):
         """Get database connection (lazy loading)."""
         if self._db is None:
             from ..feed_database import FeedDatabase
-            self._db = FeedDatabase()
+            self._db = FeedDatabase(db_manager=self.db_manager)
         return self._db
 
     @property
@@ -64,12 +78,17 @@ class CommandContext:
         """Get embedding database connection (lazy loading)."""
         if self._embedding_db is None:
             from ..embedding_database import EmbeddingDatabase
-            self._embedding_db = EmbeddingDatabase()
+            self._embedding_db = EmbeddingDatabase(db_manager=self.db_manager)
         return self._embedding_db
 
     def cleanup(self):
         """Clean up resources."""
         if self._db is not None:
             self._db.close()
+            self._db = None
         if self._embedding_db is not None:
             self._embedding_db.close()
+            self._embedding_db = None
+        if self._db_manager is not None:
+            self._db_manager.close()
+            self._db_manager = None

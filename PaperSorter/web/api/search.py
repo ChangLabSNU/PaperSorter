@@ -188,7 +188,7 @@ def api_search():
                 else:
                     log.warning("AI assist failed, falling back to original query")
 
-            edb = EmbeddingDatabase()
+            edb = EmbeddingDatabase(db_manager=db_manager)
 
             user_id = current_user.id
             cursor = session.cursor(dict_cursor=True)
@@ -206,13 +206,16 @@ def api_search():
             else:
                 model_id = get_user_model_id(connection, current_user)
 
-            search_results = edb.search_by_text(
-                search_query,
-                limit=50,
-                user_id=user_id,
-                model_id=model_id,
-                channel_id=current_user.primary_channel_id,
-            )
+            try:
+                search_results = edb.search_by_text(
+                    search_query,
+                    limit=50,
+                    user_id=user_id,
+                    model_id=model_id,
+                    channel_id=current_user.primary_channel_id,
+                )
+            finally:
+                edb.close()
 
             feeds = [
                 {
@@ -675,10 +678,11 @@ def api_scholarly_database_add():
             article.unique_id = article_data.get("paperId") or article_data.get("article_id") or article_data.get("unique_id")
 
         db_manager = current_app.config["db_manager"]
-        db = FeedDatabase(db_manager=db_manager)
+        db = None
         embeddingdb = None
 
         # Check if item already exists
+        db = FeedDatabase(db_manager=db_manager)
         if article.unique_id not in db:
             # Add the item without starring
             feed_id = db.insert_feed_item(
@@ -722,18 +726,10 @@ def api_scholarly_database_add():
         log.error(f"Error adding paper from scholarly database: {e}")
         return jsonify({"error": "Failed to add paper"}), 500
     finally:
-        try:
-            if embeddingdb is not None:
-                embeddingdb.cursor.close()
-                embeddingdb.db.close()
-        except Exception:
-            pass
-        try:
-            if db is not None:
-                db.cursor.close()
-                db.db.close()
-        except Exception:
-            pass
+        if embeddingdb is not None:
+            embeddingdb.close()
+        if db is not None:
+            db.close()
 
 # Keep old endpoint for backward compatibility
 @search_bp.route("/api/semantic-scholar/add", methods=["POST"])

@@ -1078,7 +1078,7 @@ def api_broadcast_now():
 
             from ...broadcast_channels import BroadcastChannels
 
-            bc = BroadcastChannels()
+            bc = BroadcastChannels(db_manager=db_manager)
 
             try:
                 success = bc.send_to_channel(channel, ordered_papers)
@@ -1093,6 +1093,8 @@ def api_broadcast_now():
                         },
                     )
                 raise
+            finally:
+                bc.close()
 
             if success:
                 update_cursor = session.cursor()

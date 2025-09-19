@@ -25,8 +25,9 @@ import numpy as np
 import psycopg2
 import argparse
 import psycopg2.extras
-from pgvector.psycopg2 import register_vector
+from contextlib import closing
 from ..config import get_config
+from ..db import DatabaseManager
 import sys
 from datetime import datetime, timedelta
 from ..log import log, initialize_logging
@@ -569,7 +570,7 @@ def build_distance_calculation_query(user_ids, min_feed_id_filter, age_filter):
             external_id,
             title,
             author,
-            COALESCE(f.journal, f.origin) AS origin,
+            origin,
             published,
             added,
             min_distance
@@ -836,171 +837,181 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
 
     db_config = config_data["db"]
 
-    # Connect to PostgreSQL
-    log.info("Connecting to PostgreSQL database...")
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-labeling",
+    )
+
     try:
-        db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        log.info("Connecting to PostgreSQL database...")
+        with db_manager.connect() as db:
+            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+                try:
+                    # Prepare user filter for queries - ensure user_ids is always a list for PostgreSQL ANY()
+                    if user_id:
+                        user_ids = list(user_id)  # Convert tuple to list if needed
+                    else:
+                        user_ids = None
+
+                    user_filter_msg = ""
+
+                    if user_ids:
+                        user_filter = "AND p.user_id = ANY(%s)"
+                        user_params = (user_ids,)
+                        user_filter_msg = f" (for user IDs: {', '.join(map(str, user_ids))})"
+                        log.info(f"Filtering preferences by user IDs: {', '.join(map(str, user_ids))}")
+                    else:
+                        user_filter = ""
+                        user_params = ()
+                        log.info("Using preferences from all users")
+
+                    # Log max_age filter if specified
+                    if max_age > 0:
+                        log.info(f"Limiting to papers registered within the last {max_age} days")
+
+                    # Check if we have any feeds with embeddings first
+                    cursor.execute("SELECT COUNT(*) as count FROM embeddings")
+                    total_embeddings = cursor.fetchone()["count"]
+
+                    if total_embeddings == 0:
+                        log.error("No embeddings found in the database")
+                        log.info("")
+                        log.info("Please generate embeddings first by running:")
+                        log.info("  papersorter predict --count 1000")
+                        return
+
+                    # Determine which user_id to use for the labeling session early
+                    session_user_id = determine_session_user(cursor, labeler_user_id, user_ids)
+                    if not session_user_id:
+                        return
+
+                    # Model-based sampling vs distance-based sampling
+                    model_info = None
+                    if base_model:
+                        # Check prerequisites for model-based mode
+                        success, model_info = check_prerequisites_for_model_mode(cursor, base_model, sample_size)
+                        if not success:
+                            return
+                    else:
+                        # Check prerequisites for distance-based mode
+                        success, interested_count = check_prerequisites_for_distance_mode(
+                            cursor, user_ids, user_filter, user_params, score_threshold
+                        )
+                        if not success:
+                            return
+
+                    # Clear existing labeling session for the specific user
+                    log.info(f"Clearing existing labeling session for user_id: {session_user_id}...")
+                    cursor.execute("DELETE FROM labeling_sessions WHERE user_id = %s", (session_user_id,))
+
+                    # Get feeds for sampling based on mode
+                    if base_model:
+                        all_feeds = get_feeds_for_model_mode(cursor, base_model, user_ids, max_age)
+                    else:
+                        all_feeds = get_feeds_for_distance_mode(
+                            cursor,
+                            score_threshold,
+                            user_ids,
+                            max_age,
+                            max_reference_papers,
+                            max_scan_papers,
+                        )
+
+                    if not all_feeds:
+                        log.error("No unlabeled papers with embeddings found")
+                        log.info("")
+
+                        # Check if all feeds are already labeled
+                        cursor.execute("SELECT COUNT(*) as total FROM feeds WHERE id IN (SELECT feed_id FROM embeddings)")
+                        total_with_embeddings = cursor.fetchone()["total"]
+
+                        if user_ids:
+                            cursor.execute(
+                                "SELECT COUNT(DISTINCT feed_id) as labeled FROM preferences WHERE user_id = ANY(%s)",
+                                (user_ids,),
+                            )
+                        else:
+                            cursor.execute("SELECT COUNT(DISTINCT feed_id) as labeled FROM preferences")
+                        labeled_count = cursor.fetchone()["labeled"]
+
+                        if labeled_count >= total_with_embeddings and total_with_embeddings > 0:
+                            log.info(
+                                f"All {total_with_embeddings} papers with embeddings have already been labeled{user_filter_msg}."
+                            )
+                            log.info("To create a new labeling session, you can:")
+                            log.info("  1. Import more articles: papersorter import pubmed")
+                            log.info("  2. Update from RSS feeds: papersorter update")
+                            log.info("  3. Generate embeddings for new articles: papersorter predict")
+                        else:
+                            log.info("This might happen if:")
+                            log.info("  1. All feeds have been labeled already")
+                            log.info("  2. No feeds have embeddings generated")
+                            log.info("")
+                            log.info("Try running: papersorter predict --count 1000")
+                        return
+
+                    log.info(f"Found {len(all_feeds)} unlabeled papers with embeddings")
+
+                    # Sample feeds from percentile-based bins
+                    selected_feed_ids, metric_name, selected_values = sample_feeds_from_bins(
+                        all_feeds, sample_size, bins, base_model
+                    )
+
+                    # Insert selected feeds into labeling_sessions table
+                    log.info(
+                        f"Inserting {len(selected_feed_ids)} papers into labeling session for user_id: {session_user_id}..."
+                    )
+
+                    # Insert selected feeds
+                    for feed_id in selected_feed_ids:
+                        cursor.execute(
+                            """
+                            INSERT INTO labeling_sessions (
+                                feed_id, user_id, score, update_time
+                            ) VALUES (%s, %s, NULL, NULL)
+                            """,
+                            (feed_id, session_user_id),
+                        )
+
+                    db.commit()
+
+                    # Get summary statistics
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) as total_feeds
+                        FROM labeling_sessions
+                        WHERE user_id = %s
+                        """,
+                        (session_user_id,),
+                    )
+                    stats = cursor.fetchone()
+
+                    # Display session summary
+                    display_session_summary(
+                        stats,
+                        session_user_id,
+                        selected_values,
+                        metric_name,
+                        base_model,
+                        model_info,
+                        config_data,
+                        selected_feed_ids,
+                    )
+                except Exception as exc:
+                    import traceback
+
+                    traceback.print_exc()
+                    log.error(f"Failed to create labeling session: {exc}")
+                    db.rollback()
+                    raise
     except psycopg2.OperationalError as e:
         log.error(f"Failed to connect to database: {e}")
         log.info("")
         log.info("Please check your database configuration in config.yml")
         log.info("Make sure the PostgreSQL server is running and accessible.")
         return
-
-    # Register pgvector extension
-    register_vector(db)
-
-    try:
-        # Prepare user filter for queries - ensure user_ids is always a list for PostgreSQL ANY()
-        if user_id:
-            user_ids = list(user_id)  # Convert tuple to list if needed
-        else:
-            user_ids = None
-
-        user_filter_msg = ""
-
-        if user_ids:
-            user_filter = "AND p.user_id = ANY(%s)"
-            user_params = (user_ids,)
-            user_filter_msg = f" (for user IDs: {', '.join(map(str, user_ids))})"
-            log.info(f"Filtering preferences by user IDs: {', '.join(map(str, user_ids))}")
-        else:
-            user_filter = ""
-            user_params = ()
-            log.info("Using preferences from all users")
-
-        # Log max_age filter if specified
-        if max_age > 0:
-            log.info(f"Limiting to papers registered within the last {max_age} days")
-
-        # Check if we have any feeds with embeddings first
-        cursor.execute("SELECT COUNT(*) as count FROM embeddings")
-        total_embeddings = cursor.fetchone()["count"]
-
-        if total_embeddings == 0:
-            log.error("No embeddings found in the database")
-            log.info("")
-            log.info("Please generate embeddings first by running:")
-            log.info("  papersorter predict --count 1000")
-            cursor.close()
-            db.close()
-            return
-
-        # Determine which user_id to use for the labeling session early
-        session_user_id = determine_session_user(cursor, labeler_user_id, user_ids)
-        if not session_user_id:
-            cursor.close()
-            db.close()
-            return
-
-        # Model-based sampling vs distance-based sampling
-        model_info = None
-        if base_model:
-            # Check prerequisites for model-based mode
-            success, model_info = check_prerequisites_for_model_mode(cursor, base_model, sample_size)
-            if not success:
-                cursor.close()
-                db.close()
-                return
-        else:
-            # Check prerequisites for distance-based mode
-            success, interested_count = check_prerequisites_for_distance_mode(
-                cursor, user_ids, user_filter, user_params, score_threshold
-            )
-            if not success:
-                cursor.close()
-                db.close()
-                return
-
-        # Clear existing labeling session for the specific user
-        log.info(f"Clearing existing labeling session for user_id: {session_user_id}...")
-        cursor.execute("DELETE FROM labeling_sessions WHERE user_id = %s", (session_user_id,))
-
-        # Get feeds for sampling based on mode
-        if base_model:
-            all_feeds = get_feeds_for_model_mode(cursor, base_model, user_ids, max_age)
-        else:
-            all_feeds = get_feeds_for_distance_mode(cursor, score_threshold, user_ids, max_age, max_reference_papers, max_scan_papers)
-
-        if not all_feeds:
-            log.error("No unlabeled papers with embeddings found")
-            log.info("")
-
-            # Check if all feeds are already labeled
-            cursor.execute("SELECT COUNT(*) as total FROM feeds WHERE id IN (SELECT feed_id FROM embeddings)")
-            total_with_embeddings = cursor.fetchone()["total"]
-
-            if user_ids:
-                cursor.execute("SELECT COUNT(DISTINCT feed_id) as labeled FROM preferences WHERE user_id = ANY(%s)", (user_ids,))
-            else:
-                cursor.execute("SELECT COUNT(DISTINCT feed_id) as labeled FROM preferences")
-            labeled_count = cursor.fetchone()["labeled"]
-
-            if labeled_count >= total_with_embeddings and total_with_embeddings > 0:
-                log.info(f"All {total_with_embeddings} papers with embeddings have already been labeled{user_filter_msg}.")
-                log.info("To create a new labeling session, you can:")
-                log.info("  1. Import more articles: papersorter import pubmed")
-                log.info("  2. Update from RSS feeds: papersorter update")
-                log.info("  3. Generate embeddings for new articles: papersorter predict")
-            else:
-                log.info("This might happen if:")
-                log.info("  1. All feeds have been labeled already")
-                log.info("  2. No feeds have embeddings generated")
-                log.info("")
-                log.info("Try running: papersorter predict --count 1000")
-            cursor.close()
-            db.close()
-            return
-
-        log.info(f"Found {len(all_feeds)} unlabeled papers with embeddings")
-
-        # Sample feeds from percentile-based bins
-        selected_feed_ids, metric_name, selected_values = sample_feeds_from_bins(
-            all_feeds, sample_size, bins, base_model
-        )
-
-        # Insert selected feeds into labeling_sessions table
-        log.info(f"Inserting {len(selected_feed_ids)} papers into labeling session for user_id: {session_user_id}...")
-
-        # Insert selected feeds
-        for feed_id in selected_feed_ids:
-            cursor.execute("""
-                INSERT INTO labeling_sessions (
-                    feed_id, user_id, score, update_time
-                ) VALUES (%s, %s, NULL, NULL)
-            """, (feed_id, session_user_id))
-
-        db.commit()
-
-        # Get summary statistics
-        cursor.execute("""
-            SELECT COUNT(*) as total_feeds
-            FROM labeling_sessions
-            WHERE user_id = %s
-        """, (session_user_id,))
-        stats = cursor.fetchone()
-
-        # Display session summary
-        display_session_summary(
-            stats, session_user_id, selected_values, metric_name,
-            base_model, model_info, config_data, selected_feed_ids
-        )
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        log.error(f"Failed to create labeling session: {e}")
-        db.rollback()
-        raise
     finally:
-        cursor.close()
-        db.close()
+        db_manager.close()
 
 
 def do_clear_labeling_session(config_path, labeler_user_id):
@@ -1020,147 +1031,166 @@ def do_clear_labeling_session(config_path, labeler_user_id):
 
     db_config = config_data.get("db", {})
 
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-labeling",
+    )
+
     try:
-        # Connect to database
-        db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        log.info("Connecting to PostgreSQL database...")
+        with db_manager.connect() as db:
+            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+                try:
+                    # First, get statistics about the current session with user timezone-aware display strings
+                    cursor.execute(
+                        """
+                        SELECT
+                            COUNT(*) as total_items,
+                            COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
+                            COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
+                            COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
+                            COUNT(CASE WHEN score < 0.5 THEN 1 END) as not_interested_items,
+                            MIN(ls.update_time) as first_label_time_utc,
+                            MAX(ls.update_time) as last_label_time_utc,
+                            to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                                    'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
+                            to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                                    'YYYY-MM-DD HH24:MI:SS') as last_label_time_local
+                        FROM labeling_sessions ls
+                        JOIN users u ON u.id = ls.user_id
+                        WHERE ls.user_id = %s
+                        """,
+                        (labeler_user_id,),
+                    )
 
-        # First, get statistics about the current session with user timezone-aware display strings
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total_items,
-                COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
-                COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
-                COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
-                COUNT(CASE WHEN score < 0.5 THEN 1 END) as not_interested_items,
-                MIN(ls.update_time) as first_label_time_utc,
-                MAX(ls.update_time) as last_label_time_utc,
-                to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
-                        'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
-                to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
-                        'YYYY-MM-DD HH24:MI:SS') as last_label_time_local
-            FROM labeling_sessions ls
-            JOIN users u ON u.id = ls.user_id
-            WHERE ls.user_id = %s
-        """, (labeler_user_id,))
+                    stats = cursor.fetchone()
 
-        stats = cursor.fetchone()
+                    if not stats or stats["total_items"] == 0:
+                        log.info(f"No labeling session found for user ID {labeler_user_id}")
+                        return
 
-        if not stats or stats["total_items"] == 0:
-            log.info(f"No labeling session found for user ID {labeler_user_id}")
-            cursor.close()
-            db.close()
-            return
+                    # Get user information
+                    cursor.execute(
+                        """
+                        SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
+                        FROM users
+                        WHERE id = %s
+                        """,
+                        (labeler_user_id,),
+                    )
 
-        # Get user information
-        cursor.execute("""
-            SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
-            FROM users
-            WHERE id = %s
-        """, (labeler_user_id,))
+                    user_info = cursor.fetchone()
+                    username = user_info["username"] if user_info else f"User {labeler_user_id}"
+                    user_tz = user_info["timezone"] if user_info else "UTC"
 
-        user_info = cursor.fetchone()
-        username = user_info["username"] if user_info else f"User {labeler_user_id}"
-        user_tz = user_info["timezone"] if user_info else "UTC"
+                    # Display statistics before deletion
+                    log.info("=" * 60)
+                    log.info("Labeling Session Statistics")
+                    log.info("=" * 60)
+                    log.info(f"User: {username} (ID: {labeler_user_id})")
+                    log.info(f"Total items in session: {stats['total_items']}")
+                    log.info(
+                        f"Labeled items: {stats['labeled_items']} ({stats['labeled_items']*100/stats['total_items']:.1f}%)"
+                    )
+                    log.info(
+                        f"Unlabeled items: {stats['unlabeled_items']} ({stats['unlabeled_items']*100/stats['total_items']:.1f}%)"
+                    )
 
-        # Display statistics before deletion
-        log.info("="*60)
-        log.info("Labeling Session Statistics")
-        log.info("="*60)
-        log.info(f"User: {username} (ID: {labeler_user_id})")
-        log.info(f"Total items in session: {stats['total_items']}")
-        log.info(f"Labeled items: {stats['labeled_items']} ({stats['labeled_items']*100/stats['total_items']:.1f}%)")
-        log.info(f"Unlabeled items: {stats['unlabeled_items']} ({stats['unlabeled_items']*100/stats['total_items']:.1f}%)")
+                    if stats['labeled_items'] > 0:
+                        log.info("")
+                        log.info("Label distribution:")
+                        log.info(
+                            f"  Interested: {stats['interested_items']} ({stats['interested_items']*100/stats['labeled_items']:.1f}% of labeled)"
+                        )
+                        log.info(
+                            f"  Not interested: {stats['not_interested_items']} ({stats['not_interested_items']*100/stats['labeled_items']:.1f}% of labeled)"
+                        )
 
-        if stats['labeled_items'] > 0:
-            log.info("")
-            log.info("Label distribution:")
-            log.info(f"  Interested: {stats['interested_items']} ({stats['interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
-            log.info(f"  Not interested: {stats['not_interested_items']} ({stats['not_interested_items']*100/stats['labeled_items']:.1f}% of labeled)")
+                        if stats['first_label_time_utc'] and stats['last_label_time_utc']:
+                            log.info("")
+                            # Show times in user's local timezone for readability
+                            log.info(f"First label: {stats['first_label_time_local']} ({user_tz})")
+                            log.info(f"Last label:  {stats['last_label_time_local']} ({user_tz})")
 
-            if stats['first_label_time_utc'] and stats['last_label_time_utc']:
-                log.info("")
-                # Show times in user's local timezone for readability
-                log.info(f"First label: {stats['first_label_time_local']} ({user_tz})")
-                log.info(f"Last label:  {stats['last_label_time_local']} ({user_tz})")
+                            # Calculate session duration if both timestamps exist
+                            if stats['first_label_time_utc'] != stats['last_label_time_utc']:
+                                duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
+                                hours = duration.total_seconds() / 3600
+                                if hours >= 1:
+                                    log.info(f"Session duration: {hours:.1f} hours")
+                                else:
+                                    minutes = duration.total_seconds() / 60
+                                    log.info(f"Session duration: {minutes:.0f} minutes")
 
-                # Calculate session duration if both timestamps exist
-                if stats['first_label_time_utc'] != stats['last_label_time_utc']:
-                    duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
-                    hours = duration.total_seconds() / 3600
-                    if hours >= 1:
-                        log.info(f"Session duration: {hours:.1f} hours")
-                    else:
-                        minutes = duration.total_seconds() / 60
-                        log.info(f"Session duration: {minutes:.0f} minutes")
+                    # Get a sample of labeled items for reference
+                    if stats['labeled_items'] > 0:
+                        cursor.execute(
+                            """
+                            SELECT
+                                f.title,
+                                ls.score
+                            FROM labeling_sessions ls
+                            JOIN feeds f ON ls.feed_id = f.id
+                            WHERE ls.user_id = %s AND ls.score IS NOT NULL
+                            ORDER BY ls.update_time DESC
+                            LIMIT 5
+                            """,
+                            (labeler_user_id,),
+                        )
 
-        # Get a sample of labeled items for reference
-        if stats['labeled_items'] > 0:
-            cursor.execute("""
-                SELECT
-                    f.title,
-                    ls.score
-                FROM labeling_sessions ls
-                JOIN feeds f ON ls.feed_id = f.id
-                WHERE ls.user_id = %s AND ls.score IS NOT NULL
-                ORDER BY ls.update_time DESC
-                LIMIT 5
-            """, (labeler_user_id,))
+                        recent_labels = cursor.fetchall()
+                        if recent_labels:
+                            log.info("")
+                            log.info("Last 5 labeled items:")
+                            for item in recent_labels:
+                                label = "Interested" if item["score"] >= 0.5 else "Not interested"
+                                title = item["title"][:80] + "..." if len(item["title"]) > 80 else item["title"]
+                                log.info(f"  [{label:15s}] {title}")
 
-            recent_labels = cursor.fetchall()
-            if recent_labels:
-                log.info("")
-                log.info("Last 5 labeled items:")
-                for item in recent_labels:
-                    label = "Interested" if item["score"] >= 0.5 else "Not interested"
-                    title = item["title"][:80] + "..." if len(item["title"]) > 80 else item["title"]
-                    log.info(f"  [{label:15s}] {title}")
+                    # Ask for confirmation
+                    log.info("")
+                    log.info("=" * 60)
+                    log.info(
+                        f"This will clear the labeling session workspace ({stats['total_items']} items)."
+                    )
+                    log.info("✓ All your feedback/labels have been saved and will be preserved.")
+                    log.info("✓ This only removes items from the labeling queue, not your actual preferences.")
 
-        # Ask for confirmation
+                    response = input("Do you want to proceed with clearing this session? [y/N]: ")
+                    if response.lower() != 'y':
+                        log.info("Operation cancelled.")
+                        return
+
+                    # Delete the labeling session
+                    cursor.execute(
+                        """
+                        DELETE FROM labeling_sessions
+                        WHERE user_id = %s
+                        """,
+                        (labeler_user_id,),
+                    )
+
+                    deleted_count = cursor.rowcount
+                    db.commit()
+
+                    log.info("")
+                    log.info("=" * 60)
+                    log.info(f"Successfully cleared labeling session for {username}")
+                    log.info(f"Removed {deleted_count} items from the labeling queue")
+                    log.info("All your feedback/labels remain saved in the preferences database")
+                    log.info("=" * 60)
+                except Exception as exc:
+                    log.error(f"Failed to clear labeling session: {exc}")
+                    db.rollback()
+                    raise
+    except psycopg2.OperationalError as e:
+        log.error(f"Failed to connect to database: {e}")
         log.info("")
-        log.info("="*60)
-        log.info(f"This will clear the labeling session workspace ({stats['total_items']} items).")
-        log.info("✓ All your feedback/labels have been saved and will be preserved.")
-        log.info("✓ This only removes items from the labeling queue, not your actual preferences.")
-
-        response = input("Do you want to proceed with clearing this session? [y/N]: ")
-        if response.lower() != 'y':
-            log.info("Operation cancelled.")
-            cursor.close()
-            db.close()
-            return
-
-        # Delete the labeling session
-        cursor.execute("""
-            DELETE FROM labeling_sessions
-            WHERE user_id = %s
-        """, (labeler_user_id,))
-
-        deleted_count = cursor.rowcount
-        db.commit()
-
-        log.info("")
-        log.info("="*60)
-        log.info(f"Successfully cleared labeling session for {username}")
-        log.info(f"Removed {deleted_count} items from the labeling queue")
-        log.info("All your feedback/labels remain saved in the preferences database")
-        log.info("="*60)
-
-        cursor.close()
-        db.close()
-
-    except Exception as e:
-        log.error(f"Failed to clear labeling session: {e}")
-        if 'db' in locals():
-            db.rollback()
-            cursor.close()
-            db.close()
-        raise
+        log.info("Please check your database configuration in config.yml")
+        log.info("Make sure the PostgreSQL server is running and accessible.")
+        return
+    finally:
+        db_manager.close()
 
 
 def do_show_labeling_status(config_path, user_id, show_all):
@@ -1176,221 +1206,235 @@ def do_show_labeling_status(config_path, user_id, show_all):
 
     db_config = config_data.get("db", {})
 
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-labeling",
+    )
+
     try:
-        # Connect to database
-        db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        log.info("Connecting to PostgreSQL database...")
+        with db_manager.connect() as db:
+            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+                try:
+                    # Determine which users to show stats for
+                    if user_id:
+                        # Validate that the user exists
+                        cursor.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+                        user_result = cursor.fetchone()
+                        if not user_result:
+                            log.error(f"User ID {user_id} not found in the database")
+                            return
+                        # Show stats for specific user
+                        users_to_show = [user_id]
+                    elif show_all:
+                        # Get all users with labeling sessions
+                        cursor.execute(
+                            """
+                            SELECT DISTINCT user_id
+                            FROM labeling_sessions
+                            ORDER BY user_id
+                            """
+                        )
+                        users_to_show = [row["user_id"] for row in cursor.fetchall()]
 
-        # Determine which users to show stats for
-        if user_id:
-            # Validate that the user exists
-            cursor.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
-            user_result = cursor.fetchone()
-            if not user_result:
-                log.error(f"User ID {user_id} not found in the database")
-                cursor.close()
-                db.close()
-                return
-            # Show stats for specific user
-            users_to_show = [user_id]
-        elif show_all:
-            # Get all users with labeling sessions
-            cursor.execute("""
-                SELECT DISTINCT user_id
-                FROM labeling_sessions
-                ORDER BY user_id
-            """)
-            users_to_show = [row["user_id"] for row in cursor.fetchall()]
+                        if not users_to_show:
+                            log.info("No labeling sessions found in the database.")
+                            return
+                    else:
+                        # Default: Show stats for the first user with a session
+                        cursor.execute(
+                            """
+                            SELECT DISTINCT user_id
+                            FROM labeling_sessions
+                            ORDER BY user_id
+                            LIMIT 1
+                            """
+                        )
+                        result = cursor.fetchone()
+                        if not result:
+                            log.info("No labeling sessions found in the database.")
+                            return
+                        users_to_show = [result["user_id"]]
 
-            if not users_to_show:
-                log.info("No labeling sessions found in the database.")
-                cursor.close()
-                db.close()
-                return
-        else:
-            # Default: Show stats for the first user with a session
-            cursor.execute("""
-                SELECT DISTINCT user_id
-                FROM labeling_sessions
-                ORDER BY user_id
-                LIMIT 1
-            """)
-            result = cursor.fetchone()
-            if not result:
-                log.info("No labeling sessions found in the database.")
-                cursor.close()
-                db.close()
-                return
-            users_to_show = [result["user_id"]]
+                    # Display header for multiple users
+                    if len(users_to_show) > 1:
+                        log.info("=" * 60)
+                        log.info(f"Labeling Session Statistics for {len(users_to_show)} Users")
+                        log.info("=" * 60)
+                        log.info("")
 
-        # Display header for multiple users
-        if len(users_to_show) > 1:
-            log.info("="*60)
-            log.info(f"Labeling Session Statistics for {len(users_to_show)} Users")
-            log.info("="*60)
-            log.info("")
+                    # Show stats for each user
+                    for idx, uid in enumerate(users_to_show):
+                        if idx > 0:
+                            log.info("")  # Add spacing between users
+                            log.info("-" * 60)
+                            log.info("")
 
-        # Show stats for each user
-        for idx, uid in enumerate(users_to_show):
-            if idx > 0:
-                log.info("")  # Add spacing between users
-                log.info("-"*60)
-                log.info("")
+                        # Get user information
+                        cursor.execute(
+                            """
+                            SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
+                            FROM users
+                            WHERE id = %s
+                            """,
+                            (uid,),
+                        )
 
-            # Get user information
-            cursor.execute("""
-                SELECT username, COALESCE(NULLIF(timezone, ''), 'UTC') AS timezone
-                FROM users
-                WHERE id = %s
-            """, (uid,))
+                        user_info = cursor.fetchone()
+                        username = user_info["username"] if user_info else f"User {uid}"
+                        user_tz = user_info["timezone"] if user_info else "UTC"
 
-            user_info = cursor.fetchone()
-            username = user_info["username"] if user_info else f"User {uid}"
-            user_tz = user_info["timezone"] if user_info else "UTC"
+                        # Get session statistics
+                        cursor.execute(
+                            """
+                            SELECT
+                                COUNT(*) as total_items,
+                                COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
+                                COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
+                                COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
+                                COUNT(CASE WHEN score < 0.5 AND score IS NOT NULL THEN 1 END) as not_interested_items,
+                                MIN(ls.update_time) as first_label_time_utc,
+                                MAX(ls.update_time) as last_label_time_utc,
+                                to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                                        'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
+                                to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
+                                        'YYYY-MM-DD HH24:MI:SS') as last_label_time_local,
+                                MIN(ls.id) as first_session_id,
+                                MAX(ls.id) as last_session_id
+                            FROM labeling_sessions ls
+                            JOIN users u ON u.id = ls.user_id
+                            WHERE ls.user_id = %s
+                            """,
+                            (uid,),
+                        )
 
-            # Get session statistics
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total_items,
-                    COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as labeled_items,
-                    COUNT(CASE WHEN score IS NULL THEN 1 END) as unlabeled_items,
-                    COUNT(CASE WHEN score >= 0.5 THEN 1 END) as interested_items,
-                    COUNT(CASE WHEN score < 0.5 AND score IS NOT NULL THEN 1 END) as not_interested_items,
-                    MIN(ls.update_time) as first_label_time_utc,
-                    MAX(ls.update_time) as last_label_time_utc,
-                    to_char(MIN(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
-                            'YYYY-MM-DD HH24:MI:SS') as first_label_time_local,
-                    to_char(MAX(ls.update_time AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC')),
-                            'YYYY-MM-DD HH24:MI:SS') as last_label_time_local,
-                    MIN(ls.id) as first_session_id,
-                    MAX(ls.id) as last_session_id
-                FROM labeling_sessions ls
-                JOIN users u ON u.id = ls.user_id
-                WHERE ls.user_id = %s
-            """, (uid,))
+                        stats = cursor.fetchone()
 
-            stats = cursor.fetchone()
+                        if not stats or stats["total_items"] == 0:
+                            log.info(f"No labeling session found for {username} (ID: {uid})")
+                            continue
 
-            if not stats or stats["total_items"] == 0:
-                log.info(f"No labeling session found for {username} (ID: {uid})")
-                continue
+                        # Display statistics
+                        if len(users_to_show) == 1:
+                            log.info("=" * 60)
+                            log.info("Labeling Session Statistics")
+                            log.info("=" * 60)
 
-            # Display statistics
-            if len(users_to_show) == 1:
-                log.info("="*60)
-                log.info("Labeling Session Statistics")
-                log.info("="*60)
+                        log.info(f"User: {username} (ID: {uid})")
+                        log.info(f"Total items: {stats['total_items']}")
 
-            log.info(f"User: {username} (ID: {uid})")
-            log.info(f"Total items: {stats['total_items']}")
+                        # Progress bar for labeled/unlabeled
+                        labeled_pct = stats['labeled_items'] * 100 / stats['total_items']
+                        progress_width = 30
+                        filled = int(labeled_pct * progress_width / 100)
+                        bar = "█" * filled + "░" * (progress_width - filled)
+                        log.info(f"Progress: [{bar}] {labeled_pct:.1f}%")
 
-            # Progress bar for labeled/unlabeled
-            labeled_pct = stats['labeled_items'] * 100 / stats['total_items']
-            progress_width = 30
-            filled = int(labeled_pct * progress_width / 100)
-            bar = "█" * filled + "░" * (progress_width - filled)
-            log.info(f"Progress: [{bar}] {labeled_pct:.1f}%")
+                        log.info(f"  Labeled:   {stats['labeled_items']:5d} ({labeled_pct:.1f}%)")
+                        log.info(f"  Unlabeled: {stats['unlabeled_items']:5d} ({100 - labeled_pct:.1f}%)")
 
-            log.info(f"  Labeled:   {stats['labeled_items']:5d} ({labeled_pct:.1f}%)")
-            log.info(f"  Unlabeled: {stats['unlabeled_items']:5d} ({100-labeled_pct:.1f}%)")
+                        if stats['labeled_items'] > 0:
+                            log.info("")
+                            log.info("Label distribution:")
+                            interested_pct = stats['interested_items'] * 100 / stats['labeled_items']
+                            not_interested_pct = stats['not_interested_items'] * 100 / stats['labeled_items']
+                            log.info(
+                                f"  Interested:     {stats['interested_items']:5d} ({interested_pct:.1f}%)"
+                            )
+                            log.info(
+                                f"  Not interested: {stats['not_interested_items']:5d} ({not_interested_pct:.1f}%)"
+                            )
 
-            if stats['labeled_items'] > 0:
-                log.info("")
-                log.info("Label distribution:")
-                interested_pct = stats['interested_items'] * 100 / stats['labeled_items']
-                not_interested_pct = stats['not_interested_items'] * 100 / stats['labeled_items']
-                log.info(f"  Interested:     {stats['interested_items']:5d} ({interested_pct:.1f}%)")
-                log.info(f"  Not interested: {stats['not_interested_items']:5d} ({not_interested_pct:.1f}%)")
+                            if stats['first_label_time_utc'] and stats['last_label_time_utc']:
+                                log.info("")
+                                log.info("Session timing:")
+                                # Display using user's timezone for readability, with TZ info at right side
+                                log.info(f"  First label: {stats['first_label_time_local']} ({user_tz})")
+                                log.info(f"  Last label:  {stats['last_label_time_local']} ({user_tz})")
 
-                if stats['first_label_time_utc'] and stats['last_label_time_utc']:
-                    log.info("")
-                    log.info("Session timing:")
-                    # Display using user's timezone for readability, with TZ info at right side
-                    log.info(f"  First label: {stats['first_label_time_local']} ({user_tz})")
-                    log.info(f"  Last label:  {stats['last_label_time_local']} ({user_tz})")
+                                # Calculate session duration if both timestamps exist
+                                if stats['first_label_time_utc'] != stats['last_label_time_utc']:
+                                    duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
+                                    days = duration.days
+                                    hours = duration.total_seconds() / 3600
+                                    minutes = (duration.total_seconds() % 3600) / 60
 
-                    # Calculate session duration if both timestamps exist
-                    if stats['first_label_time_utc'] != stats['last_label_time_utc']:
-                        duration = stats['last_label_time_utc'] - stats['first_label_time_utc']
-                        days = duration.days
-                        hours = duration.total_seconds() / 3600
-                        minutes = (duration.total_seconds() % 3600) / 60
+                                    if days > 0:
+                                        log.info(f"  Duration: {days} days, {int(hours % 24)} hours")
+                                    elif hours >= 1:
+                                        log.info(f"  Duration: {int(hours)} hours, {int(minutes)} minutes")
+                                    else:
+                                        log.info(f"  Duration: {int(minutes)} minutes")
 
-                        if days > 0:
-                            log.info(f"  Duration: {days} days, {int(hours % 24)} hours")
-                        elif hours >= 1:
-                            log.info(f"  Duration: {int(hours)} hours, {int(minutes)} minutes")
-                        else:
-                            log.info(f"  Duration: {int(minutes)} minutes")
+                                    # Calculate average time per label
+                                    if stats['labeled_items'] > 1:
+                                        avg_seconds = duration.total_seconds() / (stats['labeled_items'] - 1)
+                                        if avg_seconds < 60:
+                                            log.info(f"  Avg time/label: {avg_seconds:.1f} seconds")
+                                        else:
+                                            avg_minutes = avg_seconds / 60
+                                            log.info(f"  Avg time/label: {avg_minutes:.1f} minutes")
 
-                        # Calculate average time per label
-                        if stats['labeled_items'] > 1:
-                            avg_seconds = duration.total_seconds() / (stats['labeled_items'] - 1)
-                            if avg_seconds < 60:
-                                log.info(f"  Avg time/label: {avg_seconds:.1f} seconds")
-                            else:
-                                avg_minutes = avg_seconds / 60
-                                log.info(f"  Avg time/label: {avg_minutes:.1f} minutes")
+                            # Get a sample of recent labels
+                            cursor.execute(
+                                """
+                                SELECT
+                                    f.title,
+                                    f.author,
+                                    ls.score,
+                                    ls.update_time
+                                FROM labeling_sessions ls
+                                JOIN feeds f ON ls.feed_id = f.id
+                                WHERE ls.user_id = %s AND ls.score IS NOT NULL
+                                ORDER BY ls.update_time DESC
+                                LIMIT 3
+                                """,
+                                (uid,),
+                            )
 
-                # Get a sample of recent labels
-                cursor.execute("""
-                    SELECT
-                        f.title,
-                        f.author,
-                        ls.score,
-                        ls.update_time
-                    FROM labeling_sessions ls
-                    JOIN feeds f ON ls.feed_id = f.id
-                    WHERE ls.user_id = %s AND ls.score IS NOT NULL
-                    ORDER BY ls.update_time DESC
-                    LIMIT 3
-                """, (uid,))
+                            recent_labels = cursor.fetchall()
+                            if recent_labels:
+                                log.info("")
+                                log.info("Recent labels:")
+                                for item in recent_labels:
+                                    label = "✓" if item["score"] >= 0.5 else "✗"
+                                    title = item["title"][:60] + "..." if len(item["title"]) > 60 else item["title"]
+                                    log.info(f"  {label} {title}")
 
-                recent_labels = cursor.fetchall()
-                if recent_labels:
-                    log.info("")
-                    log.info("Recent labels:")
-                    for item in recent_labels:
-                        label = "✓" if item["score"] >= 0.5 else "✗"
-                        title = item["title"][:60] + "..." if len(item["title"]) > 60 else item["title"]
-                        log.info(f"  {label} {title}")
+                    # Summary for multiple users
+                    if len(users_to_show) > 1:
+                        log.info("")
+                        log.info("=" * 60)
 
-        # Summary for multiple users
-        if len(users_to_show) > 1:
-            log.info("")
-            log.info("="*60)
+                        # Get overall statistics
+                        cursor.execute(
+                            """
+                            SELECT
+                                COUNT(DISTINCT user_id) as total_users,
+                                COUNT(*) as total_items,
+                                COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as total_labeled,
+                                COUNT(CASE WHEN score >= 0.5 THEN 1 END) as total_interested
+                            FROM labeling_sessions
+                            """
+                        )
 
-            # Get overall statistics
-            cursor.execute("""
-                SELECT
-                    COUNT(DISTINCT user_id) as total_users,
-                    COUNT(*) as total_items,
-                    COUNT(CASE WHEN score IS NOT NULL THEN 1 END) as total_labeled,
-                    COUNT(CASE WHEN score >= 0.5 THEN 1 END) as total_interested
-                FROM labeling_sessions
-            """)
-
-            overall = cursor.fetchone()
-            log.info("Overall Summary:")
-            log.info(f"  Total users with sessions: {overall['total_users']}")
-            log.info(f"  Total items across all sessions: {overall['total_items']}")
-            log.info(f"  Total labeled items: {overall['total_labeled']}")
-            if overall['total_labeled'] > 0:
-                interested_pct = overall['total_interested'] * 100 / overall['total_labeled']
-                log.info(f"  Overall interested rate: {interested_pct:.1f}%")
-            log.info("="*60)
-
-        cursor.close()
-        db.close()
-
-    except Exception as e:
-        log.error(f"Failed to show labeling status: {e}")
-        if 'db' in locals():
-            cursor.close()
-            db.close()
-        raise
+                        overall = cursor.fetchone()
+                        log.info("Overall Summary:")
+                        log.info(f"  Total users with sessions: {overall['total_users']}")
+                        log.info(f"  Total items across all sessions: {overall['total_items']}")
+                        log.info(f"  Total labeled items: {overall['total_labeled']}")
+                        if overall['total_labeled'] > 0:
+                            interested_pct = overall['total_interested'] * 100 / overall['total_labeled']
+                            log.info(f"  Overall interested rate: {interested_pct:.1f}%")
+                        log.info("=" * 60)
+                except Exception as exc:
+                    log.error(f"Failed to show labeling status: {exc}")
+                    raise
+    except psycopg2.OperationalError as e:
+        log.error(f"Failed to connect to database: {e}")
+        log.info("")
+        log.info("Please check your database configuration in config.yml")
+        log.info("Make sure the PostgreSQL server is running and accessible.")
+        return
+    finally:
+        db_manager.close()

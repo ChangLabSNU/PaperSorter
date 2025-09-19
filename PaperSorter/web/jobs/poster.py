@@ -26,8 +26,7 @@
 import json
 import time
 from ...config import get_config
-import psycopg2
-import psycopg2.extras
+from ...db import DatabaseManager
 from openai import OpenAI
 from ...log import log
 import os
@@ -49,24 +48,33 @@ def process_poster_job(app, job_id, feed_ids, config_path):
 
         # Get database connection function from app context
         with app.app_context():
-            # Fetch article data from database
-            # Filter out non-PostgreSQL parameters
-            pg_config = {k: v for k, v in app.db_config.items() if k != "type"}
-            conn = psycopg2.connect(**pg_config)
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            db_manager = app.config.get("db_manager")
+            owns_manager = False
+            if db_manager is None:
+                db_manager = DatabaseManager.from_config(
+                    app.db_config,
+                    application_name="papersorter-web-poster",
+                )
+                owns_manager = True
 
-            # Get articles with content/tldr
-            placeholders = ",".join(["%s"] * len(feed_ids))
-            query = f"""
-                SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr, link
-                FROM feeds
-                WHERE id IN ({placeholders})
-            """
-            cursor.execute(query, feed_ids)
+            articles = []
 
-            articles = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            try:
+                with db_manager.session() as session:
+                    cursor = session.cursor(dict_cursor=True)
+
+                    # Get articles with content/tldr
+                    placeholders = ",".join(["%s"] * len(feed_ids))
+                    query = f"""
+                        SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr, link
+                        FROM feeds
+                        WHERE id IN ({placeholders})
+                    """
+                    cursor.execute(query, feed_ids)
+                    articles = cursor.fetchall()
+            finally:
+                if owns_manager:
+                    db_manager.close()
 
             if not articles:
                 log.error("No articles found in database for given IDs")
@@ -225,33 +233,37 @@ Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending w
                 log.debug("AI poster directory not configured, skipping file save")
 
             # Log the event to database
-            # Filter out non-PostgreSQL parameters
-            pg_config = {k: v for k, v in app.db_config.items() if k != "type"}
-            conn = psycopg2.connect(**pg_config)
-            cursor = conn.cursor()
+            db_manager = app.config.get("db_manager")
+            owns_manager = False
+            if db_manager is None:
+                db_manager = DatabaseManager.from_config(
+                    app.db_config,
+                    application_name="papersorter-web-poster",
+                )
+                owns_manager = True
+
             try:
-                # Log AI poster generation event - store all feed IDs in content field
-                if feed_ids:
-                    # Store the list of feed IDs as JSON in the content field
-                    cursor.execute(
-                        """
-                        INSERT INTO events (event_type, user_id, feed_id, content)
-                        VALUES (%s, %s, %s, %s)
-                    """,
-                        (
-                            "web:ai-poster-infographic",
-                            user_id,
-                            feed_ids[0],
-                            json.dumps(feed_ids),
-                        ),
-                    )
-                    conn.commit()
+                with db_manager.session() as session:
+                    cursor = session.cursor()
+                    # Log AI poster generation event - store all feed IDs in content field
+                    if feed_ids:
+                        cursor.execute(
+                            """
+                            INSERT INTO events (event_type, user_id, feed_id, content)
+                            VALUES (%s, %s, %s, %s)
+                        """,
+                            (
+                                "web:ai-poster-infographic",
+                                user_id,
+                                feed_ids[0],
+                                json.dumps(feed_ids),
+                            ),
+                        )
             except Exception as e:
                 log.error(f"Failed to log AI poster event: {e}")
-                conn.rollback()
             finally:
-                cursor.close()
-                conn.close()
+                if owns_manager:
+                    db_manager.close()
 
     except Exception as e:
         import traceback

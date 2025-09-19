@@ -587,11 +587,13 @@ def similar_articles(feed_id):
 @login_required
 def api_similar_feeds(feed_id):
     """API endpoint to get similar papers."""
+    edb = None
     try:
         from ...embedding_database import EmbeddingDatabase
 
-        edb = EmbeddingDatabase()
         db_manager = current_app.config["db_manager"]
+        edb = EmbeddingDatabase(db_manager=db_manager)
+        source_article = None
 
         with db_manager.session() as session:
             cursor = session.cursor(dict_cursor=True)
@@ -651,10 +653,12 @@ def api_similar_feeds(feed_id):
         response_data = {"source_article": source_article, "similar_feeds": feeds}
 
         return jsonify(response_data)
-
     except Exception as e:
         log.error(f"Error finding similar articles: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if edb is not None:
+            edb.close()
 
 
 @feeds_bp.route("/api/feeds/<int:feed_id>/delete", methods=["POST"])

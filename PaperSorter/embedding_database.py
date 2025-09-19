@@ -26,6 +26,7 @@ import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 import numpy as np
 from .config import get_config
+from .db import DatabaseManager
 import openai
 from typing import Optional
 from .log import log
@@ -41,27 +42,25 @@ class EmbeddingDatabase:
         self.config = config
 
         self._manager = db_manager
+        self._owns_manager = False
 
         if connection is not None:
             self.db = connection
             self._owns_connection = False
-        elif db_manager is not None:
-            self.db = db_manager.connect()
-            self._owns_connection = True
         else:
-            self.db = psycopg2.connect(
-                host=db_config["host"],
-                database=db_config["database"],
-                user=db_config["user"],
-                password=db_config["password"],
-            )
-            self.db.autocommit = False
+            if self._manager is None:
+                self._manager = DatabaseManager.from_config(
+                    db_config,
+                    application_name="papersorter-embedding-db",
+                )
+                self._owns_manager = True
+            self.db = self._manager.connect()
             self._owns_connection = True
 
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Register pgvector extension
-        register_vector(self.db)
+        # Register pgvector extension on the underlying psycopg2 connection
+        register_vector(getattr(self.db, "_conn", self.db))
 
         # Set up OpenAI client for embeddings
         embedding_config = config.get("embedding_api", {})
@@ -75,17 +74,41 @@ class EmbeddingDatabase:
             else None
         )
 
+        self._closed = False
+
+    def close(self):
+        if getattr(self, "_closed", False):
+            return
+
+        cursor = getattr(self, "cursor", None)
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+            finally:
+                self.cursor = None
+
+        connection = getattr(self, "db", None)
+        if connection is not None and getattr(self, "_owns_connection", False):
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+        if getattr(self, "_owns_manager", False) and getattr(self, "_manager", None) is not None:
+            try:
+                self._manager.close()
+            except Exception:
+                pass
+
+        self._closed = True
+
     def __del__(self):
-        if hasattr(self, "cursor"):
-            try:
-                self.cursor.close()
-            except Exception:
-                pass
-        if hasattr(self, "db"):
-            try:
-                self.db.close()
-            except Exception:
-                pass
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __len__(self):
         self.cursor.execute("SELECT COUNT(*) FROM embeddings")

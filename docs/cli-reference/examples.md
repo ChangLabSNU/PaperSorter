@@ -230,12 +230,27 @@ papersorter search "neural architecture search" --semantic
 
 ```python
 # Find papers similar to a specific one
-from PaperSorter.feed_database import FeedDatabase
+from PaperSorter.config import get_config
+from PaperSorter.db import DatabaseManager
+from PaperSorter.embedding_database import EmbeddingDatabase
 
-db = FeedDatabase()
-similar = db.find_similar_papers(paper_id=12345, limit=10)
-for paper in similar:
-    print(f"{paper['score']:.2f}: {paper['title']}")
+config = get_config().raw
+db_manager = DatabaseManager.from_config(config["db"], application_name="papersorter-cli-examples")
+
+embedding_db = EmbeddingDatabase(db_manager=db_manager)
+try:
+    similar = embedding_db.find_similar(
+        feed_id=12345,
+        limit=10,
+        user_id=1,          # replace with your user ID
+        model_id=1,         # replace with an active model ID
+        channel_id=None,    # optional channel context
+    )
+    for paper in similar:
+        print(f"{paper['similarity']:.2f}: {paper['title']}")
+finally:
+    embedding_db.close()
+    db_manager.close()
 ```
 
 ## Data Management
@@ -534,41 +549,47 @@ UPDATE channels SET model_id = 2 WHERE name = 'channel_b';
 
 ```python
 #!/usr/bin/env python
-"""Custom scoring with multiple factors"""
+"""Custom scoring with multiple factors."""
 
+from PaperSorter.config import get_config
+from PaperSorter.db import DatabaseManager
 from PaperSorter.feed_database import FeedDatabase
-from PaperSorter.predictor import PaperPredictor
-import numpy as np
+from PaperSorter.embedding_database import EmbeddingDatabase
 
-db = FeedDatabase()
-predictor = PaperPredictor()
+config = get_config().raw
+db_manager = DatabaseManager.from_config(config["db"], application_name="papersorter-custom-scorer")
+feeddb = FeedDatabase(db_manager=db_manager)
+embeddingdb = EmbeddingDatabase(db_manager=db_manager)
 
-# Get recent papers
-papers = db.get_recent_papers(days=7)
+try:
+    with db_manager.session() as session:
+        cursor = session.cursor(dict_cursor=True)
+        cursor.execute(
+            """
+            SELECT id, title, author
+            FROM feeds
+            ORDER BY added DESC
+            LIMIT 100
+            """
+        )
+        papers = cursor.fetchall()
 
-for paper in papers:
-    # ML model score
-    ml_score = predictor.predict(paper['id'])
+    keywords = {"transformer", "attention", "bert"}
 
-    # Keyword boost
-    keyword_score = 0
-    keywords = ['transformer', 'attention', 'bert']
-    for kw in keywords:
-        if kw in paper['title'].lower():
-            keyword_score += 1
+    for paper in papers:
+        ml_score = compute_model_score(paper["id"])  # your custom model here
 
-    # Author reputation (custom logic)
-    author_score = get_author_score(paper['authors'])
+        keyword_score = sum(1 for kw in keywords if kw in paper["title"].lower())
+        author_score = get_author_score(paper["author"])  # your custom logic
 
-    # Combine scores
-    final_score = (
-        0.7 * ml_score +
-        0.2 * keyword_score +
-        0.1 * author_score
-    )
+        final_score = 0.7 * ml_score + 0.2 * keyword_score + 0.1 * author_score
+        feeddb.update_score(paper["id"], final_score, model_id=999)
 
-    # Save custom score
-    db.save_prediction(paper['id'], final_score, model_id=999)
+    feeddb.commit()
+finally:
+    embeddingdb.close()
+    feeddb.close()
+    db_manager.close()
 ```
 
 ### Collaborative Filtering

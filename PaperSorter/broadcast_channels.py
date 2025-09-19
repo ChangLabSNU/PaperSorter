@@ -23,10 +23,12 @@
 
 import psycopg2
 import psycopg2.extras
+import psycopg2.extensions
 import re
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
 from .config import get_config
+from .db import DatabaseManager
 from .log import log
 
 
@@ -35,24 +37,63 @@ class BroadcastChannels:
 
     MAX_CONTENT_LENGTH = 1000
 
-    def __init__(self):
+    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
         self._config = get_config().raw
 
-        db_config = self._config["db"]
+        self._manager = db_manager
+        self._owns_manager = False
 
-        # Connect to PostgreSQL
-        self.db = psycopg2.connect(
-            host=db_config["host"],
-            database=db_config["database"],
-            user=db_config["user"],
-            password=db_config["password"],
-        )
-        self.db.autocommit = False
+        if connection is not None:
+            self.db = connection
+            self._owns_connection = False
+        else:
+            db_config = self._config["db"]
+            if self._manager is None:
+                self._manager = DatabaseManager.from_config(
+                    db_config,
+                    application_name="papersorter-broadcast-channels",
+                )
+                self._owns_manager = True
+            self.db = self._manager.connect()
+            self._owns_connection = True
+
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
+        self._closed = False
+
+    def close(self) -> None:
+        if getattr(self, "_closed", False):
+            return
+
+        cursor = getattr(self, "cursor", None)
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+            finally:
+                self.cursor = None
+
+        connection = getattr(self, "db", None)
+        if connection is not None and getattr(self, "_owns_connection", False):
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+        if getattr(self, "_owns_manager", False) and getattr(self, "_manager", None) is not None:
+            try:
+                self._manager.close()
+            except Exception:
+                pass
+
+        self._closed = True
+
     def __del__(self):
-        if hasattr(self, "db"):
-            self.db.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def get_channel(self, channel_id):
         """Get a specific channel's configuration."""

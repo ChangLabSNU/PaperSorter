@@ -102,18 +102,26 @@ Labeling best practices:
 
 ```python
 # Bulk label papers by keyword (careful use only!)
-from PaperSorter.feed_database import FeedDatabase
+from PaperSorter.config import get_config
+from PaperSorter.db import DatabaseManager
 
-db = FeedDatabase()
+config = get_config().raw
+db_manager = DatabaseManager.from_config(config["db"], application_name="papersorter-cli-labeling")
 
-# Label all papers with "transformer" as interesting
-db.execute("""
-    INSERT INTO preferences (feed_id, user_id, score, source)
-    SELECT id, 'default', 4, 'bulk'
-    FROM feeds
-    WHERE title ILIKE '%transformer%'
-    AND id NOT IN (SELECT feed_id FROM preferences)
-""")
+try:
+    with db_manager.session() as session:
+        cursor = session.cursor()
+        cursor.execute(
+            """
+            INSERT INTO preferences (feed_id, user_id, score, source)
+            SELECT id, 'default', 4, 'bulk'
+            FROM feeds
+            WHERE title ILIKE '%transformer%'
+              AND id NOT IN (SELECT feed_id FROM preferences)
+            """
+        )
+finally:
+    db_manager.close()
 ```
 
 ## Step 2: Check Label Distribution

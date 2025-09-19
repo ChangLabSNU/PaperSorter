@@ -493,15 +493,18 @@ def main(
     config_data = _load_config()
     db_config = config_data["db"]
 
-    feeddb = FeedDatabase()
-    embeddingdb = EmbeddingDatabase()
-
     db_manager = DatabaseManager.from_config(
         db_config,
         application_name="papersorter-cli-predict",
     )
 
+    feeddb = None
+    embeddingdb = None
+
     try:
+        feeddb = FeedDatabase(db_manager=db_manager)
+        embeddingdb = EmbeddingDatabase(db_manager=db_manager)
+
         with db_manager.session() as session:
             cursor = session.cursor(dict_cursor=True)
 
@@ -585,6 +588,10 @@ def main(
 
             cursor.close()
     finally:
+        if embeddingdb is not None:
+            embeddingdb.close()
+        if feeddb is not None:
+            feeddb.close()
         db_manager.close()
 
     log.info("Prediction task completed")

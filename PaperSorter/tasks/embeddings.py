@@ -27,6 +27,7 @@ import argparse
 import psycopg2
 import psycopg2.extras
 from ..config import get_config
+from ..db import DatabaseManager
 from tabulate import tabulate
 
 from ..log import log, initialize_logging
@@ -90,16 +91,16 @@ class EmbeddingsCommand(BaseCommand):
         self.embedding_dimensions = self.config.get('embedding_api', {}).get('dimensions', 1536)
         self.schema = 'papersorter'
 
-        # Get database connection
-        self.conn = psycopg2.connect(
-            host=self.db_config['host'],
-            database=self.db_config['database'],
-            user=self.db_config['user'],
-            password=self.db_config['password']
+        self.db_manager = DatabaseManager.from_config(
+            self.db_config,
+            application_name="papersorter-cli-embeddings",
         )
-        self.conn.autocommit = False
+        self.conn = None
 
         try:
+            self.conn = self.db_manager.connect()
+            self.conn.autocommit = False
+
             # Dispatch to appropriate subcommand handler
             subcommand = args.subcommand
 
@@ -113,7 +114,9 @@ class EmbeddingsCommand(BaseCommand):
                 handler = getattr(self, f'handle_{subcommand}')
                 return handler(args)
         finally:
-            self.conn.close()
+            if self.conn is not None:
+                self.conn.close()
+            self.db_manager.close()
 
     def handle_clear(self, args: argparse.Namespace) -> int:
         """Clear all embeddings from the database."""

@@ -29,6 +29,7 @@ from ..broadcast_channels import BroadcastChannels
 from ..feed_predictor import FeedPredictor
 from ..cli.base import BaseCommand, registry
 from ..log import log, initialize_logging
+from ..db import DatabaseManager
 import xgboost as xgb
 from datetime import datetime
 from typing import Dict, Set, Optional
@@ -152,53 +153,56 @@ def retrieve_items_into_db(db, items_iterator, date_cutoff):
 
 
 def update_feeds(
-    feeddb, date_cutoff, config, limit_sources=None, check_interval_hours=24
+    feeddb, date_cutoff, config, db_manager, limit_sources=None, check_interval_hours=24
 ):
     """Update feeds from all configured sources."""
     log.info("Updating feeds...")
     log.debug(f"Papers in database: {len(feeddb)}")
 
     # Initialize RSS provider
-    provider = RSSProvider(config)
+    provider = RSSProvider(config, db_manager=db_manager)
 
-    # Get sources that need updating
-    sources = provider.get_sources(
-        source_type="rss", check_interval_hours=check_interval_hours
-    )
-    log.info(f"Found {len(sources)} RSS feeds to update")
-
-    # Apply source limit if specified
-    if limit_sources and limit_sources < len(sources):
-        sources = sources[:limit_sources]
-        log.info(f"Limiting to {limit_sources} feeds")
-
-    all_new_items = []
-
-    for source in sources:
-        log.info(f"Processing feed: {source['name']}")
-
-        # Validate source
-        if not provider.validate_source(source):
-            log.warning(f"Invalid source configuration for {source['name']}")
-            continue
-
-        # Get items from source
-        since_date = datetime.fromtimestamp(
-            date_cutoff, tz=datetime.now().astimezone().tzinfo
+    try:
+        # Get sources that need updating
+        sources = provider.get_sources(
+            source_type="rss", check_interval_hours=check_interval_hours
         )
-        items_iterator = provider.get_items(source, since=since_date)
+        log.info(f"Found {len(sources)} RSS feeds to update")
 
-        # Process items
-        new_items = retrieve_items_into_db(
-            feeddb, items_iterator, date_cutoff=date_cutoff
-        )
+        # Apply source limit if specified
+        if limit_sources and limit_sources < len(sources):
+            sources = sources[:limit_sources]
+            log.info(f"Limiting to {limit_sources} feeds")
 
-        all_new_items.extend(new_items)
+        all_new_items = []
 
-        # Update source timestamps
-        provider.update_source_timestamp(source["id"], has_new_items=len(new_items) > 0)
+        for source in sources:
+            log.info(f"Processing feed: {source['name']}")
 
-    return all_new_items
+            # Validate source
+            if not provider.validate_source(source):
+                log.warning(f"Invalid source configuration for {source['name']}")
+                continue
+
+            # Get items from source
+            since_date = datetime.fromtimestamp(
+                date_cutoff, tz=datetime.now().astimezone().tzinfo
+            )
+            items_iterator = provider.get_items(source, since=since_date)
+
+            # Process items
+            new_items = retrieve_items_into_db(
+                feeddb, items_iterator, date_cutoff=date_cutoff
+            )
+
+            all_new_items.extend(new_items)
+
+            # Update source timestamps
+            provider.update_source_timestamp(source["id"], has_new_items=len(new_items) > 0)
+
+        return all_new_items
+    finally:
+        provider.close()
 
 
 def update_embeddings(feeddb, embeddingdb, config_path, batch_size):
@@ -544,60 +548,80 @@ def main(config, batch_size, limit_sources, check_interval_hours, log_file, quie
     """
 
     from ..config import get_config
-    full_config = get_config(config).raw
 
-    date_cutoff = datetime(*FEED_EPOCH).timestamp()
-    from ..config import get_config as _gc
-    _gc(config)
-    feeddb = FeedDatabase()
-    embeddingdb = EmbeddingDatabase()
-    channels = BroadcastChannels()
+    config_provider = get_config(config)
+    full_config = config_provider.raw
+    db_config = full_config["db"]
 
-    # Update feeds from RSS feeds
-    new_item_ids = update_feeds(
-        feeddb,
-        date_cutoff,
-        config=full_config,
-        limit_sources=limit_sources,
-        check_interval_hours=check_interval_hours,
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-update",
     )
 
-    # Update scholarly database info if configured
-    scholarly_config = full_config.get("scholarly_database", {})
+    feeddb = None
+    embeddingdb = None
+    channels = None
 
-    # Backward compatibility: use semanticscholar config if new config doesn't exist
-    if not scholarly_config and "semanticscholar" in full_config:
-        scholarly_config = {
-            "provider": "semantic_scholar",
-            "semantic_scholar": full_config["semanticscholar"]
-        }
+    try:
+        date_cutoff = datetime(*FEED_EPOCH).timestamp()
+        feeddb = FeedDatabase(db_manager=db_manager)
+        embeddingdb = EmbeddingDatabase(db_manager=db_manager)
+        channels = BroadcastChannels(db_manager=db_manager)
 
-    if scholarly_config:
-        provider_name = scholarly_config.get("provider", "semantic_scholar")
-        provider_config = scholarly_config.get(provider_name, {})
+        # Update feeds from RSS feeds
+        new_item_ids = update_feeds(
+            feeddb,
+            date_cutoff,
+            config=full_config,
+            db_manager=db_manager,
+            limit_sources=limit_sources,
+            check_interval_hours=check_interval_hours,
+        )
 
-        # Get date tolerance for automatic matching (default to 60 days)
-        # This only affects the update task's automatic metadata enrichment,
-        # NOT the web interface search functionality
-        match_date_tolerance = scholarly_config.get("match_date_tolerance_days", 60)
+        # Update scholarly database info if configured
+        scholarly_config = full_config.get("scholarly_database", {})
 
-        # Create provider
-        provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
+        # Backward compatibility: use semanticscholar config if new config doesn't exist
+        if not scholarly_config and "semanticscholar" in full_config:
+            scholarly_config = {
+                "provider": "semantic_scholar",
+                "semantic_scholar": full_config["semanticscholar"]
+            }
 
-        if provider:
-            try:
-                update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=match_date_tolerance)
-            except Exception as e:
-                log.error(f"Failed to update {provider.name} info: {e}")
+        if scholarly_config:
+            provider_name = scholarly_config.get("provider", "semantic_scholar")
+            provider_config = scholarly_config.get(provider_name, {})
+
+            # Get date tolerance for automatic matching (default to 60 days)
+            # This only affects the update task's automatic metadata enrichment,
+            # NOT the web interface search functionality
+            match_date_tolerance = scholarly_config.get("match_date_tolerance_days", 60)
+
+            # Create provider
+            provider = ScholarlyDatabaseFactory.create_provider(provider_name, provider_config)
+
+            if provider:
+                try:
+                    update_scholarly_info(feeddb, provider, new_item_ids, dateoffset=match_date_tolerance)
+                except Exception as e:
+                    log.error(f"Failed to update {provider.name} info: {e}")
+            else:
+                log.warning(f"Failed to create {provider_name} provider - skipping scholarly database updates")
         else:
-            log.warning(f"Failed to create {provider_name} provider - skipping scholarly database updates")
-    else:
-        log.debug("No scholarly database configured - skipping metadata enrichment")
+            log.debug("No scholarly database configured - skipping metadata enrichment")
 
-    num_updates = update_embeddings(feeddb, embeddingdb, config, batch_size)
+        num_updates = update_embeddings(feeddb, embeddingdb, config, batch_size)
 
-    if num_updates > 0:
-        model_dir = full_config.get("models", {}).get("path", ".")
-        score_new_feeds(feeddb, embeddingdb, channels, model_dir)
+        if num_updates > 0:
+            model_dir = full_config.get("models", {}).get("path", ".")
+            score_new_feeds(feeddb, embeddingdb, channels, model_dir)
 
-    log.info("Update completed.")
+        log.info("Update completed.")
+    finally:
+        if channels is not None:
+            channels.close()
+        if embeddingdb is not None:
+            embeddingdb.close()
+        if feeddb is not None:
+            feeddb.close()
+        db_manager.close()

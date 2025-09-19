@@ -275,16 +275,19 @@ PaperSorter uses connection pooling for efficient database access:
 
 .. code-block:: python
 
-   from PaperSorter.feed_database import FeedDatabase
-   
-   # Connection pool is managed internally
-   db = FeedDatabase()
-   
-   # Use context manager for automatic cleanup
-   with db.get_connection() as conn:
-       cursor = conn.cursor()
-       cursor.execute("SELECT * FROM feeds LIMIT 10")
-       results = cursor.fetchall()
+   from PaperSorter.config import get_config
+   from PaperSorter.db import DatabaseManager
+
+   config = get_config().raw
+   db_manager = DatabaseManager.from_config(config["db"], application_name="papersorter-docs")
+
+   try:
+       with db_manager.session() as session:
+           cursor = session.cursor(dict_cursor=True)
+           cursor.execute("SELECT id, title FROM feeds LIMIT 10")
+           results = cursor.fetchall()
+   finally:
+       db_manager.close()
 
 Transactions
 ~~~~~~~~~~~~
@@ -292,11 +295,15 @@ Transactions
 .. code-block:: python
 
    # Atomic operations with transactions
-   with db.transaction() as tx:
-       tx.add_paper(paper_data)
-       tx.add_embedding(paper_id, embedding)
-       tx.save_prediction(paper_id, score)
-       # Automatically commits on success, rolls back on error
+   with db_manager.session() as session:
+       cursor = session.cursor()
+       cursor.execute("INSERT INTO feeds (external_id, title) VALUES (%s, %s)", (external_id, title))
+       cursor.execute(
+           "INSERT INTO embeddings (feed_id, embedding) VALUES (%s, %s)"
+           " ON CONFLICT (feed_id) DO UPDATE SET embedding = EXCLUDED.embedding",
+           (feed_id, embedding_values),
+       )
+       # The session commits automatically when the context exits successfully.
 
 Query Examples
 --------------
@@ -306,33 +313,42 @@ Common Queries
 
 .. code-block:: python
 
-   # Get recent high-scoring papers
-   query = """
-       SELECT f.*, pp.score
-       FROM feeds f
-       JOIN predicted_preferences pp ON f.id = pp.feed_id
-       WHERE pp.score > %s
-       AND f.published > CURRENT_DATE - INTERVAL '7 days'
-       ORDER BY pp.score DESC
-       LIMIT %s
-   """
-   high_scoring = db.execute(query, (4.0, 20))
-   
-   # Find similar papers using embeddings
-   query = """
-       SELECT f.*, 
-              1 - (e1.embedding <=> e2.embedding) as similarity
-       FROM embeddings e1
-       CROSS JOIN LATERAL (
-           SELECT * FROM embeddings e2
-           JOIN feeds f ON e2.feed_id = f.id
-           WHERE e2.feed_id != e1.feed_id
-           ORDER BY e1.embedding <=> e2.embedding
-           LIMIT 10
-       ) AS similar
-       WHERE e1.feed_id = %s
-   """
-   similar_papers = db.execute(query, (paper_id,))
+   with db_manager.session() as session:
+       cursor = session.cursor(dict_cursor=True)
+
+       # Get recent high-scoring papers
+       cursor.execute(
+           """
+           SELECT f.*, pp.score
+           FROM feeds f
+           JOIN predicted_preferences pp ON f.id = pp.feed_id
+           WHERE pp.score > %s
+             AND f.published > CURRENT_DATE - INTERVAL '7 days'
+           ORDER BY pp.score DESC
+           LIMIT %s
+           """,
+           (4.0, 20),
+       )
+       high_scoring = cursor.fetchall()
+
+       # Find similar papers using embeddings
+       cursor.execute(
+           """
+           SELECT f.*, 1 - (e1.embedding <=> e2.embedding) AS similarity
+           FROM embeddings e1
+           CROSS JOIN LATERAL (
+               SELECT *
+               FROM embeddings e2
+               JOIN feeds f ON e2.feed_id = f.id
+               WHERE e2.feed_id != e1.feed_id
+               ORDER BY e1.embedding <=> e2.embedding
+               LIMIT 10
+           ) AS similar
+           WHERE e1.feed_id = %s
+           """,
+           (paper_id,),
+       )
+       similar_papers = cursor.fetchall()
 
 Aggregation Queries
 ~~~~~~~~~~~~~~~~~~~

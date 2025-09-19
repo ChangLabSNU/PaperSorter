@@ -26,6 +26,7 @@ import psycopg2.extras
 import pandas as pd
 import re
 from .config import get_config
+from .db import DatabaseManager
 import unicodedata
 from difflib import SequenceMatcher
 from typing import List, Callable, Optional
@@ -113,32 +114,62 @@ class FeedDatabase:
         db_config = config["db"]
 
         self._manager = db_manager
+        self._owns_manager = False
 
         if connection is not None:
             self.db = connection
             self._owns_connection = False
-        elif db_manager is not None:
-            self.db = db_manager.connect()
-            self._owns_connection = True
         else:
-            self.db = psycopg2.connect(
-                host=db_config["host"],
-                database=db_config["database"],
-                user=db_config["user"],
-                password=db_config["password"],
-            )
-            self.db.autocommit = False
+            if self._manager is None:
+                self._manager = DatabaseManager.from_config(
+                    db_config,
+                    application_name="papersorter-feed-db",
+                )
+                self._owns_manager = True
+            self.db = self._manager.connect()
             self._owns_connection = True
 
         self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         self.update_idcache()
 
+        self._closed = False
+
         # Initialize title normalizer
         self.title_normalizer = TitleNormalizer()
 
+    def close(self):
+        if getattr(self, "_closed", False):
+            return
+
+        cursor = getattr(self, "cursor", None)
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+            finally:
+                self.cursor = None
+
+        connection = getattr(self, "db", None)
+        if connection is not None and getattr(self, "_owns_connection", False):
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+        if getattr(self, "_owns_manager", False) and getattr(self, "_manager", None) is not None:
+            try:
+                self._manager.close()
+            except Exception:
+                pass
+
+        self._closed = True
+
     def __del__(self):
-        if hasattr(self, "db"):
-            self.db.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __contains__(self, item):
         # Handle both string IDs and objects with item_id attribute

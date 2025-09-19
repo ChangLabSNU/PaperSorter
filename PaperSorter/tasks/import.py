@@ -31,6 +31,7 @@ from ..cli.base import BaseCommand, registry
 from ..cli.types import probability_float
 from ..feed_database import FeedDatabase
 from ..log import log, initialize_logging
+from ..db import DatabaseManager
 from ..utils.pubmed_sync import (
     parse_pubmed_directory_chunked,
     sync_and_parse_pubmed
@@ -201,8 +202,16 @@ def do_import_pubmed(config_path, files, chunksize, tmpdir, parse_only, limit, s
             log.info(f"Using random seed: {seed}")
 
     from ..config import get_config
-    get_config(config_path)
-    feeddb = FeedDatabase()
+
+    config_provider = get_config(config_path)
+    config_data = config_provider.raw
+
+    db_manager = DatabaseManager.from_config(
+        config_data["db"],
+        application_name="papersorter-cli-import",
+    )
+
+    feeddb = None
 
     # Convert ISSN filter to set for efficient lookup
     issn_filter = set(issn) if issn else None
@@ -210,6 +219,8 @@ def do_import_pubmed(config_path, files, chunksize, tmpdir, parse_only, limit, s
         log.info(f"Filtering by ISSNs: {', '.join(sorted(issn_filter))}")
 
     try:
+        feeddb = FeedDatabase(db_manager=db_manager)
+
         total_inserted = 0
         total_skipped_existing = 0  # Track articles skipped because they already exist
         total_processed = 0
@@ -380,7 +391,13 @@ def do_import_pubmed(config_path, files, chunksize, tmpdir, parse_only, limit, s
 
     except Exception as e:
         log.error(f"Import failed: {e}")
-        feeddb.db.rollback()
+        if feeddb is not None:
+            try:
+                feeddb.db.rollback()
+            except Exception:
+                pass
         raise
     finally:
-        del feeddb
+        if feeddb is not None:
+            feeddb.close()
+        db_manager.close()

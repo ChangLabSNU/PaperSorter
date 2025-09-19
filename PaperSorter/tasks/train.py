@@ -30,10 +30,8 @@ from sklearn.metrics import roc_auc_score
 import xgboost as xgb
 import numpy as np
 import pickle
-import psycopg2
 import argparse
-import psycopg2.extras
-from pgvector.psycopg2 import register_vector
+from ..db import DatabaseManager
 from ..config import get_config
 from psycopg2 import sql
 import os
@@ -592,119 +590,111 @@ def main(
 
     db_config = config_data["db"]
 
-    # Connect to PostgreSQL
-    log.info("Connecting to PostgreSQL database...")
-    db = psycopg2.connect(
-        host=db_config["host"],
-        database=db_config["database"],
-        user=db_config["user"],
-        password=db_config["password"],
+    db_manager = DatabaseManager.from_config(
+        db_config,
+        application_name="papersorter-cli-train",
     )
 
-    # Register pgvector extension
-    register_vector(db)
+    try:
+        log.info("Connecting to PostgreSQL database...")
+        with db_manager.connect() as db:
+            # Convert user_id tuple to list, or use None for all users
+            user_ids = list(user_id) if user_id else None
 
-    # Convert user_id tuple to list, or use None for all users
-    user_ids = list(user_id) if user_id else None
+            if user_ids:
+                log.info(
+                    f'Loading training data for user_id(s)={user_ids} using table "{embeddings_table}"...'
+                )
+            else:
+                log.info(
+                    f'Loading training data for ALL users using table "{embeddings_table}"...'
+                )
 
-    if user_ids:
-        log.info(
-            f'Loading training data for user_id(s)={user_ids} using table "{embeddings_table}"...'
-        )
-    else:
-        log.info(
-            f'Loading training data for ALL users using table "{embeddings_table}"...'
-        )
+            # Log pseudolabeling status
+            if base_model:
+                log.info(f"Pseudolabeling enabled using base model ID: {base_model}")
+                log.info(f"Pseudo-label thresholds: positive >= {pos_cutoff}, negative < {neg_cutoff}")
+            else:
+                log.info("Pseudolabeling disabled (no base model specified)")
 
-    # Log pseudolabeling status
-    if base_model:
-        log.info(f"Pseudolabeling enabled using base model ID: {base_model}")
-        log.info(f"Pseudo-label thresholds: positive >= {pos_cutoff}, negative < {neg_cutoff}")
-    else:
-        log.info("Pseudolabeling disabled (no base model specified)")
+            if max_papers:
+                log.info(f"Maximum papers limited to: {max_papers}")
 
-    if max_papers:
-        log.info(f"Maximum papers limited to: {max_papers}")
+            # Step 1: Select feed IDs to use for training
+            log.info("Selecting papers for training...")
+            feed_selection = select_training_feeds(
+                db, user_ids, base_model, pos_cutoff, neg_cutoff, max_papers, seed
+            )
 
-    # Step 1: Select feed IDs to use for training
-    log.info("Selecting papers for training...")
-    feed_selection = select_training_feeds(
-        db, user_ids, base_model, pos_cutoff, neg_cutoff, max_papers, seed
-    )
+            # Step 2: Load training data for selected feeds
+            log.info("Loading training data from database...")
+            embeddings = load_embeddings(db, feed_selection, embeddings_table)
 
-    # Step 2: Load training data for selected feeds
-    log.info("Loading training data from database...")
-    embeddings = load_embeddings(db, feed_selection, embeddings_table)
+            if not embeddings:
+                log.error("No papers with embeddings found")
+                return
 
-    if not embeddings:
-        log.error("No papers with embeddings found")
-        db.close()
-        return
+            # Prepare training data
+            X_scaled, Y_all, weights_all, scaler = prepare_training_data(
+                embeddings, pseudo_weight, seed)
 
-    # Prepare training data
-    X_scaled, Y_all, weights_all, scaler = prepare_training_data(
-        embeddings, pseudo_weight, seed)
+            if X_scaled is None:
+                log.error("No training data available")
+                return
 
-    if X_scaled is None:
-        log.error("No training data available")
-        db.close()
-        return
+            # Split data
+            log.info("Splitting data...")
+            (
+                X_train,
+                X_test,
+                y_train,
+                y_test,
+                weights_train,
+                weights_test,
+            ) = train_test_split(
+                X_scaled, Y_all, weights_all, test_size=0.25, random_state=seed
+            )
 
-    # Split data
-    log.info("Splitting data...")
-    (
-        X_train,
-        X_test,
-        y_train,
-        y_test,
-        weights_train,
-        weights_test,
-    ) = train_test_split(
-        X_scaled, Y_all, weights_all, test_size=0.25, random_state=seed
-    )
+            # Define XGBoost parameters
+            params = {
+                "objective": "binary:logistic",
+                #'device': 'cuda',
+                "max_depth": 3,
+                "eta": 0.1,  # learning rate
+                "eval_metric": ["logloss", "auc"],
+                "seed": seed,
+            }
 
-    # Define XGBoost parameters
-    params = {
-        "objective": "binary:logistic",
-        #'device': 'cuda',
-        "max_depth": 3,
-        "eta": 0.1,  # learning rate
-        "eval_metric": ["logloss", "auc"],
-        "seed": seed,
-    }
+            # Train initial model
+            _, rocauc = train_xgboost_model(
+                X_train, y_train, X_test, y_test,
+                weights_train, weights_test, params, rounds
+            )
 
-    # Train initial model
-    _, rocauc = train_xgboost_model(
-        X_train, y_train, X_test, y_test,
-        weights_train, weights_test, params, rounds
-    )
+            # Train final model on full dataset with validation split for early stopping
+            log.info("Training final model on full dataset...")
 
-    # Train final model on full dataset with validation split for early stopping
-    log.info("Training final model on full dataset...")
+            # Create validation split from full data (10% for validation)
+            (
+                X_train_final,
+                X_val_final,
+                y_train_final,
+                y_val_final,
+                weights_train_final,
+                weights_val_final,
+            ) = train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=seed)
 
-    # Create validation split from full data (10% for validation)
-    (
-        X_train_final,
-        X_val_final,
-        y_train_final,
-        y_val_final,
-        weights_train_final,
-        weights_val_final,
-    ) = train_test_split(X_scaled, Y_all, weights_all, test_size=0.1, random_state=seed)
+            # Train final model
+            final_model, _ = train_xgboost_model(
+                X_train_final, y_train_final, X_val_final, y_val_final,
+                weights_train_final, weights_val_final, params, rounds
+            )
 
-    # Train final model
-    final_model, _ = train_xgboost_model(
-        X_train_final, y_train_final, X_val_final, y_val_final,
-        weights_train_final, weights_val_final, params, rounds
-    )
-
-    # Save the model
-    save_model(
-        final_model, scaler, output, name, rocauc,
-        user_ids, len(X_scaled), config_data,
-        db if not output else None
-    )
-
-    # Close database connection
-    if not output:
-        db.close()
+            # Save the model
+            save_model(
+                final_model, scaler, output, name, rocauc,
+                user_ids, len(X_scaled), config_data,
+                db if not output else None
+            )
+    finally:
+        db_manager.close()
