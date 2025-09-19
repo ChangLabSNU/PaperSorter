@@ -28,7 +28,7 @@ import requests
 from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
 from ..auth.decorators import admin_required
-from ...feed_predictor import refresh_embeddings_and_predictions
+from ...services.feed_prediction import refresh_embeddings_and_predictions
 from ...log import log
 from ..utils.database import get_user_model_id
 from ...utils import pubmed_lookup

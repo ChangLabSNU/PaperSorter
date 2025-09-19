@@ -37,7 +37,7 @@ from ...providers.openai_client import get_openai_client
 from ...services.articles import fetch_articles, summarization_snippets
 from ...services.summarization import ArticleSummarizer
 from ..utils.database import get_user_model_id, save_search_query
-from ...feed_predictor import refresh_embeddings_and_predictions
+from ...services.feed_prediction import refresh_embeddings_and_predictions
 
 search_bp = Blueprint("search", __name__)
 

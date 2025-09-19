@@ -26,7 +26,7 @@ from ..providers.factory import ScholarlyDatabaseFactory
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..broadcast_channels import BroadcastChannels
-from ..feed_predictor import FeedPredictor
+from ..services.feed_prediction import FeedPredictor
 from ..cli.base import BaseCommand, registry
 from ..log import log, initialize_logging
 from ..db import DatabaseManager

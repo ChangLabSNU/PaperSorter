@@ -13,7 +13,7 @@ The system consists of several key components:
 ### Core Modules
 - **FeedDatabase** (`feed_database.py`): PostgreSQL-based storage for article metadata, user labels, and predictions
 - **EmbeddingDatabase** (`embedding_database.py`): PostgreSQL-based storage for article embedding vectors using pgvector extension
-- **FeedPredictor** (`feed_predictor.py`): XGBoost model training and prediction logic
+- **FeedPredictor** (`services/feed_prediction.py`): XGBoost model training and prediction logic
 - **BroadcastChannels** (`broadcast_channels.py`): Channel management for notifications
 - **Data** (`data/`): Database schema and configuration
   - `schema.py`: Python schema definitions for database tables
@@ -385,4 +385,3 @@ Core dependencies (from setup.py):
 - Flask >= 2.0 (web framework for serve task)
 - Flask-Login >= 0.6.0 (user session management)
 - Authlib >= 1.2.0 (OAuth authentication)
-
