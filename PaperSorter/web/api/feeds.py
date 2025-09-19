@@ -28,6 +28,7 @@ import requests
 from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
 from ..auth.decorators import admin_required
+from ...feed_predictor import refresh_embeddings_and_predictions
 from ...log import log
 from ..utils.database import get_user_model_id
 from ...utils import pubmed_lookup
@@ -457,6 +458,9 @@ def api_pubmed_match(feed_id):
                 cursor.close()
                 return jsonify({"error": "Paper not found"}), 404
 
+            metadata_updated = False
+            updated_fields = []
+
             cfg = _pubmed_config()
             max_results = cfg["max_results"]
             api_key = cfg["api_key"]
@@ -563,9 +567,26 @@ def api_pubmed_match(feed_id):
                 f"UPDATE feeds SET {', '.join(updates)} WHERE id = %s",
                 params,
             )
+            metadata_updated = True
 
             cursor.close()
-            return jsonify({"success": True, "pmid": pmid, "updated_fields": updated_fields})
+
+        if metadata_updated:
+            try:
+                refresh_embeddings_and_predictions(
+                    [feed_id],
+                    db_manager,
+                    force_rescore=True,
+                    refresh_embeddings=True,
+                )
+            except Exception as exc:  # pragma: no cover - depends on external services
+                log.error(
+                    "Failed to refresh embeddings for feed %s after metadata update: %s",
+                    feed_id,
+                    exc,
+                )
+
+        return jsonify({"success": True, "pmid": pmid, "updated_fields": updated_fields})
 
     except pubmed_lookup.PubMedLookupError as exc:
         log.warning("PubMed lookup failed", exc_info=exc)

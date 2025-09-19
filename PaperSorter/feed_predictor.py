@@ -21,15 +21,14 @@
 # THE SOFTWARE.
 #
 
-import numpy as np
-import xgboost as xgb
-import pickle
-import os
+from typing import Optional, Sequence
+
 from .config import get_config
+from .db import DatabaseManager
+from .embedding_database import EmbeddingDatabase
+from .feed_database import FeedDatabase
 from .log import log
-import time
-import random
-from .providers.openai_client import get_openai_client
+from .services.feed_prediction import FeedPredictionService
 
 
 class FeedPredictor:
@@ -39,12 +38,7 @@ class FeedPredictor:
         self.feeddb = feeddb
         self.embeddingdb = embeddingdb
         self.config = get_config().raw
-
-        # Set up OpenAI client for embeddings
-        embedding_config = self.config.get("embedding_api", {})
-        self.embedding_model = embedding_config.get("model", "text-embedding-3-large")
-        self.embedding_dimensions = embedding_config.get("dimensions")
-        self.openai_client = get_openai_client("embedding_api", cfg=self.config, optional=True)
+        self._service = FeedPredictionService(self.config, feeddb, embeddingdb)
 
     def generate_embeddings_batch(self, feed_ids, batch_size=100):
         """
@@ -57,90 +51,15 @@ class FeedPredictor:
         Returns:
             List of paper IDs that successfully got embeddings
         """
-        if not self.openai_client:
-            log.error("OpenAI client not configured")
-            return []
-
-        # Ensure feed_ids is a list
-        if not isinstance(feed_ids, list):
-            feed_ids = [feed_ids]
-
-        # Filter feeds that need embeddings using the new EmbeddingDatabase method
-        feeds_needing_embeddings = self.embeddingdb.filter_feeds_without_embeddings(feed_ids)
-        if not feeds_needing_embeddings:
-            log.info("All papers already have embeddings")
-            return feed_ids
-
-        successful_feeds = []
-
-        # Use batch context manager for efficient batch insertions
-        with self.embeddingdb.write_batch() as batch_writer:
-            # Process in batches
-            for i in range(0, len(feeds_needing_embeddings), batch_size):
-                batch = feeds_needing_embeddings[i : i + batch_size]
-
-                # Get formatted items for this batch
-                formatted_items = []
-                feed_id_map = {}
-
-                for idx, feed_id in enumerate(batch):
-                    formatted_item = self.feeddb.get_formatted_item(feed_id)
-                    if formatted_item:
-                        formatted_items.append(formatted_item)
-                        feed_id_map[idx] = feed_id
-                    else:
-                        log.warning(f"Could not get formatted item for paper {feed_id}")
-
-                if not formatted_items:
-                    continue
-
-                # Retry logic for handling overloaded model errors
-                max_retries = 5
-                retry_count = 0
-
-                while retry_count < max_retries:
-                    try:
-                        # Generate embeddings for the batch
-                        params = {"input": formatted_items, "model": self.embedding_model}
-
-                        # Add dimensions if specified in config
-                        if self.embedding_dimensions:
-                            params["dimensions"] = self.embedding_dimensions
-
-                        response = self.openai_client.embeddings.create(**params)
-
-                        # Store embeddings using the batch writer
-                        for idx, embedding_data in enumerate(response.data):
-                            if idx in feed_id_map:
-                                feed_id = feed_id_map[idx]
-                                # Use batch writer's insert method (no immediate commit)
-                                if batch_writer.insert(feed_id, embedding_data.embedding):
-                                    successful_feeds.append(feed_id)
-                                else:
-                                    log.error(f"Failed to store embedding for feed {feed_id}")
-
-                        break  # Success, exit retry loop
-
-                    except Exception as e:
-                        error_str = str(e)
-                        # Check if it's a 503 overloaded error
-                        if "503" in error_str and "overloaded" in error_str.lower():
-                            retry_count += 1
-                            if retry_count < max_retries:
-                                sleep_time = random.uniform(5, 20)
-                                log.warning(f"Model overloaded, retrying in {sleep_time:.1f} seconds (attempt {retry_count}/{max_retries})")
-                                time.sleep(sleep_time)
-                            else:
-                                log.error(f"Failed to generate embeddings for batch after {max_retries} retries: {e}")
-                        else:
-                            log.error(f"Failed to generate embeddings for batch: {e}")
-                            break  # Non-retryable error, exit
-
-        # Commit happens automatically when exiting the context manager
-        return successful_feeds
+        return self._service.embedding_generator.generate(feed_ids, batch_size)
 
     def predict_and_queue_feeds(
-        self, feed_ids, model_dir, force_rescore=False, batch_size=100
+        self,
+        feed_ids,
+        model_dir,
+        force_rescore=False,
+        batch_size=100,
+        refresh_embeddings=False,
     ):
         """
         Predict preferences for papers and add high-scoring ones to broadcast queues.
@@ -151,167 +70,21 @@ class FeedPredictor:
             model_dir: Directory containing model files
             force_rescore: Whether to force re-scoring of already scored papers
             batch_size: Size of batches for embedding generation
+            refresh_embeddings: Regenerate embeddings even when they already exist
         """
         if not feed_ids:
             return
 
-        # Ensure feed_ids is a list
         if not isinstance(feed_ids, list):
             feed_ids = [feed_ids]
 
-        # Generate embeddings for feeds that don't have them
-        feeds_with_embeddings = self.generate_embeddings_batch(feed_ids, batch_size)
-
-        # Get active channels and their associated models
-        self.feeddb.cursor.execute("""
-            SELECT c.*, m.id as model_id, m.name as model_name
-            FROM channels c
-            LEFT JOIN models m ON c.model_id = m.id
-            WHERE c.is_active = true
-        """)
-        active_channels = self.feeddb.cursor.fetchall()
-
-        if not active_channels:
-            log.warning("No active channels found")
-            return
-
-        # Group channels by model
-        channels_by_model = {}
-        channels_without_model = []
-        for channel in active_channels:
-            model_id = channel["model_id"]
-            if model_id is None:
-                log.warning(f"Channel '{channel['name']}' (ID: {channel['id']}) has no model assigned, skipping predictions")
-                channels_without_model.append(channel)
-                continue
-            if model_id not in channels_by_model:
-                channels_by_model[model_id] = []
-            channels_by_model[model_id].append(channel)
-
-        if channels_without_model and not channels_by_model:
-            log.error("No channels have valid models assigned. Cannot generate predictions.")
-            return
-
-        # Get embeddings for papers that have them
-        embeddings_map = {}
-        for feed_id in feeds_with_embeddings:
-            self.embeddingdb.cursor.execute(
-                "SELECT embedding FROM embeddings WHERE feed_id = %s", (feed_id,)
-            )
-            result = self.embeddingdb.cursor.fetchone()
-            if result:
-                embeddings_map[feed_id] = np.array(result["embedding"])
-            else:
-                log.warning(
-                    f"No embedding found for paper {feed_id} even after generation"
-                )
-
-        if not embeddings_map:
-            log.warning("No embeddings found for any of the provided papers")
-            return
-
-        # Process each model
-        for model_id, channels in channels_by_model.items():
-            try:
-                # Load model
-                model_file = os.path.join(model_dir, f"model-{model_id}.pkl")
-                if not os.path.exists(model_file):
-                    log.warning(f"Model file not found: {model_file}")
-                    continue
-
-                with open(model_file, "rb") as f:
-                    model_data = pickle.load(f)
-
-                model = model_data["model"]
-                scaler = model_data["scaler"]
-
-                # Check which feeds need predictions for this model
-                feeds_to_predict = []
-                if not force_rescore:
-                    self.feeddb.cursor.execute(
-                        """
-                        SELECT feed_id
-                        FROM predicted_preferences
-                        WHERE model_id = %s AND feed_id = ANY(%s)
-                    """,
-                        (model_id, list(embeddings_map.keys())),
-                    )
-
-                    already_predicted = {
-                        row["feed_id"] for row in self.feeddb.cursor.fetchall()
-                    }
-                    feeds_to_predict = [
-                        fid
-                        for fid in embeddings_map.keys()
-                        if fid not in already_predicted
-                    ]
-                else:
-                    feeds_to_predict = list(embeddings_map.keys())
-
-                if not feeds_to_predict:
-                    log.info(f"All papers already have predictions for model {model_id}")
-                    continue
-
-                # Prepare embeddings for prediction
-                embeddings_array = np.array(
-                    [embeddings_map[fid] for fid in feeds_to_predict]
-                )
-                embeddings_scaled = scaler.transform(embeddings_array)
-
-                # Predict
-                dmatrix = xgb.DMatrix(embeddings_scaled)
-                predictions = model.predict(dmatrix)
-
-                # Store predictions
-                for feed_id, score in zip(feeds_to_predict, predictions):
-                    self.feeddb.cursor.execute(
-                        """
-                        INSERT INTO predicted_preferences (feed_id, model_id, score)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (feed_id, model_id) DO UPDATE
-                        SET score = EXCLUDED.score
-                    """,
-                        (feed_id, model_id, float(score)),
-                    )
-
-                # Check each channel's threshold and add to broadcast queue
-                for channel in channels:
-                    score_threshold = channel["score_threshold"] or 0.7
-                    channel_id = channel["id"]
-
-                    for feed_id, score in zip(feeds_to_predict, predictions):
-                        if score >= score_threshold:
-                            # Check if already broadcasted
-                            self.feeddb.cursor.execute(
-                                """
-                                SELECT 1 FROM broadcasts
-                                WHERE feed_id = %s AND channel_id = %s
-                            """,
-                                (feed_id, channel_id),
-                            )
-
-                            if not self.feeddb.cursor.fetchone():
-                                self.feeddb.add_to_broadcast_queue(feed_id, channel_id)
-
-                                # Get feed info for logging
-                                self.feeddb.cursor.execute(
-                                    """
-                                    SELECT title FROM feeds WHERE id = %s
-                                """,
-                                    (feed_id,),
-                                )
-                                feed_info = self.feeddb.cursor.fetchone()
-                                if feed_info:
-                                    log.info(
-                                        f"Added to channel {channel['name']} queue: {feed_info['title']}"
-                                    )
-
-            except Exception as e:
-                log.error(f"Failed to process model {model_id}: {e}")
-                continue
-
-        # Commit all changes
-        self.feeddb.commit()
+        self._service.predict_and_queue(
+            feed_ids,
+            model_dir,
+            force_rescore=force_rescore,
+            batch_size=batch_size,
+            refresh_embeddings=refresh_embeddings,
+        )
 
     def predict_for_external_ids(self, external_ids, model_dir, force_rescore=False):
         """
@@ -336,4 +109,61 @@ class FeedPredictor:
                 feed_ids.append(result["id"])
 
         if feed_ids:
-            self.predict_and_queue_feeds(feed_ids, model_dir, force_rescore)
+            self.predict_and_queue_feeds(
+                feed_ids,
+                model_dir,
+                force_rescore=force_rescore,
+            )
+
+
+def refresh_embeddings_and_predictions(
+    feed_ids: Sequence[int],
+    db_manager: DatabaseManager,
+    *,
+    force_rescore: bool = False,
+    refresh_embeddings: bool = False,
+    batch_size: int = 100,
+    model_dir: Optional[str] = None,
+) -> None:
+    """Run embedding generation and prediction for the provided feeds.
+
+    Designed for callers that only have access to the shared DatabaseManager.
+    Resources are opened and closed within this helper so it can be reused in
+    web handlers and task code without leaking connections.
+    """
+
+    if not feed_ids:
+        return
+
+    feeds = list(feed_ids)
+    feed_db: Optional[FeedDatabase] = None
+    embedding_db: Optional[EmbeddingDatabase] = None
+
+    try:
+        feed_db = FeedDatabase(db_manager=db_manager)
+        embedding_db = EmbeddingDatabase(db_manager=db_manager)
+        predictor = FeedPredictor(feed_db, embedding_db)
+
+        resolved_model_dir = model_dir
+        if resolved_model_dir is None:
+            resolved_model_dir = predictor.config.get("models", {}).get("path", ".")
+
+        predictor.predict_and_queue_feeds(
+            feeds,
+            resolved_model_dir,
+            force_rescore=force_rescore,
+            batch_size=batch_size,
+            refresh_embeddings=refresh_embeddings,
+        )
+    finally:
+        # Ensure connections return to the pool regardless of success/failure
+        if embedding_db is not None:
+            try:
+                embedding_db.close()
+            except Exception as exc:  # pragma: no cover - defensive cleanup
+                log.warning(f"Failed to close embedding database cleanly: {exc}")
+        if feed_db is not None:
+            try:
+                feed_db.close()
+            except Exception as exc:  # pragma: no cover - defensive cleanup
+                log.warning(f"Failed to close feed database cleanly: {exc}")

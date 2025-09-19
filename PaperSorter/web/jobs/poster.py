@@ -31,6 +31,7 @@ from ...log import log
 import os
 from datetime import datetime
 from ...providers.openai_client import get_openai_client
+from ...services.articles import fetch_articles, poster_payload
 
 
 def process_poster_job(app, job_id, feed_ids, config_path):
@@ -61,17 +62,7 @@ def process_poster_job(app, job_id, feed_ids, config_path):
 
             try:
                 with db_manager.session() as session:
-                    cursor = session.cursor(dict_cursor=True)
-
-                    # Get articles with content/tldr
-                    placeholders = ",".join(["%s"] * len(feed_ids))
-                    query = f"""
-                        SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr, link
-                        FROM feeds
-                        WHERE id IN ({placeholders})
-                    """
-                    cursor.execute(query, feed_ids)
-                    articles = cursor.fetchall()
+                    articles = fetch_articles(session, feed_ids)
             finally:
                 if owns_manager:
                     db_manager.close()
@@ -84,31 +75,13 @@ def process_poster_job(app, job_id, feed_ids, config_path):
                 return
 
             # Format articles for infographic
-            formatted_articles = []
-            for i, article in enumerate(articles):
-                try:
-                    formatted_article = {
-                        "title": article.get("title", ""),
-                        "authors": article.get("author", ""),
-                        "source": article.get("origin", ""),
-                        "published": article.get("published", "").isoformat()
-                        if article.get("published")
-                        and hasattr(article.get("published"), "isoformat")
-                        else str(article.get("published", "")),
-                        "abstract": article.get("tldr", "")
-                        or (
-                            article.get("content", "")[:500] + "..."
-                            if article.get("content")
-                            else ""
-                        ),
-                        "link": article.get("link", ""),
-                    }
-                    formatted_articles.append(formatted_article)
-                except Exception as e:
-                    log.error(
-                        f"Error formatting article {i} (id={article.get('id')}): {e}"
-                    )
-                    continue
+            formatted_articles = poster_payload(articles)
+            if not formatted_articles:
+                log.error("No valid article content to generate poster")
+                with app.poster_jobs_lock:
+                    app.poster_jobs[job_id]["status"] = "error"
+                    app.poster_jobs[job_id]["error"] = "No valid article content"
+                return
 
             # Create prompt for infographic generation
             prompt = f"""You are an expert at creating beautiful, informative scientific infographics. Create a single-page React-based HTML infographic poster that visualizes the following collection of research articles.

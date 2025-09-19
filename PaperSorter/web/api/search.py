@@ -30,12 +30,14 @@ from flask_login import login_required, current_user
 from ...log import log
 from ...embedding_database import EmbeddingDatabase
 from ...feed_database import FeedDatabase
-from ...feed_predictor import FeedPredictor
 from ..auth.decorators import admin_required
 from ..models.scholarly_article import ScholarlyArticleItem
 from ...providers.factory import ScholarlyDatabaseFactory
 from ...providers.openai_client import get_openai_client
+from ...services.articles import fetch_articles, summarization_snippets
+from ...services.summarization import ArticleSummarizer
 from ..utils.database import get_user_model_id, save_search_query
+from ...feed_predictor import refresh_embeddings_and_predictions
 
 search_bp = Blueprint("search", __name__)
 
@@ -335,128 +337,30 @@ def api_summarize():
         config = get_config().raw
 
         api_config = config.get("summarization_api")
-        if not api_config:
+        if not isinstance(api_config, dict):
             return jsonify({"error": "Summarization API not configured"}), 500
 
         db_manager = current_app.config["db_manager"]
 
+        summarizer = ArticleSummarizer.from_config(config)
+        if summarizer is None:
+            return jsonify({"error": "Summarization API credentials missing"}), 500
+
         with db_manager.session() as session:
-            cursor = session.cursor(dict_cursor=True)
+            articles = fetch_articles(session, feed_ids)
 
-            placeholders = ",".join(["%s"] * len(feed_ids))
-            query = f"""
-                SELECT id, title, author, COALESCE(journal, origin) AS origin, published, content, tldr
-                FROM feeds
-                WHERE id IN ({placeholders})
-            """
-            cursor.execute(query, feed_ids)
-            articles = cursor.fetchall()
-            cursor.close()
+        if not articles:
+            return jsonify({"error": "No articles found"}), 404
 
-            if not articles:
-                return jsonify({"error": "No articles found"}), 404
-
-        formatted_articles = []
-        article_refs = []  # Store author-year references
-        for i, article in enumerate(articles, 1):
-            try:
-                parts = []
-
-                # Extract first author's last name and year for reference
-                first_author = "Unknown"
-                year = "n.d."
-
-                if article.get("author") and article["author"] is not None:
-                    # Extract first author's last name
-                    authors = str(article["author"]).split(",")[0].strip()
-                    # Try to get last name (assume last word is last name)
-                    first_author = authors.split()[-1] if authors else "Unknown"
-                    parts.append(f"Authors: {article['author']}")
-
-                if article.get("published") and article["published"] is not None:
-                    # Extract year from published date
-                    if hasattr(article["published"], "year"):
-                        year = str(article["published"].year)
-                    elif hasattr(article["published"], "isoformat"):
-                        year = article["published"].isoformat()[:4]
-                        parts.append(f"Published: {article['published'].isoformat()}")
-                    else:
-                        pub_str = str(article["published"])
-                        if len(pub_str) >= 4:
-                            year = pub_str[:4]
-                        parts.append(f"Published: {article['published']}")
-
-                article_ref = f"{first_author} {year}"
-                article_refs.append(article_ref)
-
-                if article.get("title") and article["title"] is not None:
-                    parts.append(f"Title: {article['title']}")
-                if article.get("origin") and article["origin"] is not None:
-                    parts.append(f"Source: {article['origin']}")
-                if article.get("tldr") and article["tldr"] is not None:
-                    parts.append(f"Abstract: {article['tldr']}")
-                elif article.get("content") and article["content"] is not None:
-                    # Truncate content if too long
-                    content = str(article["content"])  # Ensure it's a string
-                    if len(content) > 500:
-                        content = content[:497] + "..."
-                    parts.append(f"Abstract: {content}")
-
-                if parts:  # Only add if we have some content
-                    formatted_articles.append(f"[{article_ref}]\n" + "\n".join(parts))
-            except Exception as e:
-                log.error(f"Error formatting article {i} (id={article.get('id')}): {e}")
-                continue
-
-        if not formatted_articles:
-            conn.close()
+        snippets = summarization_snippets(articles)
+        if not snippets:
             return jsonify({"error": "No valid articles to summarize"}), 400
 
-        articles_text = "\n\n---\n\n".join(formatted_articles)
-
-        # Create prompt
-        prompt = f"""You are an expert scientific literature analyst. Analyze the following collection of research articles and provide a focused summary.
-
-{articles_text}
-
-Start your response directly with the numbered sections below. Do not include any introductory sentences like "Here is my analysis" or "Based on the provided articles". Do not repeat the format instructions (like "2-3 sentences" or "3-4 bullet points") in your output. Begin immediately with:
-
-1. **Common Themes**: Identify the main research areas connecting these articles in 2-3 sentences.
-
-2. **Key Topics**: List the most significant concepts, methods, or findings that appear across multiple papers as 3-4 bullet points.
-
-3. **Unique Contributions**: For each article, briefly state what distinguishes it from the others in one sentence. Reference articles using their author-year format (e.g., "Smith 2023 introduces...").
-
-4. **Future Directions**: Based on these papers, provide 2-3 bullet points on the most promising research opportunities.
-
-Keep your response focused and actionable, using clear Markdown formatting. When referencing specific papers, use the author-year format provided in square brackets for each article."""
-
-        # Initialize OpenAI client with Gemini backend
-        client = OpenAI(api_key=api_config["api_key"], base_url=api_config["api_url"])
-
-        # Generate summarization
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert at analyzing and summarizing scientific literature.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=8000,
-        )
-
-        summary_markdown = response.choices[0].message.content
-
-        if not summary_markdown:
-            return jsonify({"error": "Empty response from LLM"}), 500
-
-        # Ensure it's a string
-        if not isinstance(summary_markdown, str):
-            log.error(f"Unexpected type for summary_markdown: {type(summary_markdown)}")
-            summary_markdown = str(summary_markdown)
+        try:
+            summary_markdown = summarizer.summarize(snippets)
+        except Exception as exc:
+            log.error(f"Summarization call failed: {exc}")
+            return jsonify({"error": "Failed to generate summary"}), 500
 
         # Convert Markdown to HTML
         summary_html = markdown2.markdown(
@@ -682,7 +586,6 @@ def api_scholarly_database_add():
 
         db_manager = current_app.config["db_manager"]
         db = None
-        embeddingdb = None
 
         # Check if item already exists
         db = FeedDatabase(db_manager=db_manager)
@@ -701,16 +604,14 @@ def api_scholarly_database_add():
             )
             db.commit()
 
-            # Generate embeddings and predict preferences
-            embeddingdb = EmbeddingDatabase(db_manager=db_manager)
-            predictor = FeedPredictor(db, embeddingdb)
-            model_dir = config_yaml.get("models", {}).get("path", ".")
-
             try:
-                # This will generate embeddings and add to broadcast queues if eligible
-                predictor.predict_and_queue_feeds([feed_id], model_dir)
-            except Exception as e:
-                log.error(f"Failed to process feed {feed_id}: {e}")
+                refresh_embeddings_and_predictions(
+                    [feed_id],
+                    db_manager,
+                    model_dir=config_yaml.get("models", {}).get("path", "."),
+                )
+            except Exception as exc:
+                log.error(f"Failed to process feed {feed_id}: {exc}")
                 # Continue anyway - the item is already added
 
             return jsonify(
@@ -729,8 +630,6 @@ def api_scholarly_database_add():
         log.error(f"Error adding paper from scholarly database: {e}")
         return jsonify({"error": "Failed to add paper"}), 500
     finally:
-        if embeddingdb is not None:
-            embeddingdb.close()
         if db is not None:
             db.close()
 
