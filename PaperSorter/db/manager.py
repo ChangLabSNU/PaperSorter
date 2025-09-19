@@ -9,6 +9,11 @@ import psycopg2
 import psycopg2.extensions
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.extensions import (
+    TRANSACTION_STATUS_ACTIVE,
+    TRANSACTION_STATUS_INERROR,
+    TRANSACTION_STATUS_INTRANS,
+)
 
 try:
     from pgvector.psycopg2 import register_vector
@@ -46,12 +51,19 @@ class DatabaseSession:
     def commit(self) -> None:
         if self._autocommit or self.connection.closed:
             return
-        self.connection.commit()
+        status = self.connection.get_transaction_status()
+        if status == TRANSACTION_STATUS_INTRANS:
+            self.connection.commit()
+        elif status == TRANSACTION_STATUS_ACTIVE:
+            # Active queries should be resolved before commit, but commit() will block until ready
+            self.connection.commit()
 
     def rollback(self) -> None:
         if self.connection.closed:
             return
-        self.connection.rollback()
+        status = self.connection.get_transaction_status()
+        if status in (TRANSACTION_STATUS_ACTIVE, TRANSACTION_STATUS_INTRANS, TRANSACTION_STATUS_INERROR):
+            self.connection.rollback()
 
     def close(self) -> None:
         if self._closed:
@@ -65,8 +77,10 @@ class DatabaseSession:
         self._cursors.clear()
 
         try:
-            if not self._autocommit and not self.connection.closed and self.connection.status == psycopg2.extensions.STATUS_IN_TRANSACTION:
-                self.connection.rollback()
+            if not self._autocommit and not self.connection.closed:
+                status = self.connection.get_transaction_status()
+                if status in (TRANSACTION_STATUS_INTRANS, TRANSACTION_STATUS_INERROR):
+                    self.connection.rollback()
         except Exception:
             pass
 
@@ -119,7 +133,12 @@ class PooledConnection:
         try:
             if exc_type is not None and self._conn is not None:
                 try:
-                    if self._conn.status == psycopg2.extensions.STATUS_IN_TRANSACTION:
+                    status = self._conn.get_transaction_status()
+                    if status in (
+                        TRANSACTION_STATUS_ACTIVE,
+                        TRANSACTION_STATUS_INTRANS,
+                        TRANSACTION_STATUS_INERROR,
+                    ):
                         self._conn.rollback()
                 except Exception:
                     pass
@@ -206,7 +225,12 @@ class DatabaseManager:
             self._pool.putconn(conn, close=True)
             return
         try:
-            if conn.status == psycopg2.extensions.STATUS_IN_TRANSACTION:
+            status = conn.get_transaction_status()
+            if status in (
+                TRANSACTION_STATUS_ACTIVE,
+                TRANSACTION_STATUS_INTRANS,
+                TRANSACTION_STATUS_INERROR,
+            ):
                 conn.rollback()
         except Exception:
             pass
@@ -228,6 +252,23 @@ class DatabaseManager:
         session = DatabaseSession(self, conn, autocommit)
         try:
             yield session
+            if not autocommit:
+                status = session.connection.get_transaction_status()
+                if status == TRANSACTION_STATUS_INTRANS:
+                    session.commit()
+        except Exception:
+            try:
+                if not autocommit:
+                    status = session.connection.get_transaction_status()
+                    if status in (
+                        TRANSACTION_STATUS_ACTIVE,
+                        TRANSACTION_STATUS_INTRANS,
+                        TRANSACTION_STATUS_INERROR,
+                    ):
+                        session.rollback()
+            except Exception:
+                pass
+            raise
         finally:
             session.close()
 
@@ -237,7 +278,9 @@ class DatabaseManager:
             cursor = session.cursor(dict_cursor=dict_cursor)
             try:
                 yield cursor
-                session.commit()
+                status = session.connection.get_transaction_status()
+                if status == TRANSACTION_STATUS_INTRANS:
+                    session.commit()
             finally:
                 cursor.close()
 
