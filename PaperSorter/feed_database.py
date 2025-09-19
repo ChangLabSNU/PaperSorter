@@ -21,15 +21,15 @@
 # THE SOFTWARE.
 #
 
-import psycopg2
-import psycopg2.extras
-import pandas as pd
 import re
-from .config import get_config
-from .db import DatabaseManager
 import unicodedata
 from difflib import SequenceMatcher
-from typing import List, Callable, Optional
+from typing import Callable, List, Optional
+
+import pandas as pd
+
+from .config import get_config
+from .db import Connection, DatabaseManager, RealDictCursor
 from .log import log
 
 
@@ -109,7 +109,7 @@ class FeedDatabase:
         "tldr",
     ]
 
-    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
+    def __init__(self, db_manager=None, connection: Optional[Connection] = None):
         config = get_config().raw
         db_config = config["db"]
 
@@ -129,7 +129,7 @@ class FeedDatabase:
             self.db = self._manager.connect()
             self._owns_connection = True
 
-        self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self.cursor = self.db.cursor(cursor_factory=RealDictCursor)
         self.update_idcache()
 
         self._closed = False

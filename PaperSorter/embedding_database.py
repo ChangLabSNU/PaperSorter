@@ -21,21 +21,21 @@
 # THE SOFTWARE.
 #
 
-import psycopg2
-import psycopg2.extras
-from pgvector.psycopg2 import register_vector
-import numpy as np
-from .config import get_config
-from .db import DatabaseManager
-import openai
 from typing import Optional
+
+import numpy as np
+import openai
+from pgvector.psycopg2 import register_vector
+
+from .config import get_config
+from .db import Connection, DatabaseManager, RealDictCursor
 from .log import log
 
 
 class EmbeddingDatabase:
     dtype = np.float64
 
-    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
+    def __init__(self, db_manager=None, connection: Optional[Connection] = None):
         config = get_config().raw
 
         db_config = config["db"]
@@ -57,7 +57,7 @@ class EmbeddingDatabase:
             self.db = self._manager.connect()
             self._owns_connection = True
 
-        self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self.cursor = self.db.cursor(cursor_factory=RealDictCursor)
 
         # Register pgvector extension on the underlying psycopg2 connection
         register_vector(getattr(self.db, "_conn", self.db))

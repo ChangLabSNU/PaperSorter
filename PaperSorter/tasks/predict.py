@@ -21,19 +21,20 @@
 # THE SOFTWARE.
 #
 
+import argparse
+import pickle
+from typing import Dict, List, Sequence, Tuple
+
+import numpy as np
+import xgboost as xgb
+
+from ..cli.base import BaseCommand, registry
+from ..config import get_config
+from ..db import DatabaseManager, execute_batch
 from ..feed_database import FeedDatabase
 from ..embedding_database import EmbeddingDatabase
 from ..feed_predictor import FeedPredictor
 from ..log import log, initialize_logging
-from ..cli.base import BaseCommand, registry
-import xgboost as xgb
-import numpy as np
-from ..config import get_config
-import pickle
-import argparse
-from psycopg2.extras import execute_batch
-from typing import Dict, List, Sequence, Tuple
-from ..db import DatabaseManager
 
 
 class PredictCommand(BaseCommand):

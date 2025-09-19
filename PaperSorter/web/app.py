@@ -24,7 +24,6 @@
 """Flask application factory for PaperSorter web interface."""
 
 import secrets
-import psycopg2.extras
 import threading
 import time
 from datetime import timedelta

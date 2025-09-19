@@ -21,14 +21,11 @@
 # THE SOFTWARE.
 #
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.extensions
 import re
 from typing import Mapping, Optional, Sequence
 
 from .config import get_config
-from .db import DatabaseManager
+from .db import Connection, DatabaseManager, RealDictCursor
 from .log import log
 
 
@@ -37,7 +34,7 @@ class BroadcastChannels:
 
     MAX_CONTENT_LENGTH = 1000
 
-    def __init__(self, db_manager=None, connection: Optional[psycopg2.extensions.connection] = None):
+    def __init__(self, db_manager=None, connection: Optional[Connection] = None):
         self._config = get_config().raw
 
         self._manager = db_manager
@@ -57,7 +54,7 @@ class BroadcastChannels:
             self.db = self._manager.connect()
             self._owns_connection = True
 
-        self.cursor = self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self.cursor = self.db.cursor(cursor_factory=RealDictCursor)
 
         self._closed = False
 

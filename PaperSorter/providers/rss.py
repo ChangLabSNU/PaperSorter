@@ -24,8 +24,6 @@
 """RSS/Atom feed provider implementation."""
 
 import feedparser
-import psycopg2
-import psycopg2.extras
 import uuid
 import ssl
 import urllib.request
@@ -34,7 +32,7 @@ import gzip
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Iterator, Any
-from ..db import DatabaseManager
+from ..db import DatabaseManager, RealDictCursor
 from ..log import log
 from .base import FeedProvider, FeedItem
 
@@ -113,7 +111,7 @@ class RSSProvider(FeedProvider):
             ORDER BY last_checked ASC NULLS FIRST, id ASC
         """
 
-        with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (source_type, cutoff_time))
             return cur.fetchall()
 

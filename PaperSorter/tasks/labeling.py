@@ -21,13 +21,13 @@
 # THE SOFTWARE.
 #
 
-import numpy as np
-import psycopg2
 import argparse
-import psycopg2.extras
 from contextlib import closing
+
+import numpy as np
+
 from ..config import get_config
-from ..db import DatabaseManager
+from ..db import DatabaseManager, OperationalError, RealDictCursor
 import sys
 from datetime import datetime, timedelta
 from ..log import log, initialize_logging
@@ -845,7 +845,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
     try:
         log.info("Connecting to PostgreSQL database...")
         with db_manager.connect() as db:
-            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+            with closing(db.cursor(cursor_factory=RealDictCursor)) as cursor:
                 try:
                     # Prepare user filter for queries - ensure user_ids is always a list for PostgreSQL ANY()
                     if user_id:
@@ -1004,7 +1004,7 @@ def do_create_labeling_session(config_path, sample_size, bins, score_threshold, 
                     log.error(f"Failed to create labeling session: {exc}")
                     db.rollback()
                     raise
-    except psycopg2.OperationalError as e:
+    except OperationalError as e:
         log.error(f"Failed to connect to database: {e}")
         log.info("")
         log.info("Please check your database configuration in config.yml")
@@ -1039,7 +1039,7 @@ def do_clear_labeling_session(config_path, labeler_user_id):
     try:
         log.info("Connecting to PostgreSQL database...")
         with db_manager.connect() as db:
-            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+            with closing(db.cursor(cursor_factory=RealDictCursor)) as cursor:
                 try:
                     # First, get statistics about the current session with user timezone-aware display strings
                     cursor.execute(
@@ -1183,7 +1183,7 @@ def do_clear_labeling_session(config_path, labeler_user_id):
                     log.error(f"Failed to clear labeling session: {exc}")
                     db.rollback()
                     raise
-    except psycopg2.OperationalError as e:
+    except OperationalError as e:
         log.error(f"Failed to connect to database: {e}")
         log.info("")
         log.info("Please check your database configuration in config.yml")
@@ -1214,7 +1214,7 @@ def do_show_labeling_status(config_path, user_id, show_all):
     try:
         log.info("Connecting to PostgreSQL database...")
         with db_manager.connect() as db:
-            with closing(db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)) as cursor:
+            with closing(db.cursor(cursor_factory=RealDictCursor)) as cursor:
                 try:
                     # Determine which users to show stats for
                     if user_id:
@@ -1430,7 +1430,7 @@ def do_show_labeling_status(config_path, user_id, show_all):
                 except Exception as exc:
                     log.error(f"Failed to show labeling status: {exc}")
                     raise
-    except psycopg2.OperationalError as e:
+    except OperationalError as e:
         log.error(f"Failed to connect to database: {e}")
         log.info("")
         log.info("Please check your database configuration in config.yml")

@@ -21,10 +21,9 @@
 # THE SOFTWARE.
 #
 
-import psycopg2
-from ..config import get_config
-from ..db import DatabaseManager
 import argparse
+from ..config import get_config
+from ..db import DatabaseManager, errors
 from ..log import log
 from ..data.schema import get_schema
 from ..cli.base import BaseCommand, registry
@@ -101,7 +100,7 @@ def main(config, schema, drop_existing, quiet):
                 cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
                 if not quiet:
                     log.info("pgvector extension is ready.")
-            except psycopg2.errors.InsufficientPrivilege:
+            except errors.InsufficientPrivilege:
                 cursor.execute(
                     """
                     SELECT EXISTS (
@@ -186,7 +185,7 @@ def main(config, schema, drop_existing, quiet):
                     cursor.execute(create_sql)
                     if not quiet:
                         log.debug(f"Created table: {table_name}")
-                except psycopg2.errors.UndefinedObject as e:
+                except errors.UndefinedObject as e:
                     if "type \"public.vector\" does not exist" in str(e) or "type \"vector\" does not exist" in str(e):
                         log.error(f"Failed to create table {table_name}: pgvector extension is not installed.")
                         log.error("")

@@ -24,11 +24,11 @@
 """Embeddings management commands for PaperSorter."""
 
 import argparse
-import psycopg2
-import psycopg2.extras
-from ..config import get_config
-from ..db import DatabaseManager
+
 from tabulate import tabulate
+
+from ..config import get_config
+from ..db import DatabaseManager, RealDictCursor
 
 from ..log import log, initialize_logging
 from ..cli.base import BaseCommand, registry
@@ -245,7 +245,7 @@ class EmbeddingsCommand(BaseCommand):
 
     def handle_status(self, args: argparse.Namespace) -> int:
         """Show embeddings table status and statistics."""
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
 
         try:
             # Get embeddings count

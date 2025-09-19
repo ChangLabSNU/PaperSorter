@@ -26,8 +26,7 @@
 from typing import Any
 import random
 import string
-import psycopg2
-import psycopg2.extras
+from ...db import RealDictCursor
 
 
 def _connection(conn_or_session: Any):
@@ -95,7 +94,7 @@ def get_unlabeled_item(conn, user=None):
         user: Current user object (optional, for model selection)
     """
     connection = _connection(conn)
-    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor = connection.cursor(cursor_factory=RealDictCursor)
 
     # Get all unlabeled items and pick one randomly, joining with feeds for the URL and predicted score
     if user:

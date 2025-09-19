@@ -21,20 +21,21 @@
 # THE SOFTWARE.
 #
 
-from ..log import log, initialize_logging
+import argparse
+import os
+import pickle
+
+import numpy as np
+import xgboost as xgb
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
 from ..cli.base import BaseCommand, registry
 from ..cli.types import probability_float
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
-import xgboost as xgb
-import numpy as np
-import pickle
-import argparse
-from ..db import DatabaseManager
 from ..config import get_config
-from psycopg2 import sql
-import os
+from ..db import DatabaseManager, sql
+from ..log import log, initialize_logging
 
 
 class TrainCommand(BaseCommand):

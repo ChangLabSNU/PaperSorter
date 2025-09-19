@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, Optional
 import psycopg2
 import psycopg2.extensions
 import psycopg2.extras
+from psycopg2 import sql as psycopg2_sql, errors as psycopg2_errors
 from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extensions import (
     TRANSACTION_STATUS_ACTIVE,
@@ -22,6 +23,15 @@ except ImportError:  # pragma: no cover - pgvector should be installed, but keep
         return None
 
 from ..log import log
+
+# Re-export psycopg2 helpers so callers can avoid importing psycopg2 directly
+RealDictCursor = psycopg2.extras.RealDictCursor
+execute_batch = psycopg2.extras.execute_batch
+sql = psycopg2_sql
+errors = psycopg2_errors
+OperationalError = psycopg2.OperationalError
+Connection = psycopg2.extensions.connection
+Cursor = psycopg2.extensions.cursor
 
 @dataclass
 class PoolConfig:
