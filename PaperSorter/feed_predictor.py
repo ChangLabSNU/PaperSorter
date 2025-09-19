@@ -26,10 +26,10 @@ import xgboost as xgb
 import pickle
 import os
 from .config import get_config
-import openai
 from .log import log
 import time
 import random
+from .providers.openai_client import get_openai_client
 
 
 class FeedPredictor:
@@ -42,15 +42,9 @@ class FeedPredictor:
 
         # Set up OpenAI client for embeddings
         embedding_config = self.config.get("embedding_api", {})
-        self.api_key = embedding_config.get("api_key")
-        self.api_url = embedding_config.get("api_url", "https://api.openai.com/v1")
         self.embedding_model = embedding_config.get("model", "text-embedding-3-large")
         self.embedding_dimensions = embedding_config.get("dimensions")
-        self.openai_client = (
-            openai.OpenAI(api_key=self.api_key, base_url=self.api_url)
-            if self.api_key
-            else None
-        )
+        self.openai_client = get_openai_client("embedding_api", cfg=self.config, optional=True)
 
     def generate_embeddings_batch(self, feed_ids, batch_size=100):
         """

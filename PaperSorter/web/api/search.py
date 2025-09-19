@@ -27,7 +27,6 @@ import json
 import markdown2
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from openai import OpenAI
 from ...log import log
 from ...embedding_database import EmbeddingDatabase
 from ...feed_database import FeedDatabase
@@ -35,6 +34,7 @@ from ...feed_predictor import FeedPredictor
 from ..auth.decorators import admin_required
 from ..models.scholarly_article import ScholarlyArticleItem
 from ...providers.factory import ScholarlyDatabaseFactory
+from ...providers.openai_client import get_openai_client
 from ..utils.database import get_user_model_id, save_search_query
 
 search_bp = Blueprint("search", __name__)
@@ -76,7 +76,7 @@ def assist_query(query_text, config):
     try:
         # Load summarization API configuration (reuse for AI assist)
         api_config = config.get("summarization_api")
-        if not api_config:
+        if not isinstance(api_config, dict):
             log.warning("Summarization API not configured for AI assist")
             return None
 
@@ -84,7 +84,10 @@ def assist_query(query_text, config):
         user_prompt = AI_ASSIST_USER_PROMPT.format(query_text=query_text)
 
         # Initialize OpenAI client
-        client = OpenAI(api_key=api_config["api_key"], base_url=api_config.get("api_url", "https://api.openai.com/v1"))
+        client = get_openai_client("summarization_api", cfg=config, optional=True)
+        if client is None:
+            log.warning("Summarization API credentials missing for AI assist")
+            return None
 
         # Generate assisted query
         response = client.chat.completions.create(

@@ -27,10 +27,10 @@ import json
 import time
 from ...config import get_config
 from ...db import DatabaseManager
-from openai import OpenAI
 from ...log import log
 import os
 from datetime import datetime
+from ...providers.openai_client import get_openai_client
 
 
 def process_poster_job(app, job_id, feed_ids, config_path):
@@ -39,7 +39,7 @@ def process_poster_job(app, job_id, feed_ids, config_path):
         config = get_config(config_path).raw
 
         api_config = config.get("summarization_api")
-        if not api_config:
+        if not isinstance(api_config, dict):
             log.error("Summarization API not configured in config file")
             with app.poster_jobs_lock:
                 app.poster_jobs[job_id]["status"] = "error"
@@ -153,18 +153,18 @@ IMPORTANT: For the Article Insights section, avoid boring lists. Create rich vis
 Generate ONLY the complete HTML code, starting with <!DOCTYPE html> and ending with </html>. Make it visually stunning and informative, focusing on clarity and impact."""
 
             # Initialize OpenAI client
-            client = OpenAI(
-                api_key=api_config["api_key"],
-                base_url=api_config.get("api_url", "https://api.openai.com/v1"),
-            )
+            client = get_openai_client("summarization_api", cfg=config, optional=True)
+            if client is None:
+                log.error("Summarization API credentials missing for poster generation")
+                with app.poster_jobs_lock:
+                    app.poster_jobs[job_id]["status"] = "error"
+                    app.poster_jobs[job_id]["error"] = "Summarization API credentials missing"
+                return
 
             # Generate infographic
             start_time = time.time()
 
             try:
-                # Set a longer timeout for the client
-                client.timeout = 300.0  # 5 minutes timeout
-
                 response = client.chat.completions.create(
                     model=api_config.get("model", "gpt-4o-mini"),
                     messages=[
