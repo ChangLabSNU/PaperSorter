@@ -197,7 +197,26 @@ ALTER COLUMN show_other_scores SET NOT NULL;
 COMMENT ON COLUMN papersorter.channels.show_other_scores IS 'Whether to show scores from other models in addition to the channel''s primary model';
 
 -- =====================================================================
--- 10. Verify migration success
+-- 10. Add include_abstracts column to channels table
+-- =====================================================================
+
+-- Add include_abstracts column with default value TRUE
+ALTER TABLE papersorter.channels
+ADD COLUMN IF NOT EXISTS include_abstracts BOOLEAN DEFAULT TRUE;
+
+-- Ensure any NULLs are set to the default
+UPDATE papersorter.channels
+SET include_abstracts = TRUE
+WHERE include_abstracts IS NULL;
+
+-- Make the column NOT NULL after setting defaults
+ALTER TABLE papersorter.channels
+ALTER COLUMN include_abstracts SET NOT NULL;
+
+COMMENT ON COLUMN papersorter.channels.include_abstracts IS 'Include paper abstracts in channel notifications';
+
+-- =====================================================================
+-- 11. Verify migration success
 -- =====================================================================
 
 -- Check that all expected columns exist
@@ -270,11 +289,19 @@ BEGIN
         RAISE EXCEPTION 'Migration failed: channels.show_other_scores column not found';
     END IF;
 
+    -- Check channels.include_abstracts column
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'papersorter'
+                   AND table_name = 'channels'
+                   AND column_name = 'include_abstracts') THEN
+        RAISE EXCEPTION 'Migration failed: channels.include_abstracts column not found';
+    END IF;
+
     RAISE NOTICE 'Migration completed successfully!';
 END $$;
 
 -- =====================================================================
--- 11. Add assisted_query column to saved_searches table for AI Assist
+-- 12. Add assisted_query column to saved_searches table for AI Assist
 -- =====================================================================
 
 -- Add column to store AI-enhanced version of search queries
@@ -296,4 +323,5 @@ COMMIT;
 -- 5. Users can now set theme preference (light/dark/auto) and timezone
 -- 6. Models now have a score_name field for customizing score display names
 -- 7. Channels can now show scores from multiple models with show_other_scores field
+-- 8. Channels can toggle abstracts in notifications with include_abstracts field
 -- =====================================================================

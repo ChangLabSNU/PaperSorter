@@ -99,9 +99,11 @@ class DiscordProvider(NotificationProvider):
         # Color based on score
         embed["color"] = self._get_score_color(item.get("score"))
 
+        include_abstracts = message_options.get("include_abstracts", True)
+
         # Description (content/abstract)
         content = item.get("content", "").strip()
-        if content:
+        if include_abstracts and content:
             embed["description"] = self.limit_text_length(
                 content, self.EMBED_DESCRIPTION_MAX
             )

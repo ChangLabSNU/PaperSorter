@@ -120,6 +120,7 @@ TABLE_TEMPLATES = [
             ("is_active", "boolean DEFAULT true NOT NULL"),
             ("broadcast_limit", "integer DEFAULT 20 NOT NULL CHECK (broadcast_limit >= 1 AND broadcast_limit <= 100)"),
             ("broadcast_hours", "text"),
+            ("include_abstracts", "boolean DEFAULT true NOT NULL"),
             ("show_other_scores", "boolean DEFAULT false NOT NULL"),
         ]
     },

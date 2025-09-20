@@ -100,6 +100,8 @@ class EmailProvider(NotificationProvider):
                 reverse=True,
             )
 
+            include_abstracts = message_options.get("include_abstracts", True)
+
             # Prepare context for templates
             now = datetime.now()
             context = {
@@ -109,7 +111,13 @@ class EmailProvider(NotificationProvider):
                 "source_count": len(set(item.get("origin", "") for item in items)),
                 "model_name": message_options.get("model_name", "Default"),
                 "channel_name": message_options.get("channel_name", "PaperSorter"),
+                "include_abstracts": include_abstracts,
             }
+
+            if not include_abstracts:
+                for paper in sorted_items:
+                    paper["content"] = ""
+                    paper["tldr"] = None
 
             # Generate subject
             subject = self.subject_template.format(date=now)

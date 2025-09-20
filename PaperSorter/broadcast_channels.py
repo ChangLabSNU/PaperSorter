@@ -96,7 +96,7 @@ class BroadcastChannels:
         """Get a specific channel's configuration."""
         self.cursor.execute(
             """
-            SELECT id, name, endpoint_url, score_threshold, model_id
+            SELECT id, name, endpoint_url, score_threshold, model_id, include_abstracts
             FROM channels
             WHERE id = %s
         """,
@@ -107,7 +107,7 @@ class BroadcastChannels:
     def get_all_channels(self):
         """Get all channels with their settings."""
         self.cursor.execute("""
-            SELECT id, name, endpoint_url, score_threshold, model_id
+            SELECT id, name, endpoint_url, score_threshold, model_id, include_abstracts
             FROM channels
             ORDER BY id
         """)
@@ -115,7 +115,13 @@ class BroadcastChannels:
 
     def update_channel(self, channel_id, **kwargs):
         """Update channel settings."""
-        allowed_fields = ["name", "endpoint_url", "score_threshold", "model_id"]
+        allowed_fields = [
+            "name",
+            "endpoint_url",
+            "score_threshold",
+            "model_id",
+            "include_abstracts",
+        ]
         updates = []
         values = []
 
@@ -210,6 +216,7 @@ class BroadcastChannels:
             "model_name": model_name or "Default",
             "channel_name": channel.get("name", "Channel"),
             "score_name": score_name or "Score",
+            "include_abstracts": channel.get("include_abstracts", True),
         }
 
     def send_to_channel(self, channel: Mapping, papers: Sequence[Mapping]) -> bool:
@@ -228,6 +235,7 @@ class BroadcastChannels:
             raise ValueError("Channel is missing endpoint URL for broadcasting")
 
         provider = create_notification_provider(webhook_url)
+        include_abstracts = channel.get("include_abstracts", True)
         message_options = self._build_message_options(channel)
         base_url = (
             self._config.get("web", {}).get("base_url")
@@ -236,6 +244,11 @@ class BroadcastChannels:
         )
 
         prepared_items = [self._prepare_item(item) for item in papers]
+
+        if not include_abstracts:
+            for prepared in prepared_items:
+                prepared["content"] = ""
+                prepared["tldr"] = None
 
         try:
             results = provider.send_notifications(prepared_items, message_options, base_url)

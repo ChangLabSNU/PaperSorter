@@ -81,20 +81,32 @@ class BroadcastCommand(BaseCommand):
 registry.register(BroadcastCommand)
 
 
-def normalize_item_for_display(item, max_content_length):
+def normalize_item_for_display(item, max_content_length, include_abstracts=True):
     # XXX: Fix the source field for the aggregated items.
-    if item.get("origin_source") == "QBio Feed Aggregation" and "  " in item["content"]:
-        source, content = item["content"].split("  ", 1)
+    content_text = item.get("content") or ""
+
+    if item.get("origin_source") == "QBio Feed Aggregation" and "  " in content_text:
+        source, content = content_text.split("  ", 1)
         item["origin"] = source  # Override journal display with parsed source
         item["content"] = normalize_text(content)
+        content_text = item.get("content") or ""
+
+    if not include_abstracts:
+        item["tldr"] = None
+        item["content"] = ""
+        return
 
     # Replace the abstract content with the TLDR if it's available.
-    if item["tldr"] and len(item["tldr"]) >= 5:
-        item["content"] = "(tl;dr) " + item["tldr"]
+    tldr = item.get("tldr")
+    if tldr and isinstance(tldr, str) and len(tldr) >= 5:
+        item["content"] = "(tl;dr) " + normalize_text(tldr)
+    else:
+        item["content"] = normalize_text(content_text)
 
     # Truncate the content if it's too long.
-    if len(item["content"]) > max_content_length:
-        item["content"] = limit_text_length(item["content"], max_content_length)
+    content_value = item.get("content") or ""
+    if len(content_value) > max_content_length:
+        item["content"] = limit_text_length(content_value, max_content_length)
 
 
 def limit_text_length(text, limit):
@@ -140,7 +152,8 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
         # Get all active channels
         feeddb.cursor.execute("""
             SELECT c.id, c.name, c.endpoint_url, c.model_id, c.broadcast_limit,
-                   c.broadcast_hours, c.show_other_scores, m.name as model_name, m.score_name
+                   c.broadcast_hours, c.show_other_scores, c.include_abstracts,
+                   m.name as model_name, m.score_name
             FROM channels c
             LEFT JOIN models m ON c.model_id = m.id
             WHERE c.is_active = TRUE AND c.endpoint_url IS NOT NULL
@@ -175,10 +188,13 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
                 )
                 continue
 
+            include_abstracts = channel.get("include_abstracts", True)
+
             message_options = {
                 "model_name": model_name,
                 "channel_name": channel_name,
                 "score_name": score_name,
+                "include_abstracts": include_abstracts,
             }
 
             # Check and remove duplicates from the broadcast queue for this channel
@@ -263,7 +279,7 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
             for feed_id, info in queue_items.iterrows():
                 # Add the feed_id to info dict for the More Like This button
                 info["id"] = feed_id
-                normalize_item_for_display(info, max_content_length)
+                normalize_item_for_display(info, max_content_length, include_abstracts)
                 item_dict = info.to_dict()
 
                 # Add other model scores if available

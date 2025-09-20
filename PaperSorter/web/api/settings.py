@@ -83,6 +83,7 @@ def api_get_channels():
             """
             SELECT c.id, c.name, c.endpoint_url, c.score_threshold, c.model_id, c.is_active,
                    c.broadcast_limit, c.broadcast_hours, c.show_other_scores,
+                   c.include_abstracts,
                    m.name as model_name
             FROM channels c
             LEFT JOIN models m ON c.model_id = m.id
@@ -201,8 +202,8 @@ def api_create_channel():
             cursor.execute(
                 """
                 INSERT INTO channels (name, endpoint_url, score_threshold, model_id, is_active,
-                                      broadcast_limit, broadcast_hours, show_other_scores)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                      broadcast_limit, broadcast_hours, show_other_scores, include_abstracts)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -214,6 +215,7 @@ def api_create_channel():
                     data.get("broadcast_limit", 20),
                     broadcast_hours,
                     data.get("show_other_scores", False),
+                    data.get("include_abstracts", True),
                 ),
             )
             channel_id = cursor.fetchone()["id"]
@@ -258,7 +260,7 @@ def api_update_channel(channel_id):
                 """
                 UPDATE channels
                 SET name = %s, endpoint_url = %s, score_threshold = %s, model_id = %s, is_active = %s,
-                    broadcast_limit = %s, broadcast_hours = %s, show_other_scores = %s
+                    broadcast_limit = %s, broadcast_hours = %s, show_other_scores = %s, include_abstracts = %s
                 WHERE id = %s
                 """,
                 (
@@ -270,6 +272,7 @@ def api_update_channel(channel_id):
                     data.get("broadcast_limit", 20),
                     broadcast_hours,
                     data.get("show_other_scores", False),
+                    data.get("include_abstracts", True),
                     channel_id,
                 ),
             )
@@ -308,7 +311,8 @@ def api_test_channel(channel_id):
             cursor = session.cursor(dict_cursor=True)
             cursor.execute(
                 """
-                SELECT c.id, c.name, c.endpoint_url, m.name as model_name, m.score_name
+                SELECT c.id, c.name, c.endpoint_url, c.include_abstracts,
+                       m.name as model_name, m.score_name
                 FROM channels c
                 LEFT JOIN models m ON c.model_id = m.id
                 WHERE c.id = %s
@@ -341,6 +345,7 @@ def api_test_channel(channel_id):
             "model_name": channel["model_name"] or "Default",
             "channel_name": channel["name"],
             "score_name": channel.get("score_name", "Score"),
+            "include_abstracts": channel.get("include_abstracts", True),
         }
 
         from ...config import get_config

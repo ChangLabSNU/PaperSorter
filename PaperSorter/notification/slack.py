@@ -128,9 +128,11 @@ class SlackProvider(NotificationProvider):
                 }
             )
 
-        # Add content
+        include_abstracts = message_options.get("include_abstracts", True)
+
+        # Add content when allowed
         content = item.get("content", "").strip()
-        if content:
+        if include_abstracts and content:
             blocks.append(
                 {
                     "type": "section",

@@ -124,6 +124,7 @@ CREATE TABLE papersorter.channels (
     is_active boolean DEFAULT true NOT NULL,
     broadcast_limit integer DEFAULT 20 NOT NULL,
     broadcast_hours text,
+    include_abstracts boolean DEFAULT true NOT NULL,
     CONSTRAINT broadcast_limit_check CHECK (((broadcast_limit >= 1) AND (broadcast_limit <= 100)))
 );
 
@@ -680,7 +681,6 @@ ALTER TABLE ONLY papersorter.saved_searches
 
 ALTER TABLE ONLY papersorter.users
     ADD CONSTRAINT users_primary_channel_fk FOREIGN KEY (primary_channel_id) REFERENCES papersorter.channels(id) ON DELETE SET NULL;
-
 
 
 

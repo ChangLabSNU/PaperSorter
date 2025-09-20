@@ -379,6 +379,11 @@
                             <input type="checkbox" id="channelShowOtherScores" style="margin-right: 8px;">
                             <span>Show Other Model Scores</span>
                         </label>
+                        <br style="margin-bottom: 8px;">
+                        <label style="display: inline-flex; align-items: center; font-weight: normal; white-space: nowrap;">
+                            <input type="checkbox" id="channelIncludeAbstracts" checked style="margin-right: 8px;">
+                            <span>Include Abstracts in Messages</span>
+                        </label>
                     </div>
                 </div>
                 <div class="form-row">
@@ -633,6 +638,7 @@
                             <th>Score Threshold</th>
                             <th>Model</th>
                             <th>Broadcast Limit</th>
+                            <th>Abstracts</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -650,6 +656,11 @@
                                 <td>${toThresholdPercent(channel.score_threshold)}</td>
                                 <td>${channel.model_name || `Model ${channel.model_id || 1}`}</td>
                                 <td>${channel.broadcast_limit || 20}</td>
+                                <td>
+                                    <span class="tag ${channel.include_abstracts !== false ? 'tag-active' : 'tag-inactive'}">
+                                        ${channel.include_abstracts !== false ? 'On' : 'Off'}
+                                    </span>
+                                </td>
                                 <td>
                                     <span class="tag ${channel.is_active !== false ? 'tag-active' : 'tag-inactive'}">
                                         ${channel.is_active !== false ? 'Active' : 'Inactive'}
@@ -673,6 +684,7 @@
             document.getElementById('modalTitle').textContent = 'Add Channel';
             document.getElementById('channelForm').reset();
             document.getElementById('channelId').value = '';
+            document.getElementById('channelIncludeAbstracts').checked = true;
             document.getElementById('channelScoreThreshold').value = 70;
             // Reset validation messages
             document.getElementById('endpointHelp').style.display = 'block';
@@ -710,6 +722,7 @@
             document.getElementById('channelBroadcastLimit').value = channel.broadcast_limit || 20;
             document.getElementById('channelIsActive').checked = channel.is_active !== false;
             document.getElementById('channelShowOtherScores').checked = channel.show_other_scores === true;
+            document.getElementById('channelIncludeAbstracts').checked = channel.include_abstracts !== false;
 
             // Set broadcast hours
             setHoursFromArray(channel.broadcast_hours_array);
@@ -825,6 +838,7 @@
                 broadcast_limit: parseInt(document.getElementById('channelBroadcastLimit').value),
                 is_active: document.getElementById('channelIsActive').checked,
                 show_other_scores: document.getElementById('channelShowOtherScores').checked,
+                include_abstracts: document.getElementById('channelIncludeAbstracts').checked,
                 broadcast_hours_array: getHoursAsArray()
             };
 

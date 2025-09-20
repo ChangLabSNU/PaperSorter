@@ -226,11 +226,11 @@
                 </div>
                 {% endif %}
 
-                {% if paper.content %}
+                {% if include_abstracts and paper.content %}
                 <div class="paper-abstract">
                     {{ paper.content|truncate(500) }}
                 </div>
-                {% elif paper.tldr %}
+                {% elif include_abstracts and paper.tldr %}
                 <div class="paper-abstract">
                     <em>Summary:</em> {{ paper.tldr }}
                 </div>

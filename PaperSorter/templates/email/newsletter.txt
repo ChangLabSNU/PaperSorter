@@ -38,10 +38,10 @@ Score: {{ "%.0f"|format(paper.score * 100) }}
 {%- endif %}
 {% endif %}
 
-{% if paper.content -%}
+{% if include_abstracts and paper.content -%}
 Abstract:
 {{ paper.content|truncate(500)|wordwrap(78) }}
-{%- elif paper.tldr -%}
+{%- elif include_abstracts and paper.tldr -%}
 Summary:
 {{ paper.tldr|wordwrap(78) }}
 {%- endif %}
