@@ -403,13 +403,75 @@
         let currentItemId = null;
         let currentItemUrl = null;
         let itemHistory = [];
+        let currentStats = {{ stats|tojson }};
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) {
+                return '';
+            }
+            return text
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         function updateCurrentItem() {
             const item = document.getElementById('current-item');
             if (item) {
                 currentItemId = item.getAttribute('data-id');
                 currentItemUrl = item.getAttribute('data-url');
+            } else {
+                currentItemId = null;
+                currentItemUrl = null;
             }
+        }
+
+        function updateStatsDisplay(stats) {
+            if (!stats) {
+                return;
+            }
+            currentStats = stats;
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = `${stats.progress}%`;
+            }
+            const statsElements = document.querySelectorAll('.stats span');
+            if (statsElements.length >= 4) {
+                statsElements[0].textContent = `Labeled: ${stats.labeled}`;
+                statsElements[1].textContent = `Remaining: ${stats.unlabeled}`;
+                statsElements[2].textContent = `Total: ${stats.total}`;
+                statsElements[3].textContent = `Progress: ${stats.progress.toFixed(1)}%`;
+            }
+        }
+
+        function formatDates() {
+            const dateElements = document.querySelectorAll('.item-date');
+            dateElements.forEach(elem => {
+                const timestamp = elem.getAttribute('data-timestamp');
+                if (timestamp) {
+                    elem.textContent = formatDate(parseFloat(timestamp));
+                } else {
+                    elem.textContent = '';
+                }
+            });
+        }
+
+        function pushCurrentToHistory() {
+            if (!currentItemId) {
+                return;
+            }
+            const currentNode = document.getElementById('current-item');
+            if (!currentNode) {
+                return;
+            }
+            itemHistory.push({
+                id: currentItemId,
+                item: currentNode.cloneNode(true),
+                stats: currentStats ? JSON.parse(JSON.stringify(currentStats)) : null,
+            });
         }
 
         function visitArticle() {
@@ -418,14 +480,41 @@
             }
         }
 
-        function labelItem(label) {
-            if (!currentItemId) return;
+        function handleNextItemResponse(data) {
+            if (!data) {
+                return;
+            }
+            if (data.status === 'success' && data.item) {
+                updatePage(data.item, data.stats);
+            } else if (data.status === 'complete') {
+                handleComplete(data.stats);
+            } else if (data.status === 'error') {
+                console.error('Labeling error:', data.message);
+            }
+        }
 
-            // Add current item to history before moving to next
-            itemHistory.push({
-                id: currentItemId,
-                item: document.getElementById('current-item').cloneNode(true)
-            });
+        function handleComplete(stats) {
+            if (stats) {
+                updateStatsDisplay(stats);
+            }
+            window.location.href = '/labeling';
+        }
+
+        function requestNextItem() {
+            fetch('/label/next')
+                .then(response => response.json())
+                .then(handleNextItemResponse)
+                .catch(error => {
+                    console.error('Failed to fetch next item:', error);
+                });
+        }
+
+        function labelItem(label) {
+            if (!currentItemId) {
+                return;
+            }
+
+            pushCurrentToHistory();
 
             fetch('/label', {
                 method: 'POST',
@@ -434,100 +523,91 @@
                 },
                 body: JSON.stringify({
                     id: currentItemId,
-                    label: label
-                })
+                    label: label,
+                }),
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    loadNextItem();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+                .then(response => response.json())
+                .then(handleNextItemResponse)
+                .catch(error => {
+                    console.error('Error submitting label:', error);
+                });
         }
 
         function skipItem() {
-            // Add current item to history before skipping
-            itemHistory.push({
-                id: currentItemId,
-                item: document.getElementById('current-item').cloneNode(true)
-            });
-            loadNextItem();
+            if (!currentItemId) {
+                return;
+            }
+
+            pushCurrentToHistory();
+            requestNextItem();
         }
 
         function goToPrevious() {
-            if (itemHistory.length === 0) return;
+            if (itemHistory.length === 0) {
+                return;
+            }
 
             const previousItem = itemHistory.pop();
             const content = document.querySelector('.content');
             content.innerHTML = '';
             content.appendChild(previousItem.item);
 
-            currentItemId = previousItem.id;
-        }
-
-        function loadNextItem() {
-            // Simply reload the page to get the next item
-            window.location.reload();
+            updateCurrentItem();
+            if (previousItem.stats) {
+                updateStatsDisplay(previousItem.stats);
+            }
+            formatDates();
         }
 
         function updatePage(item, stats) {
-            // Update progress bar and stats
-            document.querySelector('.progress-bar').style.width = stats.progress + '%';
-            const statsElements = document.querySelectorAll('.stats span');
-            statsElements[0].textContent = `Labeled: ${stats.labeled}`;
-            statsElements[1].textContent = `Remaining: ${stats.unlabeled}`;
-            statsElements[2].textContent = `Total: ${stats.total}`;
-            statsElements[3].textContent = `Progress: ${stats.progress.toFixed(1)}%`;
+            updateStatsDisplay(stats);
 
-            // Update content
             const content = document.querySelector('.content');
-            let metaHtml = '';
 
-            if (item.author) {
-                metaHtml += `
-                    <div class="meta-item">
-                        <div class="meta-label">Authors</div>
-                        <div>${item.author}</div>
-                    </div>
-                `;
-            }
+            const scoreBadgeHtml = item.predicted_score !== null && item.predicted_score !== undefined
+                ? `<div><span class="score-badge" id="predictedScoreBadge">${item.predicted_score.toFixed(3)}</span></div>`
+                : '';
 
+            let metaRow = '';
             if (item.origin) {
-                metaHtml += `
-                    <div class="meta-item">
-                        <div class="meta-label">Origin</div>
-                        <div>${item.origin}</div>
-                    </div>
-                `;
+                metaRow += `<span style="font-weight: bold;">${escapeHtml(item.origin)}</span>`;
+            }
+            if (item.published_timestamp) {
+                metaRow += `<span class="item-date" style="margin-left: 10px;" data-timestamp="${item.published_timestamp}"></span>`;
             }
 
-
-            const abstractHtml = item.content ? `<div class="abstract">${item.content}</div>` : '';
-
-            let scoreBadgeHtml = '';
-            if (item.score !== null) {
-                // Apply gamma transformation (square root) to weight towards red
-                const gamma = Math.pow(item.score, 0.5);
-                // Interpolate between gray (149,165,166) and red (231,116,60)
-                const r = Math.round(149 + (231 - 149) * gamma);
-                const g = Math.round(165 + (116 - 165) * gamma);
-                const b = Math.round(166 + (60 - 166) * gamma);
-                scoreBadgeHtml = `<div><span class="score-badge" style="background-color: rgb(${r}, ${g}, ${b});">${item.score.toFixed(3)}</span></div>`;
+            let metaHtml = '';
+            if (metaRow) {
+                metaHtml += `<div class="meta-row">${metaRow}</div>`;
             }
+            if (item.author) {
+                metaHtml += `<div class="meta-row">${escapeHtml(item.author)}</div>`;
+            }
+
+            const abstractHtml = item.content
+                ? `<div class="abstract">${escapeHtml(item.content)}</div>`
+                : '';
+
+            const itemUrl = item.link ? escapeHtml(item.link) : '';
 
             content.innerHTML = `
-                <div class="paper-item" id="current-item" data-id="${item.id}" data-url="${item.link || ''}">
+                <div class="paper-item" id="current-item" data-id="${item.id}" data-url="${itemUrl}">
                     ${scoreBadgeHtml}
-                    <div class="title">${item.title}</div>
+                    <div class="title">${escapeHtml(item.title)}</div>
                     <div class="meta">${metaHtml}</div>
                     ${abstractHtml}
                 </div>
             `;
 
+            if (item.predicted_score !== null && item.predicted_score !== undefined) {
+                const badge = document.getElementById('predictedScoreBadge');
+                if (badge && typeof getScoreGradientColor === 'function') {
+                    badge.style.backgroundColor = getScoreGradientColor(item.predicted_score);
+                }
+            }
+
             updateCurrentItem();
+            formatDates();
         }
 
         // Keyboard shortcuts
@@ -564,14 +644,7 @@
 
         // Initialize
         updateCurrentItem();
-
-        // Format dates using the global formatDate from common.js
-        const dateElements = document.querySelectorAll('.item-date');
-        dateElements.forEach(elem => {
-            const timestamp = elem.getAttribute('data-timestamp');
-            if (timestamp) {
-                elem.textContent = formatDate(parseFloat(timestamp));
-            }
-        });
+        updateStatsDisplay(currentStats);
+        formatDates();
     </script>
 {% endblock %}

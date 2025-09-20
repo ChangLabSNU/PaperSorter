@@ -23,6 +23,9 @@
 
 """Main routes for the web interface."""
 
+from datetime import datetime
+from decimal import Decimal
+
 from flask import (
     Blueprint,
     render_template,
@@ -36,6 +39,57 @@ from flask_login import login_required, current_user
 from .utils.database import get_unlabeled_item, get_labeling_stats
 
 main_bp = Blueprint("main", __name__)
+
+
+def _serialize_labeling_item(item):
+    """Convert a labeling session row to a JSON-serialisable dict."""
+    if not item:
+        return None
+
+    predicted_score = item.get("predicted_score")
+    if isinstance(predicted_score, Decimal):
+        predicted_score = float(predicted_score)
+
+    score = item.get("score")
+    if isinstance(score, Decimal):
+        score = float(score)
+
+    published = item.get("published")
+    if isinstance(published, datetime):
+        published_iso = published.isoformat()
+        published_ts = published.timestamp()
+    else:
+        published_iso = None
+        published_ts = None
+
+    return {
+        "id": item.get("id"),
+        "feed_id": item.get("feed_id"),
+        "title": item.get("title"),
+        "author": item.get("author"),
+        "origin": item.get("origin"),
+        "content": item.get("content"),
+        "link": item.get("link"),
+        "score": score,
+        "predicted_score": predicted_score,
+        "published": published_iso,
+        "published_timestamp": published_ts,
+    }
+
+
+def _next_item_payload(conn):
+    """Fetch the next item and stats and convert them for JSON responses."""
+    item = get_unlabeled_item(conn, current_user)
+    stats = get_labeling_stats(conn, current_user)
+
+    if not item:
+        return {"status": "complete", "stats": stats}
+
+    return {
+        "status": "success",
+        "item": _serialize_labeling_item(item),
+        "stats": stats,
+    }
 
 
 @main_bp.route("/")
@@ -169,53 +223,68 @@ def label_item():
                 result = cursor.fetchone()
                 cursor.close()
 
-                if result:
-                    feed_id = result["feed_id"]
-                    user_id = result["user_id"]
+                if not result:
+                    return jsonify({"status": "error", "message": "Labeling session not found"}), 404
 
-                    cursor = session.cursor()
+                feed_id = result["feed_id"]
+                user_id = result["user_id"]
+
+                cursor = session.cursor()
+                cursor.execute(
+                    """
+                    SELECT id FROM preferences
+                    WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
+                    """,
+                    (feed_id, user_id),
+                )
+                existing = cursor.fetchone()
+
+                if existing:
                     cursor.execute(
                         """
-                        SELECT id FROM preferences
+                        UPDATE preferences
+                        SET score = %s, time = CURRENT_TIMESTAMP
                         WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
                         """,
-                        (feed_id, user_id),
+                        (float(label_value), feed_id, user_id),
                     )
-                    existing = cursor.fetchone()
-
-                    if existing:
-                        cursor.execute(
-                            """
-                            UPDATE preferences
-                            SET score = %s, time = CURRENT_TIMESTAMP
-                            WHERE feed_id = %s AND user_id = %s AND source = 'interactive'
-                            """,
-                            (float(label_value), feed_id, user_id),
-                        )
-                    else:
-                        cursor.execute(
-                            """
-                            INSERT INTO preferences (feed_id, user_id, time, score, source)
-                            VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
-                            """,
-                            (feed_id, user_id, float(label_value)),
-                        )
-
+                else:
                     cursor.execute(
                         """
-                        UPDATE labeling_sessions
-                        SET score = %s, update_time = CURRENT_TIMESTAMP
-                        WHERE id = %s AND user_id = %s
+                        INSERT INTO preferences (feed_id, user_id, time, score, source)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, %s, 'interactive')
                         """,
-                        (float(label_value), session_id, current_user.id),
+                        (feed_id, user_id, float(label_value)),
                     )
-                    cursor.close()
 
-            return jsonify({"status": "success"})
+                cursor.execute(
+                    """
+                    UPDATE labeling_sessions
+                    SET score = %s, update_time = CURRENT_TIMESTAMP
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (float(label_value), session_id, current_user.id),
+                )
+                cursor.close()
+
+                payload = _next_item_payload(session.connection)
+                return jsonify(payload)
         except Exception as exc:
             return jsonify({"status": "error", "message": str(exc)}), 500
 
     return jsonify({"status": "error", "message": "Invalid request"}), 400
+
+
+@main_bp.route("/label/next", methods=["GET"])
+@login_required
+def next_label_item():
+    """Return the next unlabeled item and updated stats."""
+    db_manager = current_app.config["db_manager"]
+
+    with db_manager.session() as session:
+        payload = _next_item_payload(session.connection)
+
+    return jsonify(payload)
 
 
 @main_bp.route("/labeling")
