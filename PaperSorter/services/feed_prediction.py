@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 import pickle
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
 import xgboost as xgb
@@ -49,35 +49,54 @@ class FeedPredictionService:
             batch_size,
             force_refresh=refresh_embeddings,
         )
-        channels_by_model, channels_without_model = self._load_active_channels()
 
-        if channels_without_model and not channels_by_model:
-            log.error("No channels have valid models assigned. Cannot generate predictions.")
+        active_models = self._load_active_models()
+        if not active_models:
+            log.warning("No active models found; skipping prediction run")
             return
+
+        channels_by_model = self._load_active_channels()
 
         embeddings_map = self._load_embeddings(feeds_with_embeddings)
         if not embeddings_map:
             log.warning("No embeddings found for any of the provided papers")
             return
 
-        for model_id, channels in channels_by_model.items():
+        for model in active_models:
+            model_id = model.get("id")
+            if model_id is None:
+                continue
+
+            channels = channels_by_model.get(model_id, [])
+            model_path = os.path.join(model_dir, f"model-{model_id}.pkl")
+
             try:
-                model, scaler = self._load_model(model_dir, model_id)
+                model_instance, scaler = self._load_model(model_dir, model_id)
             except FileNotFoundError:
-                log.warning(f"Model file not found: {os.path.join(model_dir, f'model-{model_id}.pkl')}")
+                log.warning(f"Model file not found: {model_path}")
                 continue
             except Exception as exc:
                 log.error(f"Failed to load model {model_id}: {exc}")
                 continue
 
-            feeds_to_predict = self._feeds_requiring_prediction(model_id, embeddings_map, force_rescore)
+            feeds_to_predict = self._feeds_requiring_prediction(
+                model_id,
+                embeddings_map,
+                force_rescore,
+            )
             if not feeds_to_predict:
                 log.info(f"All papers already have predictions for model {model_id}")
                 continue
 
-            predictions = self._score_feeds(model, scaler, feeds_to_predict, embeddings_map)
+            predictions = self._score_feeds(
+                model_instance,
+                scaler,
+                feeds_to_predict,
+                embeddings_map,
+            )
             self._store_predictions(model_id, feeds_to_predict, predictions)
-            self._enqueue_broadcasts(channels, feeds_to_predict, predictions)
+            if channels:
+                self._enqueue_broadcasts(channels, feeds_to_predict, predictions)
 
         self._feeddb.commit()
 
@@ -190,7 +209,7 @@ def refresh_embeddings_and_predictions(
             except Exception as exc:  # pragma: no cover
                 log.warning(f"Failed to close feed database cleanly: {exc}")
 
-    def _load_active_channels(self) -> Tuple[Dict[int, List[dict]], List[dict]]:
+    def _load_active_channels(self) -> Dict[int, List[dict]]:
         self._feeddb.cursor.execute(
             """
             SELECT c.*, m.id as model_id, m.name as model_name
@@ -200,25 +219,39 @@ def refresh_embeddings_and_predictions(
             """
         )
         active_channels = self._feeddb.cursor.fetchall()
-        if not active_channels:
-            log.warning("No active channels found")
-            return {}, []
 
         channels_by_model: Dict[int, List[dict]] = {}
         channels_without_model: List[dict] = []
-        for channel in active_channels:
+
+        for channel in active_channels or []:
             model_id = channel.get("model_id")
             if model_id is None:
-                log.warning(
-                    "Channel '%s' (ID: %s) has no model assigned, skipping predictions",
-                    channel.get("name"),
-                    channel.get("id"),
-                )
                 channels_without_model.append(channel)
                 continue
             channels_by_model.setdefault(model_id, []).append(channel)
 
-        return channels_by_model, channels_without_model
+        if channels_without_model:
+            log.warning(
+                "Skipping %d channel(s) without assigned models: %s",
+                len(channels_without_model),
+                ", ".join(
+                    ch.get("name") or str(ch.get("id")) for ch in channels_without_model
+                ),
+            )
+
+        return channels_by_model
+
+    def _load_active_models(self) -> List[dict]:
+        self._feeddb.cursor.execute(
+            """
+            SELECT id, name, score_name
+            FROM models
+            WHERE is_active = TRUE
+            ORDER BY id
+            """
+        )
+        rows = self._feeddb.cursor.fetchall() or []
+        return list(rows)
 
     def _load_embeddings(self, feed_ids: Iterable[int]) -> Dict[int, np.ndarray]:
         embeddings_map: Dict[int, np.ndarray] = {}
