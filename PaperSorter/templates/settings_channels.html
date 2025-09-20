@@ -385,9 +385,9 @@
                     <div class="form-group">
                         <label for="channelScoreThreshold">Score Threshold</label>
                         <input type="number" id="channelScoreThreshold" required
-                               min="0" max="1" step="0.01" value="0.7"
-                               placeholder="0.7">
-                        <small>Min score to broadcast (0.0-1.0)</small>
+                               min="0" max="100" step="1" value="70"
+                               placeholder="70">
+                        <small>Min score to broadcast (0-100)</small>
                     </div>
                     <div class="form-group">
                         <label for="channelBroadcastLimit">Broadcast Limit</label>
@@ -431,6 +431,22 @@
     <script>
         let channels = [];
         let models = [];
+
+        function toThresholdPercent(threshold) {
+            if (typeof threshold === 'number' && !Number.isNaN(threshold)) {
+                return Math.round(threshold * 100);
+            }
+            return 70;
+        }
+
+        function toThresholdFraction(percent) {
+            const numeric = Number(percent);
+            if (Number.isNaN(numeric)) {
+                return 0.7;
+            }
+            const clamped = Math.min(Math.max(numeric, 0), 100);
+            return clamped / 100;
+        }
 
         // Initialize hours grid
         function initHoursGrid() {
@@ -631,7 +647,7 @@
                                         ${channel.webhook_type || 'Unknown'}
                                     </span>
                                 </td>
-                                <td>${channel.score_threshold || 0.7}</td>
+                                <td>${toThresholdPercent(channel.score_threshold)}</td>
                                 <td>${channel.model_name || `Model ${channel.model_id || 1}`}</td>
                                 <td>${channel.broadcast_limit || 20}</td>
                                 <td>
@@ -657,6 +673,7 @@
             document.getElementById('modalTitle').textContent = 'Add Channel';
             document.getElementById('channelForm').reset();
             document.getElementById('channelId').value = '';
+            document.getElementById('channelScoreThreshold').value = 70;
             // Reset validation messages
             document.getElementById('endpointHelp').style.display = 'block';
             document.getElementById('endpointHelp').className = '';
@@ -675,7 +692,7 @@
             document.getElementById('channelId').value = channel.id;
             document.getElementById('channelName').value = channel.name;
             document.getElementById('channelEndpoint').value = channel.endpoint_url;
-            document.getElementById('channelScoreThreshold').value = channel.score_threshold || 0.7;
+            document.getElementById('channelScoreThreshold').value = toThresholdPercent(channel.score_threshold);
 
             // Set model dropdown value
             const modelSelect = document.getElementById('channelModelId');
@@ -803,7 +820,7 @@
             const data = {
                 name: document.getElementById('channelName').value,
                 endpoint_url: endpoint_url,
-                score_threshold: parseFloat(document.getElementById('channelScoreThreshold').value),
+                score_threshold: toThresholdFraction(document.getElementById('channelScoreThreshold').value),
                 model_id: parseInt(document.getElementById('channelModelId').value),
                 broadcast_limit: parseInt(document.getElementById('channelBroadcastLimit').value),
                 is_active: document.getElementById('channelIsActive').checked,
