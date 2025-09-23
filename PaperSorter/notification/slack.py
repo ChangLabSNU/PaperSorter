@@ -130,50 +130,45 @@ class SlackProvider(NotificationProvider):
 
         include_abstracts = message_options.get("include_abstracts", True)
 
-        # Add content when allowed
-        content = item.get("content", "").strip()
-        if include_abstracts and content:
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": content},
-                }
-            )
+        # Prepare button
+        button_element = None
 
-        # Add buttons block
-        button_elements = []
-
-        # Read button
-        if item.get("link"):
-            button_elements.append(
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Read", "emoji": True},
-                    "value": f"read_{item['id']}",
-                    "url": item["link"],
-                    "action_id": "read-action",
-                }
-            )
-
-        # Details button
+        # Details button takes priority
         if base_url and "id" in item:
             details_url = f"{base_url.rstrip('/')}/paper/{item['id']}"
-            button_elements.append(
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "More",
-                        "emoji": True,
-                    },
-                    "value": f"details_{item['id']}",
-                    "url": details_url,
-                    "action_id": "details-action",
-                }
-            )
+            button_element = {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "More",
+                    "emoji": True,
+                },
+                "value": f"details_{item['id']}",
+                "url": details_url,
+                "action_id": "details-action",
+            }
+        elif item.get("link"): # Read button as fallback
+            button_element = {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Read", "emoji": True},
+                "value": f"read_{item['id']}",
+                "url": item["link"],
+                "action_id": "read-action",
+            }
 
-        if button_elements:
-            blocks.append({"type": "actions", "elements": button_elements})
+        # Add content with button as accessory when both exist
+        content = item.get("content", "").strip()
+        if include_abstracts and content:
+            section_block = {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": content},
+            }
+            if button_element:
+                section_block["accessory"] = button_element
+            blocks.append(section_block)
+        elif button_element:
+            # If no content, add button in an actions block
+            blocks.append({"type": "actions", "elements": [button_element]})
 
         data = {
             "blocks": blocks,
