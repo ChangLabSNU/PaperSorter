@@ -232,7 +232,22 @@ function formatAuthors(authorString, options = {}) {
     return [...first, config.etAl, ...last].join(config.separator);
 }
 
+/**
+ * Handle Details button clicks including middle clicks and Ctrl+clicks
+ * @param {Event} event - The mouse event
+ * @param {number} feedId - The feed ID to navigate to
+ * @returns {boolean} False if event was handled (middle/ctrl click)
+ */
+function handleDetailsClick(event, feedId) {
+    // Middle click (button 1) or Ctrl+Click - open in new tab/window
+    if (event.button === 1 || (event.button === 0 && event.ctrlKey)) {
+        event.preventDefault();
+        window.open(`/paper/${feedId}`, '_blank');
+        return false;
+    }
+}
+
 // Export for use in other files if needed
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime, formatAuthors };
+    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime, formatAuthors, handleDetailsClick };
 }

@@ -55,7 +55,7 @@ window.SimilarSection = (function() {
         <div class="feed-details">
           <div class="feed-abstract">Click to load abstract...</div>
           <div class="feed-actions">
-            <button class="btn btn-details" onclick="window.location.href='/paper/${feed.rowid}'">📄<span class="btn-text"> Details</span></button>
+            <button class="btn btn-details" onclick="SimilarSection.viewDetails(${feed.rowid})" onmousedown="handleDetailsClick(event, ${feed.rowid})">📄<span class="btn-text"> Details</span></button>
             ${feed.link ? `<a href="${feed.link}" target="_blank" class="btn btn-open-article">📄<span class="btn-text">Open Article</span></a>` : ''}
             <button class="btn btn-share ${feed.shared ? 'shared' : ''} ${feed.broadcasted ? 'disabled' : ''}"
                     onclick="SimilarSection.shareFeed(${feed.rowid}, this, ${feed.broadcasted})"
@@ -342,5 +342,10 @@ window.SimilarSection = (function() {
     }
   }
 
-  return { init, shareFeed, feedbackFeed, printPoster };
+  // Navigate to details page
+  function viewDetails(feedId) {
+    window.location.href = `/paper/${feedId}`;
+  }
+
+  return { init, shareFeed, feedbackFeed, printPoster, viewDetails };
 })();

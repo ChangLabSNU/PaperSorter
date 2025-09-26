@@ -139,7 +139,7 @@ function createFeedElement(feed) {
         <div class="feed-details">
             <div class="feed-abstract">Click to load abstract...</div>
             <div class="feed-actions">
-                <button class="btn btn-details" onclick="viewDetails(${feed.rowid})">
+                <button class="btn btn-details" onclick="viewDetails(${feed.rowid})" onmousedown="handleDetailsClick(event, ${feed.rowid})">
                     📄<span class="btn-text">Details</span>
                 </button>
                 <a href="${feed.link}" target="_blank" class="btn btn-open-article">
@@ -876,7 +876,7 @@ function displaySearchResults(results, searchQuery) {
             <div class="feed-details">
                 <div class="feed-abstract">Click to load abstract...</div>
                 <div class="feed-actions">
-                    <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})">
+                    <button class="btn btn-details" onclick="viewDetails(${result.rowid || result.id})" onmousedown="handleDetailsClick(event, ${result.rowid || result.id})">
                         📄<span class="btn-text">Details</span>
                     </button>
                     <a href="${result.link}" target="_blank" class="btn btn-open-article">
