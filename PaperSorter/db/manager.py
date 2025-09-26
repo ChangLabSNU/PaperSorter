@@ -30,6 +30,7 @@ execute_batch = psycopg2.extras.execute_batch
 sql = psycopg2_sql
 errors = psycopg2_errors
 OperationalError = psycopg2.OperationalError
+InterfaceError = psycopg2.InterfaceError
 Connection = psycopg2.extensions.connection
 Cursor = psycopg2.extensions.cursor
 
@@ -210,12 +211,28 @@ class DatabaseManager:
         )
 
     def _acquire(self) -> psycopg2.extensions.connection:
-        with self._lock:
-            if self._closed:
-                raise RuntimeError("DatabaseManager pool has been closed")
-            conn = self._pool.getconn()
-        self._prepare_connection(conn)
-        return conn
+        while True:
+            with self._lock:
+                if self._closed:
+                    raise RuntimeError("DatabaseManager pool has been closed")
+                conn = self._pool.getconn()
+
+            if conn.closed:
+                # The server may have dropped the connection while it was idle in the pool.
+                self._discard_connection(conn)
+                continue
+
+            try:
+                self._prepare_connection(conn)
+            except (InterfaceError, OperationalError):
+                self._discard_connection(conn)
+                continue
+
+            if conn.closed:
+                self._discard_connection(conn)
+                continue
+
+            return conn
 
     def _prepare_connection(self, conn: psycopg2.extensions.connection) -> None:
         if conn.closed:
@@ -227,6 +244,15 @@ class DatabaseManager:
                 log.warning(f"Failed to register pgvector: {exc}")
         if conn.autocommit:
             conn.autocommit = False
+
+    def _discard_connection(self, conn: psycopg2.extensions.connection) -> None:
+        try:
+            self._pool.putconn(conn, close=True)
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _release(self, conn: psycopg2.extensions.connection) -> None:
         if conn is None:
