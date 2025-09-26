@@ -50,30 +50,30 @@ class SlackProvider(NotificationProvider):
             List of (item_id, success) tuples
         """
         results = []
-        for item in items:
+        for i, item in enumerate(items):
             try:
-                self._send_single_notification(item, message_options, base_url)
+                self._send_single_notification(item, message_options, i, len(items), base_url)
                 results.append((item.get('id'), True))
             except NotificationError as e:
                 log.error(f"Failed to send Slack notification for item {item.get('id')}: {e}")
                 results.append((item.get('id'), False))
         return results
 
-    def _send_single_notification(self, item, message_options, base_url=None):
+    def _send_single_notification(self, item, message_options, index, total, base_url=None):
         """Send a Slack notification using Block Kit."""
         header = {"Content-type": "application/json"}
 
+        blocks = []
+
         # Add title block
         title = self.normalize_text(item["title"])
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": self.limit_text_length(title, self.HEADER_MAX_LENGTH),
-                },
+        blocks.append({
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": self.limit_text_length(title, self.HEADER_MAX_LENGTH),
             },
-        ]
+        })
 
         article_info = []
         score_origin_info = []
@@ -158,6 +158,10 @@ class SlackProvider(NotificationProvider):
             else:
                 # No article content - add button in its own actions block
                 blocks.append({"type": "actions", "elements": [button_element]})
+
+        # Add divider if there are multiple items
+        if total > 1 and index < total - 1:
+            blocks.append({"type": "divider"})
 
         data = {
             "blocks": blocks,
