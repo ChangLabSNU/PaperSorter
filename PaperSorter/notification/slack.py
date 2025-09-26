@@ -75,7 +75,18 @@ class SlackProvider(NotificationProvider):
             },
         ]
 
-        # Add predicted score block if score is available
+        article_info = []
+        score_origin_info = []
+
+        # Add source block
+        origin = self.normalize_text(item.get("origin", ""))
+        if origin:
+            if item.get("link"):
+                origin = f"<{item['link']}|{origin}>"
+
+            score_origin_info.append(f":book: *{origin}*")
+
+        # Add predicted score if score is available
         if item.get("score") is not None:
             # Use score_name from model if available, default to "Score"
             score_name = message_options.get("score_name", "Score")
@@ -89,46 +100,21 @@ class SlackProvider(NotificationProvider):
                     if other_score.get("score") is not None:
                         score_text += f"  •  {other_score['score_name']}: *{int(other_score['score'] * 100)}*"
 
-            blocks.append(
-                {
-                    "type": "context",
-                    "elements": [
-                        {
-                            "type": "mrkdwn",
-                            "text": score_text,
-                        }
-                    ],
-                }
-            )
+            score_origin_info.append(score_text)
 
-        # Add source block
-        origin = self.normalize_text(item.get("origin", ""))
-        if origin:
-            if item.get("link"):
-                origin = f"<{item['link']}|{origin}>"
+        if score_origin_info:
+            article_info.append(" \xa0 ".join(score_origin_info))
 
-            blocks.append(
-                {
-                    "type": "context",
-                    "elements": [
-                        {"type": "mrkdwn", "text": f":inbox_tray: Journal: *{origin}*"}
-                    ],
-                }
-            )
-
-        # Add authors block
+        # Add authors
         authors = self.normalize_text(item.get("author", ""))
         if authors:
-            blocks.append(
-                {
-                    "type": "context",
-                    "elements": [
-                        {"type": "mrkdwn", "text": f":black_nib: *{authors}*"}
-                    ],
-                }
-            )
+            article_info.append(f":busts_in_silhouette: {authors}")
 
+        # Add abstract
         include_abstracts = message_options.get("include_abstracts", True)
+        content = item.get("content", "").strip()
+        if include_abstracts and content:
+            article_info.append(content)
 
         # Prepare button
         button_element = None
@@ -156,19 +142,22 @@ class SlackProvider(NotificationProvider):
                 "action_id": "read-action",
             }
 
-        # Add content with button as accessory when both exist
-        content = item.get("content", "").strip()
-        if include_abstracts and content:
-            section_block = {
+        # Add article information sections
+        for text in article_info:
+            text = self.limit_text_length(text, 3000)
+            blocks.append({
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": content},
-            }
-            if button_element:
-                section_block["accessory"] = button_element
-            blocks.append(section_block)
-        elif button_element:
-            # If no content, add button in an actions block
-            blocks.append({"type": "actions", "elements": [button_element]})
+                "text": {"type": "mrkdwn", "text": text},
+            })
+
+        # Add button based on available content
+        if button_element is not None:
+            if article_info:
+                # Add button as accessory to the last section (right-side placement)
+                blocks[-1]["accessory"] = button_element
+            else:
+                # No article content - add button in its own actions block
+                blocks.append({"type": "actions", "elements": [button_element]})
 
         data = {
             "blocks": blocks,
