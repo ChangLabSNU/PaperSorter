@@ -130,7 +130,7 @@ def index():
         cursor = session.cursor(dict_cursor=True)
         cursor.execute(
             """
-            SELECT MAX(COALESCE(published, added)) as last_updated
+            SELECT MAX(added) AS last_updated
             FROM feeds
             """
         )
