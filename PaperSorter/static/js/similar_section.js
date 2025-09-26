@@ -43,10 +43,10 @@ window.SimilarSection = (function() {
             ${similarityBadgeHTML(feed.similarity)}
           </div>
           <div class="feed-content">
-            <h3 class="feed-title">${feed.title}</h3>
+            <h3 class="feed-title">${safeHtml(feed.title)}</h3>
             <div class="feed-meta">
-              <div class="feed-meta-item feed-origin">${feed.origin || 'Unknown Source'}</div>
-              ${feed.author ? `<div class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</div>` : ''}
+              <div class="feed-meta-item feed-origin">${escapeHtml(feed.origin || 'Unknown Source')}</div>
+              ${feed.author ? `<div class="feed-meta-item feed-author" title="${escapeHtml(feed.author)}">${escapeHtml(formatAuthors(feed.author))}</div>` : ''}
               <div class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</div>
             </div>
           </div>

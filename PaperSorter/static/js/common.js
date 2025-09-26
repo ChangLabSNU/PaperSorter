@@ -233,6 +233,47 @@ function formatAuthors(authorString, options = {}) {
 }
 
 /**
+ * Escape HTML characters to prevent XSS attacks
+ * @param {string} text - The text to escape
+ * @returns {string} HTML-escaped text
+ */
+function escapeHtml(text) {
+    if (!text) return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Safely render HTML with only allowed tags (i, b, em, strong, sup, sub)
+ * @param {string} text - The text that may contain HTML
+ * @returns {string} Safely rendered HTML
+ */
+function safeHtml(text) {
+    if (!text) return text;
+
+    // First escape all HTML
+    let escaped = escapeHtml(text);
+
+    // Define allowed tags and convert them back
+    const allowedTags = {
+        '&lt;i&gt;(.*?)&lt;/i&gt;': '<i>$1</i>',
+        '&lt;b&gt;(.*?)&lt;/b&gt;': '<b>$1</b>',
+        '&lt;em&gt;(.*?)&lt;/em&gt;': '<em>$1</em>',
+        '&lt;strong&gt;(.*?)&lt;/strong&gt;': '<strong>$1</strong>',
+        '&lt;sup&gt;(.*?)&lt;/sup&gt;': '<sup>$1</sup>',
+        '&lt;sub&gt;(.*?)&lt;/sub&gt;': '<sub>$1</sub>',
+    };
+
+    // Convert back allowed tags
+    for (const [pattern, replacement] of Object.entries(allowedTags)) {
+        escaped = escaped.replace(new RegExp(pattern, 'gi'), replacement);
+    }
+
+    return escaped;
+}
+
+/**
  * Handle Details button clicks including middle clicks and Ctrl+clicks
  * @param {Event} event - The mouse event
  * @param {number} feedId - The feed ID to navigate to
@@ -249,5 +290,5 @@ function handleDetailsClick(event, feedId) {
 
 // Export for use in other files if needed
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime, formatAuthors, handleDetailsClick };
+    module.exports = { getScoreGradientColor, getSimilarityGradientColor, formatDate, formatDateTime, formatAuthors, handleDetailsClick, escapeHtml, safeHtml };
 }

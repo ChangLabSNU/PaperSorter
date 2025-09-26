@@ -1117,10 +1117,10 @@
                     <div class="feed-header">
                         ${badgesHtml}
                         <div class="feed-content">
-                            <div class="feed-title">${feed.title}</div>
+                            <div class="feed-title">${safeHtml(feed.title)}</div>
                             <div class="feed-meta">
-                                <div class="feed-meta-item feed-origin">${feed.origin || feed.venue || (feed.journal && feed.journal.name) || 'Unknown Source'}</div>
-                                ${feed.author ? `<div class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</div>` : ''}
+                                <div class="feed-meta-item feed-origin">${escapeHtml(feed.origin || feed.venue || (feed.journal && feed.journal.name) || 'Unknown Source')}</div>
+                                ${feed.author ? `<div class="feed-meta-item feed-author" title="${escapeHtml(feed.author)}">${escapeHtml(formatAuthors(feed.author))}</div>` : ''}
                                 <div class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</div>
                             </div>
                         </div>

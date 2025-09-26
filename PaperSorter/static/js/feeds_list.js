@@ -109,10 +109,10 @@ function createFeedElement(feed) {
 
     headerHTML += `
             <div class="feed-content">
-                <h3 class="feed-title">${feed.title}</h3>
+                <h3 class="feed-title">${safeHtml(feed.title)}</h3>
                 <div class="feed-meta">
-                    <span class="feed-meta-item feed-origin">${feed.origin}</span>
-                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${feed.author}">${formatAuthors(feed.author)}</span>` : ''}
+                    <span class="feed-meta-item feed-origin">${escapeHtml(feed.origin)}</span>
+                    ${feed.author ? `<span class="feed-meta-item feed-author" title="${escapeHtml(feed.author)}">${escapeHtml(formatAuthors(feed.author))}</span>` : ''}
                     <span class="feed-meta-item feed-date">${formatDate(feed.published || feed.added)}</span>
                 </div>
             </div>`;
@@ -196,7 +196,7 @@ function createFeedElement(feed) {
                 const response = await fetch(`/api/feeds/${feed.rowid}/content`);
                 if (response.ok) {
                     const data = await response.json();
-                    abstract.innerHTML = data.content || data.tldr || 'No abstract available.';
+                    abstract.innerHTML = safeHtml(data.content || data.tldr) || 'No abstract available.';
                     abstract.dataset.loaded = 'true';
                 } else {
                     abstract.innerHTML = 'Failed to load abstract.';
@@ -853,10 +853,10 @@ function displaySearchResults(results, searchQuery) {
                     </span>
                 </div>
                 <div class="feed-content">
-                    <h3 class="feed-title">${result.title}</h3>
+                    <h3 class="feed-title">${safeHtml(result.title)}</h3>
                     <div class="feed-meta">
-                        <span class="feed-meta-item feed-origin">${result.origin}</span>
-                        ${result.author ? `<span class="feed-meta-item feed-author" title="${result.author}">${formatAuthors(result.author)}</span>` : ''}
+                        <span class="feed-meta-item feed-origin">${escapeHtml(result.origin)}</span>
+                        ${result.author ? `<span class="feed-meta-item feed-author" title="${escapeHtml(result.author)}">${escapeHtml(formatAuthors(result.author))}</span>` : ''}
                         <span class="feed-meta-item feed-date">${formatDate(result.published || result.added)}</span>
                     </div>
                 </div>
@@ -936,7 +936,7 @@ function displaySearchResults(results, searchQuery) {
                 try {
                     const response = await fetch(`/api/feeds/${feedId}/content`);
                     const data = await response.json();
-                    abstract.innerHTML = data.content || 'No abstract available.';
+                    abstract.innerHTML = safeHtml(data.content) || 'No abstract available.';
                     abstract.dataset.loaded = 'true';
                 } catch (error) {
                     abstract.innerHTML = 'Failed to load abstract.';
@@ -958,9 +958,9 @@ function displayAcademicResults(results) {
         const isAlreadyAdded = paper.already_in_db;
         return `
             <div class="search-result-item">
-                <div class="search-result-title">${paper.title}</div>
+                <div class="search-result-title">${safeHtml(paper.title)}</div>
                 <div class="search-result-meta">
-                    ${paper.venue ? `<strong>${paper.venue}</strong>` : ''}
+                    ${paper.venue ? `<strong>${escapeHtml(paper.venue)}</strong>` : ''}
                     ${paper.authors ? `${paper.venue ? ' • ' : ''}${formatAuthors(paper.authors.map(a => typeof a === 'object' ? a.name : a).join(', '))}` : ''}
                     ${(paper.publicationDate || paper.year) ? `${(paper.venue || paper.authors) ? ' • ' : ''}${paper.publicationDate ? formatDate(paper.publicationDate) : paper.year}` : ''}
                 </div>

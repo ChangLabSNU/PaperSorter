@@ -4,7 +4,7 @@
 
 <div class="paper">
     <h2 class="paper-title">
-        <a href="{{ paper.link }}" target="_blank">{{ paper.title }}</a>
+        <a href="{{ paper.link }}" target="_blank">{{ paper.title|safe_html }}</a>
     </h2>
 
     {% if paper.author %}
@@ -32,11 +32,11 @@
 
     {% if paper.content %}
     <div class="paper-abstract">
-        {{ paper.content|truncate(500) }}
+        {{ paper.content|safe_html|truncate(500) }}
     </div>
     {% elif paper.tldr %}
     <div class="paper-abstract">
-        <em>Summary:</em> {{ paper.tldr }}
+        <em>Summary:</em> {{ paper.tldr|safe_html }}
     </div>
     {% endif %}
 

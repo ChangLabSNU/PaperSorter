@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ paper.title[:50] }}... - {{ site_name }}{% endblock %}
+{% block title %}{{ paper.title|strip_html|truncate(50, True, '...') }} - {{ site_name }}{% endblock %}
 {% block header_title %}<a href="/" style="color: inherit; text-decoration: none;">Paper Details</a>{% endblock %}
 
 {% block header_actions %}
@@ -434,7 +434,7 @@
     <div class="paper-detail-container">
         <!-- Paper Details Section -->
         <div class="paper-details-section">
-            <h1 class="paper-title">{{ paper.title }}</h1>
+            <h1 class="paper-title">{{ paper.title|safe_html }}</h1>
 
             <!-- Score Badges -->
             <div class="score-badges">
@@ -494,7 +494,7 @@
             <h2 class="abstract-title">Abstract</h2>
             {% if paper.content %}
             <div class="abstract-content">
-                {{ paper.content }}
+                {{ paper.content|safe_html }}
             </div>
             {% else %}
             <div class="abstract-content" style="font-style: italic; color: var(--text-meta);">
