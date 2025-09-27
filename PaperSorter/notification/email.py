@@ -29,6 +29,7 @@ import os
 from urllib.parse import urlparse
 from ..log import log
 from ..utils.email import SMTPClient
+from ..utils.template_filters import register_filters
 from .base import NotificationProvider, NotificationError
 from ..config import get_config
 
@@ -67,6 +68,9 @@ class EmailProvider(NotificationProvider):
         self.jinja_env = Environment(
             loader=FileSystemLoader(template_dir), autoescape=True
         )
+
+        # Register custom filters
+        register_filters(self.jinja_env)
 
         # Get email configuration
         self.email_config = self.config.get("email", {})

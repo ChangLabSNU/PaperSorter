@@ -23,7 +23,6 @@
 
 """Flask application factory for PaperSorter web interface."""
 
-import re
 import secrets
 import threading
 import time
@@ -32,10 +31,10 @@ from flask import Flask, render_template
 from flask_login import LoginManager, login_user
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
-from markupsafe import Markup, escape
 from ..log import log
 from ..config import get_config
 from ..db import DatabaseManager
+from ..utils.template_filters import register_filters
 from .auth import User, auth_bp
 from .main import main_bp
 from .api import feeds_bp, settings_bp, search_bp, user_bp
@@ -101,56 +100,8 @@ def create_app(config_path, skip_authentication=None):
     )
     app.config["db_manager"] = db_manager
 
-    # Register custom Jinja2 filter for safe HTML
-    def safe_html_filter(text):
-        """
-        Filter to allow only safe HTML tags in text content.
-        Allows: i, b, em, strong, sup, sub tags while escaping everything else.
-        """
-        if not text:
-            return text
-
-        # First escape all HTML
-        escaped_text = escape(text)
-
-        # Define allowed tags and their replacements back to HTML
-        allowed_tags = {
-            r'&lt;i&gt;(.*?)&lt;/i&gt;': r'<i>\1</i>',
-            r'&lt;b&gt;(.*?)&lt;/b&gt;': r'<b>\1</b>',
-            r'&lt;em&gt;(.*?)&lt;/em&gt;': r'<em>\1</em>',
-            r'&lt;strong&gt;(.*?)&lt;/strong&gt;': r'<strong>\1</strong>',
-            r'&lt;sup&gt;(.*?)&lt;/sup&gt;': r'<sup>\1</sup>',
-            r'&lt;sub&gt;(.*?)&lt;/sub&gt;': r'<sub>\1</sub>',
-        }
-
-        # Convert back allowed tags from escaped to HTML
-        result = str(escaped_text)
-        for pattern, replacement in allowed_tags.items():
-            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE | re.DOTALL)
-
-        return Markup(result)
-
-    app.jinja_env.filters['safe_html'] = safe_html_filter
-
-    # Register filter to strip HTML tags completely (for page titles)
-    def strip_html_filter(text):
-        """
-        Strip all HTML tags from text for use in page titles and meta tags.
-        """
-        if not text:
-            return text
-
-        # Remove all HTML tags using regex
-        import re
-        clean_text = re.sub(r'<[^>]+>', '', str(text))
-
-        # Also decode HTML entities
-        import html
-        clean_text = html.unescape(clean_text)
-
-        return clean_text
-
-    app.jinja_env.filters['strip_html'] = strip_html_filter
+    # Register custom template filters
+    register_filters(app.jinja_env)
 
     # Handle skip-authentication mode
     if skip_authentication:
