@@ -101,11 +101,27 @@ class DiscordProvider(NotificationProvider):
 
         include_abstracts = message_options.get("include_abstracts", True)
 
-        # Description (content/abstract)
-        content = item.get("content", "").strip()
-        if include_abstracts and content:
+        # Description (content/abstract or TL;DR)
+        content = self.normalize_text(item.get("content", ""))
+        summary = self.normalize_text(item.get("tldr", ""))
+        fallback_abstract = self.normalize_text(item.get("_abstract_fallback", ""))
+        description = ""
+        if include_abstracts:
+            if content:
+                description = content
+            elif summary:
+                description = f"**Summary:** {summary}"
+        else:
+            if summary:
+                description = f"**TL;DR:** {summary}"
+            elif fallback_abstract:
+                description = f"**Abstract:** {fallback_abstract}"
+            elif content:
+                description = content
+
+        if description:
             embed["description"] = self.limit_text_length(
-                content, self.EMBED_DESCRIPTION_MAX
+                description, self.EMBED_DESCRIPTION_MAX
             )
 
         # Author field

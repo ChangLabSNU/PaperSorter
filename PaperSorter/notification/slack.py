@@ -67,54 +67,77 @@ class SlackProvider(NotificationProvider):
 
         # Add title block
         title = self.normalize_text(item["title"])
-        blocks.append({
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": self.limit_text_length(title, self.HEADER_MAX_LENGTH),
-            },
-        })
+        blocks.append(
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": self.limit_text_length(title, self.HEADER_MAX_LENGTH),
+                },
+            }
+        )
 
-        article_info = []
-        score_origin_info = []
+        score_origin_elements = []
 
-        # Add source block
+        if item.get("score") is not None:
+            score_name = message_options.get("score_name", "Score")
+            score_text = f":heart_decoration: {score_name}: *{int(item['score'] * 100)}*"
+            if item.get("other_scores"):
+                for other_score in item["other_scores"]:
+                    if other_score.get("score") is not None:
+                        score_text += (
+                            f"  •  {other_score['score_name']}: *{int(other_score['score'] * 100)}*"
+                        )
+
+            score_origin_elements.append(
+                {"type": "mrkdwn", "text": self.limit_text_length(score_text, 2000)}
+            )
+
         origin = self.normalize_text(item.get("origin", ""))
         if origin:
             if item.get("link"):
                 origin = f"<{item['link']}|{origin}>"
+            origin_text = f":ledger: *{origin}*"
+            score_origin_elements.append(
+                {"type": "mrkdwn", "text": self.limit_text_length(origin_text, 2000)}
+            )
 
-            score_origin_info.append(f":book: *{origin}*")
+        if score_origin_elements:
+            blocks.append({"type": "context", "elements": score_origin_elements})
 
-        # Add predicted score if score is available
-        if item.get("score") is not None:
-            # Use score_name from model if available, default to "Score"
-            score_name = message_options.get("score_name", "Score")
-
-            # Build score text starting with primary score
-            score_text = f":heart_decoration: {score_name}: *{int(item['score'] * 100)}*"
-
-            # Add other model scores if available
-            if item.get("other_scores"):
-                for other_score in item["other_scores"]:
-                    if other_score.get("score") is not None:
-                        score_text += f"  •  {other_score['score_name']}: *{int(other_score['score'] * 100)}*"
-
-            score_origin_info.append(score_text)
-
-        if score_origin_info:
-            article_info.append(" \xa0 ".join(score_origin_info))
-
-        # Add authors
+        # Build context block with metadata
         authors = self.normalize_text(item.get("author", ""))
         if authors:
-            article_info.append(f":busts_in_silhouette: {authors}")
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": self.limit_text_length(f":busts_in_silhouette: {authors}", 2000),
+                        }
+                    ],
+                }
+            )
 
-        # Add abstract
+        # Determine main content section (abstract or TL;DR)
         include_abstracts = message_options.get("include_abstracts", True)
-        content = item.get("content", "").strip()
-        if include_abstracts and content:
-            article_info.append(content)
+        content = self.normalize_text(item.get("content", ""))
+        summary = self.normalize_text(item.get("tldr", ""))
+
+        section_text = ""
+        if include_abstracts:
+            if content:
+                section_text = content
+            elif summary:
+                section_text = f"*tl;dr:* {summary}"
+        else:
+            if summary:
+                section_text = summary
+            elif content:
+                section_text = f"*Abstract:* {content}"
+
+        section_text = self.limit_text_length(section_text, 3000) if section_text else ""
 
         # Prepare button
         button_element = None
@@ -142,22 +165,16 @@ class SlackProvider(NotificationProvider):
                 "action_id": "read-action",
             }
 
-        # Add article information sections
-        for text in article_info:
-            text = self.limit_text_length(text, 3000)
-            blocks.append({
+        if section_text:
+            section_block = {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": text},
-            })
-
-        # Add button based on available content
-        if button_element is not None:
-            if article_info:
-                # Add button as accessory to the last section (right-side placement)
-                blocks[-1]["accessory"] = button_element
-            else:
-                # No article content - add button in its own actions block
-                blocks.append({"type": "actions", "elements": [button_element]})
+                "text": {"type": "mrkdwn", "text": section_text},
+            }
+            if button_element is not None:
+                section_block["accessory"] = button_element
+            blocks.append(section_block)
+        elif button_element is not None:
+            blocks.append({"type": "actions", "elements": [button_element]})
 
         # Add divider if there are multiple items
         if total > 1 and index < total - 1:

@@ -226,13 +226,23 @@
                 </div>
                 {% endif %}
 
-                {% if include_abstracts and paper.content %}
+                {% if include_abstracts %}
+                    {% if paper.content %}
+                    <div class="paper-abstract">
+                        {{ paper.content|safe_html|truncate(500) }}
+                    </div>
+                    {% elif paper.tldr %}
+                    <div class="paper-abstract">
+                        <em>Summary:</em> {{ paper.tldr|safe_html }}
+                    </div>
+                    {% endif %}
+                {% elif paper.tldr %}
                 <div class="paper-abstract">
-                    {{ paper.content|safe_html|truncate(500) }}
+                    <em>TL;DR:</em> {{ paper.tldr|safe_html }}
                 </div>
-                {% elif include_abstracts and paper.tldr %}
+                {% elif paper.get('_abstract_fallback') %}
                 <div class="paper-abstract">
-                    <em>Summary:</em> {{ paper.tldr|safe_html }}
+                    <em>Abstract:</em> {{ paper.get('_abstract_fallback')|safe_html }}
                 </div>
                 {% endif %}
 

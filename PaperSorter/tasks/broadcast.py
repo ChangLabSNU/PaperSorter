@@ -31,6 +31,7 @@ import re
 from ..config import get_config
 import argparse
 from datetime import datetime
+from ..services.tldr import TLDRGenerator, ensure_feed_tldr
 
 
 class BroadcastCommand(BaseCommand):
@@ -83,7 +84,18 @@ registry.register(BroadcastCommand)
 
 def normalize_item_for_display(item, max_content_length, include_abstracts=True):
     # XXX: Fix the source field for the aggregated items.
+    if "_abstract_fallback" in item:
+        try:
+            del item["_abstract_fallback"]
+        except Exception:
+            item["_abstract_fallback"] = None
+
     content_text = item.get("content") or ""
+    tldr_value = item.get("tldr")
+    normalized_tldr = None
+    if isinstance(tldr_value, str):
+        normalized_tldr = normalize_text(tldr_value)
+    item["tldr"] = normalized_tldr or None
 
     if item.get("origin_source") == "QBio Feed Aggregation" and "  " in content_text:
         source, content = content_text.split("  ", 1)
@@ -92,16 +104,22 @@ def normalize_item_for_display(item, max_content_length, include_abstracts=True)
         content_text = item.get("content") or ""
 
     if not include_abstracts:
-        item["tldr"] = None
+        fallback_abstract = normalize_text(content_text)
+        if item["tldr"]:
+            item["_abstract_fallback"] = None
+        else:
+            item["_abstract_fallback"] = fallback_abstract or None
         item["content"] = ""
         return
 
     # Replace the abstract content with the TLDR if it's available.
-    tldr = item.get("tldr")
-    if tldr and isinstance(tldr, str) and len(tldr) >= 5:
-        item["content"] = "(tl;dr) " + normalize_text(tldr)
+    abstract_text = normalize_text(content_text)
+    if abstract_text:
+        item["content"] = abstract_text
+    elif item.get("tldr"):
+        item["content"] = item["tldr"]
     else:
-        item["content"] = normalize_text(content_text)
+        item["content"] = ""
 
     # Truncate the content if it's too long.
     content_value = item.get("content") or ""
@@ -128,6 +146,8 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
 
     config_provider = get_config(config)
     config_data = config_provider.raw
+
+    tldr_generator = TLDRGenerator.from_config(config_data)
 
     base_url = config_data.get("web", {}).get("base_url", None)
     if base_url:
@@ -276,9 +296,26 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
                                 }
                             )
 
+            generated_tldrs = False
+
             for feed_id, info in queue_items.iterrows():
-                # Add the feed_id to info dict for the More Like This button
                 info["id"] = feed_id
+
+                if (
+                    tldr_generator is not None
+                    and not (isinstance(info.get("tldr"), str) and info.get("tldr").strip())
+                ):
+                    generated_tldr = ensure_feed_tldr(
+                        feeddb,
+                        feed_id,
+                        config=config_data,
+                        generator=tldr_generator,
+                        update_db=True,
+                    )
+                    if generated_tldr:
+                        info["tldr"] = generated_tldr
+                        generated_tldrs = True
+
                 normalize_item_for_display(info, max_content_length, include_abstracts)
                 item_dict = info.to_dict()
 
@@ -287,6 +324,9 @@ def main(config, limit_per_channel, max_content_length, clear_old_days, log_file
                     item_dict["other_scores"] = other_model_scores[feed_id]
 
                 items_to_send.append(item_dict)
+
+            if generated_tldrs:
+                feeddb.commit()
 
             log.info(
                 f'Sending {len(items_to_send)} notifications to channel "{channel_name}"'

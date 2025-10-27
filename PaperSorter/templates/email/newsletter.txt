@@ -38,12 +38,20 @@ Score: {{ "%.0f"|format(paper.score * 100) }}
 {%- endif %}
 {% endif %}
 
-{% if include_abstracts and paper.content -%}
+{% if include_abstracts -%}
+    {%- if paper.content -%}
 Abstract:
 {{ paper.content|truncate(500)|wordwrap(78) }}
-{%- elif include_abstracts and paper.tldr -%}
+    {%- elif paper.tldr -%}
 Summary:
 {{ paper.tldr|wordwrap(78) }}
+    {%- endif -%}
+{%- elif paper.tldr -%}
+TL;DR:
+{{ paper.tldr|wordwrap(78) }}
+{%- elif paper.get('_abstract_fallback') -%}
+Abstract:
+{{ paper.get('_abstract_fallback')|wordwrap(78) }}
 {%- endif %}
 
 Full Paper: {{ paper.link }}

@@ -121,7 +121,8 @@ class EmailProvider(NotificationProvider):
             if not include_abstracts:
                 for paper in sorted_items:
                     paper["content"] = ""
-                    paper["tldr"] = None
+                    if "_abstract_fallback" not in paper:
+                        paper["_abstract_fallback"] = None
 
             # Generate subject
             subject = self.subject_template.format(date=now)
