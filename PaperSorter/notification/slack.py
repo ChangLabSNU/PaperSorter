@@ -65,6 +65,10 @@ class SlackProvider(NotificationProvider):
 
         blocks = []
 
+        # Add divider before any item after the first when batching notifications
+        if total > 1 and index > 0:
+            blocks.append({"type": "divider"})
+
         # Add title block
         title = self.normalize_text(item["title"])
         blocks.append(
@@ -175,10 +179,6 @@ class SlackProvider(NotificationProvider):
             blocks.append(section_block)
         elif button_element is not None:
             blocks.append({"type": "actions", "elements": [button_element]})
-
-        # Add divider if there are multiple items
-        if total > 1 and index < total - 1:
-            blocks.append({"type": "divider"})
 
         data = {
             "blocks": blocks,
