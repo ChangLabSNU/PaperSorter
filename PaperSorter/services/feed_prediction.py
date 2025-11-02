@@ -100,115 +100,6 @@ class FeedPredictionService:
 
         self._feeddb.commit()
 
-
-class FeedPredictor:
-    """Generate embeddings, run predictions, and queue broadcasts."""
-
-    def __init__(self, feeddb, embeddingdb):
-        self.feeddb = feeddb
-        self.embeddingdb = embeddingdb
-        self.config = get_config().raw
-        self._service = FeedPredictionService(self.config, feeddb, embeddingdb)
-
-    def generate_embeddings_batch(self, feed_ids, batch_size: int = 100):
-        """Generate embeddings for feeds that do not yet have one."""
-
-        return self._service.embedding_generator.generate(feed_ids, batch_size)
-
-    def predict_and_queue_feeds(
-        self,
-        feed_ids,
-        model_dir,
-        force_rescore: bool = False,
-        batch_size: int = 100,
-        refresh_embeddings: bool = False,
-    ):
-        """Score feeds with available models and queue high-scoring items."""
-
-        if not feed_ids:
-            return
-
-        if not isinstance(feed_ids, list):
-            feed_ids = [feed_ids]
-
-        self._service.predict_and_queue(
-            feed_ids,
-            model_dir,
-            force_rescore=force_rescore,
-            batch_size=batch_size,
-            refresh_embeddings=refresh_embeddings,
-        )
-
-    def predict_for_external_ids(self, external_ids, model_dir, force_rescore: bool = False):
-        """Convenience method mapping external IDs to feed IDs before scoring."""
-
-        if not external_ids:
-            return
-
-        feed_ids = []
-        for ext_id in external_ids:
-            self.feeddb.cursor.execute(
-                "SELECT id FROM feeds WHERE external_id = %s",
-                (ext_id,),
-            )
-            result = self.feeddb.cursor.fetchone()
-            if result:
-                feed_ids.append(result["id"])
-
-        if feed_ids:
-            self.predict_and_queue_feeds(
-                feed_ids,
-                model_dir,
-                force_rescore=force_rescore,
-            )
-
-
-def refresh_embeddings_and_predictions(
-    feed_ids: Sequence[int],
-    db_manager: DatabaseManager,
-    *,
-    force_rescore: bool = False,
-    refresh_embeddings: bool = False,
-    batch_size: int = 100,
-    model_dir: Optional[str] = None,
-) -> None:
-    """Run embedding generation and prediction for a collection of feeds."""
-
-    if not feed_ids:
-        return
-
-    feeds = list(feed_ids)
-    feed_db: Optional[FeedDatabase] = None
-    embedding_db: Optional[EmbeddingDatabase] = None
-
-    try:
-        feed_db = FeedDatabase(db_manager=db_manager)
-        embedding_db = EmbeddingDatabase(db_manager=db_manager)
-        predictor = FeedPredictor(feed_db, embedding_db)
-
-        resolved_model_dir = model_dir
-        if resolved_model_dir is None:
-            resolved_model_dir = predictor.config.get("models", {}).get("path", ".")
-
-        predictor.predict_and_queue_feeds(
-            feeds,
-            resolved_model_dir,
-            force_rescore=force_rescore,
-            batch_size=batch_size,
-            refresh_embeddings=refresh_embeddings,
-        )
-    finally:
-        if embedding_db is not None:
-            try:
-                embedding_db.close()
-            except Exception as exc:  # pragma: no cover
-                log.warning(f"Failed to close embedding database cleanly: {exc}")
-        if feed_db is not None:
-            try:
-                feed_db.close()
-            except Exception as exc:  # pragma: no cover
-                log.warning(f"Failed to close feed database cleanly: {exc}")
-
     def _load_active_channels(self) -> Dict[int, List[dict]]:
         self._feeddb.cursor.execute(
             """
@@ -348,3 +239,112 @@ def refresh_embeddings_and_predictions(
                         channel.get("name"),
                         feed_info.get("title"),
                     )
+
+
+class FeedPredictor:
+    """Generate embeddings, run predictions, and queue broadcasts."""
+
+    def __init__(self, feeddb, embeddingdb):
+        self.feeddb = feeddb
+        self.embeddingdb = embeddingdb
+        self.config = get_config().raw
+        self._service = FeedPredictionService(self.config, feeddb, embeddingdb)
+
+    def generate_embeddings_batch(self, feed_ids, batch_size: int = 100):
+        """Generate embeddings for feeds that do not yet have one."""
+
+        return self._service.embedding_generator.generate(feed_ids, batch_size)
+
+    def predict_and_queue_feeds(
+        self,
+        feed_ids,
+        model_dir,
+        force_rescore: bool = False,
+        batch_size: int = 100,
+        refresh_embeddings: bool = False,
+    ):
+        """Score feeds with available models and queue high-scoring items."""
+
+        if not feed_ids:
+            return
+
+        if not isinstance(feed_ids, list):
+            feed_ids = [feed_ids]
+
+        self._service.predict_and_queue(
+            feed_ids,
+            model_dir,
+            force_rescore=force_rescore,
+            batch_size=batch_size,
+            refresh_embeddings=refresh_embeddings,
+        )
+
+    def predict_for_external_ids(self, external_ids, model_dir, force_rescore: bool = False):
+        """Convenience method mapping external IDs to feed IDs before scoring."""
+
+        if not external_ids:
+            return
+
+        feed_ids = []
+        for ext_id in external_ids:
+            self.feeddb.cursor.execute(
+                "SELECT id FROM feeds WHERE external_id = %s",
+                (ext_id,),
+            )
+            result = self.feeddb.cursor.fetchone()
+            if result:
+                feed_ids.append(result["id"])
+
+        if feed_ids:
+            self.predict_and_queue_feeds(
+                feed_ids,
+                model_dir,
+                force_rescore=force_rescore,
+            )
+
+
+def refresh_embeddings_and_predictions(
+    feed_ids: Sequence[int],
+    db_manager: DatabaseManager,
+    *,
+    force_rescore: bool = False,
+    refresh_embeddings: bool = False,
+    batch_size: int = 100,
+    model_dir: Optional[str] = None,
+) -> None:
+    """Run embedding generation and prediction for a collection of feeds."""
+
+    if not feed_ids:
+        return
+
+    feeds = list(feed_ids)
+    feed_db: Optional[FeedDatabase] = None
+    embedding_db: Optional[EmbeddingDatabase] = None
+
+    try:
+        feed_db = FeedDatabase(db_manager=db_manager)
+        embedding_db = EmbeddingDatabase(db_manager=db_manager)
+        predictor = FeedPredictor(feed_db, embedding_db)
+
+        resolved_model_dir = model_dir
+        if resolved_model_dir is None:
+            resolved_model_dir = predictor.config.get("models", {}).get("path", ".")
+
+        predictor.predict_and_queue_feeds(
+            feeds,
+            resolved_model_dir,
+            force_rescore=force_rescore,
+            batch_size=batch_size,
+            refresh_embeddings=refresh_embeddings,
+        )
+    finally:
+        if embedding_db is not None:
+            try:
+                embedding_db.close()
+            except Exception as exc:  # pragma: no cover
+                log.warning(f"Failed to close embedding database cleanly: {exc}")
+        if feed_db is not None:
+            try:
+                feed_db.close()
+            except Exception as exc:  # pragma: no cover
+                log.warning(f"Failed to close feed database cleanly: {exc}")
