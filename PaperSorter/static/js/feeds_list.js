@@ -627,11 +627,91 @@ function showToast(message, type = 'success') {
 let searchMode = 'semantic';
 let isSearching = false;
 
+function closeGeneralSearchInterface() {
+    // Hide text search UI elements when switching contexts (e.g., to add-a-paper flow)
+    const generalSearchContainer = document.getElementById('generalSearchContainer');
+    if (generalSearchContainer) {
+        generalSearchContainer.style.display = 'none';
+    }
+
+    const generalResultsContainer = document.getElementById('generalSearchResultsContainer');
+    if (generalResultsContainer) {
+        generalResultsContainer.style.display = 'none';
+    }
+
+    const summarySection = document.getElementById('searchSummarySection');
+    if (summarySection) {
+        summarySection.style.display = 'none';
+    }
+
+    const assistedQueryDisplay = document.getElementById('assistedQueryDisplay');
+    if (assistedQueryDisplay) {
+        assistedQueryDisplay.style.display = 'none';
+    }
+
+    const feedsContainer = document.getElementById('feedsContainer');
+    if (feedsContainer) {
+        feedsContainer.style.display = 'block';
+        if (!feedsContainer.querySelector('.feed-item') && !isLoading) {
+            loadFeeds();
+        }
+    }
+
+    const resultsHeading = document.getElementById('searchResultsHeading');
+    if (resultsHeading) {
+        resultsHeading.style.display = 'none';
+    }
+
+    const resultsHeader = document.querySelector('#generalSearchResultsContainer .search-results-header');
+    if (resultsHeader) {
+        resultsHeader.style.display = 'none';
+    }
+
+    const currentUrl = window.location.href;
+    const newUrl = new URL(currentUrl);
+    newUrl.searchParams.delete('q');
+    newUrl.searchParams.delete('ai_assist');
+    newUrl.searchParams.delete('saved_search');
+    if (newUrl.href !== currentUrl) {
+        window.history.pushState({}, '', newUrl);
+    }
+}
+
+function closeSemanticSearchInterface() {
+    const semanticSearchContainer = document.getElementById('semanticSearchContainer');
+    if (semanticSearchContainer) {
+        semanticSearchContainer.style.display = 'none';
+    }
+
+    const searchResultsContainer = document.getElementById('searchResultsContainer');
+    if (searchResultsContainer) {
+        searchResultsContainer.style.display = 'none';
+    }
+
+    const feedsContainer = document.getElementById('feedsContainer');
+    if (feedsContainer) {
+        feedsContainer.style.display = 'block';
+        if (!feedsContainer.querySelector('.feed-item') && !isLoading) {
+            loadFeeds();
+        }
+    }
+}
+
 function toggleGeneralSearch() {
     const searchDiv = document.getElementById('generalSearchContainer');
-    if (searchDiv.style.display === 'none') {
+    if (!searchDiv) {
+        return;
+    }
+
+    const shouldShow = searchDiv.style.display === 'none' || searchDiv.style.display === '';
+
+    if (shouldShow) {
+        closeSemanticSearchInterface();
         searchDiv.style.display = 'block';
-        document.getElementById('generalSearchInput').focus();
+        const searchInput = document.getElementById('generalSearchInput');
+        if (searchInput) {
+            searchInput.focus();
+        }
     } else {
         searchDiv.style.display = 'none';
     }
@@ -639,10 +719,20 @@ function toggleGeneralSearch() {
 
 function toggleSemanticSearch() {
     const searchDiv = document.getElementById('semanticSearchContainer');
-    if (searchDiv.style.display === 'none') {
+    if (!searchDiv) {
+        return;
+    }
+
+    const shouldShow = searchDiv.style.display === 'none' || searchDiv.style.display === '';
+
+    closeGeneralSearchInterface();
+
+    if (shouldShow) {
         searchDiv.style.display = 'block';
         const textarea = document.getElementById('semanticSearchInput');
-        textarea.focus();
+        if (textarea) {
+            textarea.focus();
+        }
     } else {
         searchDiv.style.display = 'none';
     }
