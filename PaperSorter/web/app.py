@@ -40,7 +40,7 @@ from .main import main_bp
 from .api import feeds_bp, settings_bp, search_bp, user_bp
 
 
-def create_app(config_path, skip_authentication=None):
+def create_app(config_path, skip_authentication=None, demo_mode=False):
     """Create and configure the Flask application."""
     app = Flask(__name__,
                 template_folder="../templates",
@@ -74,6 +74,7 @@ def create_app(config_path, skip_authentication=None):
     app.db_config = db_config
     app.config["CONFIG_PATH"] = config_path
     app.config["SKIP_AUTHENTICATION"] = skip_authentication
+    app.config["DEMO_MODE"] = demo_mode
     app.config["SITE_NAME"] = site_name
     app.config["DEFAULT_TIMEZONE"] = default_timezone
     app.config["DEFAULT_DATE_FORMAT"] = default_date_format
@@ -190,10 +191,14 @@ def create_app(config_path, skip_authentication=None):
             cursor.close()
 
         if user_data:
+            is_admin = user_data.get("is_admin", False)
+            if app.config.get("DEMO_MODE"):
+                is_admin = True
+
             return User(
                 user_data["id"],
                 user_data["username"],
-                is_admin=user_data.get("is_admin", False),
+                is_admin=is_admin,
                 timezone=user_data.get("timezone", "UTC"),
                 date_format=user_data.get("date_format", "MMM D, YYYY"),
                 feedlist_minscore=user_data.get("feedlist_minscore"),

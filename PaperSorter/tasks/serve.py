@@ -57,6 +57,11 @@ class ServeCommand(BaseCommand):
             '--skip-authentication',
             help='Skip OAuth authentication and auto-login as specified admin user (DEVELOPMENT ONLY)'
         )
+        parser.add_argument(
+            '--demo-mode',
+            action='store_true',
+            help='Grant admin privileges to all users (DEMONSTRATION ONLY)'
+        )
 
     def handle(self, args: argparse.Namespace, context) -> int:
         """Execute the serve command."""
@@ -69,7 +74,8 @@ class ServeCommand(BaseCommand):
                 debug=args.debug,
                 log_file=args.log_file,
                 quiet=args.quiet,
-                skip_authentication=args.skip_authentication
+                skip_authentication=args.skip_authentication,
+                demo_mode=args.demo_mode
             )
             return 0
         except Exception as e:
@@ -80,7 +86,7 @@ class ServeCommand(BaseCommand):
 registry.register(ServeCommand)
 
 
-def main(config, host, port, debug, log_file, quiet, skip_authentication):
+def main(config, host, port, debug, log_file, quiet, skip_authentication, demo_mode=False):
     """Serve web interface for article labeling and other tasks."""
 
     if skip_authentication:
@@ -88,9 +94,14 @@ def main(config, host, port, debug, log_file, quiet, skip_authentication):
             f"⚠️  AUTHENTICATION BYPASS ENABLED for user '{skip_authentication}' - DEVELOPMENT USE ONLY!"
         )
 
+    if demo_mode:
+        log.warning(
+            "⚠️  DEMO MODE ENABLED: All users have admin privileges! - DEMONSTRATION USE ONLY!"
+        )
+
     log.info(f"Starting web server on {host}:{port}")
 
-    app = create_app(config, skip_authentication=skip_authentication)
+    app = create_app(config, skip_authentication=skip_authentication, demo_mode=demo_mode)
 
     # Run the Flask app
     app.run(host=host, port=port, debug=debug)
