@@ -103,14 +103,17 @@ function formatDate(timestamp, format, timezone) {
     const day = String(parseInt(day2, 10));
 
     // Token replacement
-    let formatted = String(format);
-    formatted = formatted.replace('YYYY', year);
-    formatted = formatted.replace('MMM', monthShort);
-    formatted = formatted.replace('MM', month2);
-    formatted = formatted.replace('M', month);
-    formatted = formatted.replace('DD', day2);
-    formatted = formatted.replace('D', day);
-    return formatted;
+    const tokenValues = {
+        YYYY: year,
+        MMM: monthShort,
+        MM: month2,
+        M: month,
+        DD: day2,
+        D: day
+    };
+
+    // Replace tokens in one pass to avoid re-touching literal text (e.g., "Dec")
+    return String(format).replace(/YYYY|MMM|MM|DD|M|D/g, (token) => tokenValues[token] || token);
 }
 
 /**
