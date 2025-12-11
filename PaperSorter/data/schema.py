@@ -275,6 +275,12 @@ INDEXES = [
     {"name": "idx_preferences_user_id", "table": "preferences", "columns": ["user_id"]},
     {"name": "idx_preferences_score", "table": "preferences", "columns": ["score"]},
     {"name": "idx_preferences_time", "table": "preferences", "columns": ["time"]},
+    # Predicted preferences indexes
+    {
+        "name": "idx_predpref_model_score_feed",
+        "table": "predicted_preferences",
+        "columns": ["model_id", "score DESC", "feed_id"],
+    },
 
     # Events indexes
     {"name": "idx_events_occurred", "table": "events", "columns": ["occurred"]},

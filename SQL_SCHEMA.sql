@@ -590,6 +590,10 @@ CREATE INDEX idx_labeling_sessions_score ON papersorter.labeling_sessions USING 
 
 
 
+CREATE INDEX idx_predpref_model_score_feed ON papersorter.predicted_preferences USING btree (model_id, score DESC, feed_id);
+
+
+
 CREATE INDEX idx_preferences_score ON papersorter.preferences USING btree (score);
 
 
@@ -681,6 +685,5 @@ ALTER TABLE ONLY papersorter.saved_searches
 
 ALTER TABLE ONLY papersorter.users
     ADD CONSTRAINT users_primary_channel_fk FOREIGN KEY (primary_channel_id) REFERENCES papersorter.channels(id) ON DELETE SET NULL;
-
 
 
